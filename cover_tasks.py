@@ -44,11 +44,29 @@ def claim(now=None):
     with app.db() as con:
         table(con);con.execute('BEGIN IMMEDIATE')
         scope,args=app.scope_filter(app.live_root())
-        row=con.execute("SELECT comics.* FROM comics JOIN cover_tasks USING(path) WHERE "+scope+" AND comics.status NOT IN ('absent','error','unsupported') AND (cover_tasks.state='pending' OR (cover_tasks.state='retry_wait' AND cover_tasks.updated<?)) ORDER BY cover_tasks.updated LIMIT 1",(*args,now-86400)).fetchone()
-        if not row:return None
-        row=dict(row)
-        con.execute("UPDATE cover_tasks SET state='searching',updated=?,detail='Searching cover in browser' WHERE path=?",(now,row['path']))
-        return row
+        rows=con.execute("SELECT comics.*,cover_tasks.signature AS task_signature FROM comics JOIN cover_tasks USING(path) WHERE "+scope+" AND comics.status NOT IN ('absent','error','unsupported') AND (cover_tasks.state='pending' OR (cover_tasks.state='retry_wait' AND cover_tasks.updated<?)) ORDER BY cover_tasks.updated LIMIT 20",(*args,now-86400)).fetchall()
+        import discovery_state
+        discovery_state.initialize(con)
+        for row in rows:
+            row=dict(row);signature=[row['size'],row['mtime']]
+            if json.loads(row.pop('task_signature'))!=signature:
+                con.execute("UPDATE cover_tasks SET state='stale',updated=?,detail='Archive changed since this search was queued.' WHERE path=?",(now,row['path']))
+                continue
+            known=con.execute('SELECT value FROM discovery_records WHERE path=?',(row['path'],)).fetchone()
+            known=json.loads(known[0]) if known else {}
+            if known.get('signature')==signature and known.get('outcome') in {'current','queued','publisher_issue_found','web_issue_found'}:
+                con.execute("UPDATE cover_tasks SET state='not_needed',updated=?,detail='Identity already found through another source.' WHERE path=?",(now,row['path']))
+                continue
+            con.execute("UPDATE cover_tasks SET state='searching',updated=?,detail='Searching cover in browser' WHERE path=?",(now,row['path']))
+            return row
+        return None
+
+
+def identified(row):
+    """Cancel an outstanding search after another source verifies issue identity."""
+    with app.db() as con:
+        table(con)
+        con.execute("UPDATE cover_tasks SET state='not_needed',updated=?,detail='Identity verified through another source; reverse search is unnecessary.' WHERE path=? AND state IN ('pending','retry_wait','searching')",(time.time(),row['path']))
 
 
 def finish(row,state,detail):

@@ -232,9 +232,14 @@ def discover(root):
                             external=research.resolve_leads(row,old,hint)
                             if external:outcome='web_issue_found'
                     except Exception as exc:lookup_error=(lookup_error or '')+'; image search: '+str(exc)
+        if external:
+            import cover_tasks
+            cover_tasks.identified(row)
         if issue:
             identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
             if identity_matches(identity, issue):
+                import cover_tasks
+                cover_tasks.identified(row)
                 if not external and issue.get('description'):
                     from html import unescape
                     external={'provider':'ComicVine','fields':{},'sources':[{'url':issue.get('site_detail_url') or old.get('Web',''),'title':issue.get('name') or identity['Series'],'text':unescape(re.sub('<[^>]+>',' ',issue['description'])),'scope':'Verified issue identity'}]}

@@ -14,6 +14,30 @@ from test_worker import scratch_directory
 
 
 class BrowserSearchTests(unittest.TestCase):
+    def test_identified_comic_with_missing_synopsis_is_not_reverse_searched(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'live_root',return_value=d):
+            import discovery_state
+            path=str(Path(d)/'known.cbz')
+            with app.db() as con:con.execute("INSERT INTO comics(path,size,mtime,metadata,status) VALUES(?,1,2,'{}','missing')",(path,))
+            row={'path':path,'size':1,'mtime':2};cover_tasks.enqueue(row)
+            discovery_state.save_one(path,{'signature':[1,2],'outcome':'current'})
+            self.assertIsNone(cover_tasks.claim())
+            with app.db() as con:self.assertEqual(con.execute('SELECT state FROM cover_tasks').fetchone()[0],'not_needed')
+
+    def test_old_queue_signature_is_discarded_before_upload(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'live_root',return_value=d):
+            path=str(Path(d)/'changed.cbz')
+            cover_tasks.enqueue({'path':path,'size':1,'mtime':2})
+            with app.db() as con:con.execute("INSERT INTO comics(path,size,mtime,metadata,status) VALUES(?,3,4,'{}','missing')",(path,))
+            self.assertIsNone(cover_tasks.claim())
+            with app.db() as con:self.assertEqual(con.execute('SELECT state FROM cover_tasks').fetchone()[0],'stale')
+
+    def test_later_identity_match_cancels_waiting_reverse_search(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'):
+            row={'path':str(Path(d)/'comic.cbz'),'size':1,'mtime':2}
+            cover_tasks.enqueue(row);cover_tasks.identified(row)
+            self.assertEqual(cover_tasks.status(),{'not_needed':1})
+
     def test_search_navigation_and_unsafe_links_are_not_candidates(self):
         rows=browser_search.normalize_links([
             {'url':'https://www.google.com/search?q=comic'},

@@ -37,6 +37,9 @@ def process(row,browser,options):
     import automatic
     if not automatic.language_eligible(row,old):
         cover_tasks.finish(row,'excluded_language','Outside the English-language scope.');return
+    with app.db() as con:
+        task=con.execute('SELECT state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
+    if task and task[0]=='not_needed':return
     search.status(state='searching',current=path.name,detail='Searching the cover; candidate links will be verified before any metadata write.')
     data=search.cover_bytes(path);key,leads=search.cached(data)
     provider='cache'
@@ -65,6 +68,9 @@ def process(row,browser,options):
     stat=path.stat()
     if [stat.st_size,stat.st_mtime_ns]!=[row['size'],row['mtime']]:
         cover_tasks.finish(row,'stale','Archive changed during search; results were not applied.');return
+    with app.db() as con:
+        task=con.execute('SELECT state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
+    if task and task[0]=='not_needed':return
     if leads:
         cover_tasks.record(row,leads)
         search.status(state='candidates_saved',provider=provider,detail=str(len(leads))+' candidate links saved for automatic identity verification.')

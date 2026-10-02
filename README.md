@@ -40,6 +40,8 @@ The dashboard shows the configured live scope, working/waiting state, unresolved
 
 ## Automatic cover search
 
+Reverse-image searches are an identity fallback after database, publisher and web/wiki lookups fail to identify the comic. Missing a synopsis alone does not trigger a reverse search. Outstanding requests are cancelled when another source identifies the comic; stale archive requests are discarded before uploading.
+
 Automatic browser cover search is available through `browser_search.enabled`. The independent supervised worker uses Playwright and installed Microsoft Edge (`channel: "msedge"`), with a dedicated profile under `data/lens-profile`. Normal searches run in the background. Only the first archive image is uploaded as a resized cover; archive filenames, folder paths and interior pages are not uploaded.
 
 Searches are paced at least 30 seconds apart (60 by default), capped at 100 attempts per UTC day by default, and successful results are cached for 30 days. Changed archives are rejected. If Google requests human verification, use **Open browser verification** on the dashboard and complete it yourself in the dedicated window. The worker observes completion and resumes; it does not solve challenges or spoof fingerprints. Other metadata processing continues.
