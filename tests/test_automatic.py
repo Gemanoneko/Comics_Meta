@@ -2,6 +2,17 @@ import unittest
 import automatic
 
 class IdentityTests(unittest.TestCase):
+    def test_known_non_english_comics_are_skipped_but_unknown_language_remains_eligible(self):
+        self.assertFalse(automatic.language_eligible({'path':'comic.cbz'},{'LanguageISO':'fr'}))
+        self.assertFalse(automatic.language_eligible({'path':'comic (German).cbz'},{}))
+        self.assertTrue(automatic.language_eligible({'path':'comic.cbz'},{'LanguageISO':'en-US'}))
+        self.assertTrue(automatic.language_eligible({'path':'comic.cbz'},{}))
+
+    def test_primary_issue_credit_does_not_tag_variant_cover_artist(self):
+        fields=automatic.verified_issue_fields({'volume':{'name':'Example'},'issue_number':'1','person_credits':[{'name':'Primary cover artist','role':'cover'},{'name':'Story writer','role':'writer'}]})
+        self.assertNotIn('CoverArtist',fields)
+        self.assertEqual(fields['Writer'],'Story writer')
+
     def test_ambiguous_or_wrong_publisher_rejected(self):
         v = {'name':'Threshold','publisher':{'name':'Avatar Press'},'id':1}
         self.assertEqual(automatic.unique_volume([v],'Threshold','Avatar Press'),v)

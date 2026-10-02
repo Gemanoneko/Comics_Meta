@@ -1,6 +1,6 @@
 # Synopsis requirements
 
-User-approved project requirement: when a comic has no usable official or other sourced synopsis, generate a short, spoiler-free teaser from verified content in that exact issue or edition.
+User-approved project requirement: when a comic has no usable synopsis, create a short, spoiler-free teaser from verified internet information about that exact issue or edition. Never infer its story from archive pages.
 
 ## Source order
 
@@ -13,7 +13,7 @@ User-approved project requirement: when a comic has no usable official or other 
 
 - English; normally one paragraph of about 60–100 words, shorter when the available premise is simple.
 - Match the user's Chaotica example: introduce the protagonist, setting, motivation, opening problem, and stakes; leave the resolution open.
-- Use information established in the opening setup. Reading later pages may help verify facts, but does not make later events safe to disclose.
+- Use information established in the opening setup described by internet sources. Archive story inference is disabled.
 - Do not disclose twists, hidden identities, betrayals, surprise appearances, deaths, victories, defeats, solutions, endings, or cliffhanger revelations.
 - Avoid naming a later destination, encounter, or mission unless it is clearly established in the opening setup or promotional premise.
 - Do not tease a spoiler indirectly with phrases such as 'but their trusted ally has a secret'.
@@ -29,4 +29,4 @@ User-approved project requirement: when a comic has no usable official or other 
 - Preserve an existing nonempty synopsis by default; changing it requires a deliberate reviewed update.
 - Apply the same rule when rescanning newly added comics. Record unresolved cases instead of forcing a summary.
 
-This is the agreed requirement for the future automatic enrichment worker. The present pilot uses assistant research and reading; it does not yet run an unattended synopsis generator.
+Automatic synopses now select a literal, contiguous English narrative excerpt from a verified internet source and run a separate spoiler/claim review. Paraphrases that change relationships are not automatically written. Agent-reviewed compositions remain distinguishable in provenance. No archive story reading is used.

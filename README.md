@@ -28,11 +28,11 @@ Install Ollama and download the optional model:
 ollama pull gemma3:4b
 ```
 
-Gemma reads cover identification text and drafts or checks spoiler-free synopses using internet evidence. Archive story inference is disabled. Cover hints alone do not authorize metadata writes.
+Gemma reads cover identification text and selects exact narrative excerpts and checks them for spoilers using internet evidence. Archive story inference is disabled. Cover hints alone do not authorize metadata writes.
 
 ## Automatic processing
 
-The scheduler progresses folder by folder, checks new or changed files, persists retries and uses a serial write queue. The service retries an exited worker every 30 seconds; its lock prevents concurrent writers. Interrupted writes are flagged for inspection instead of blindly replayed.
+The scheduler progresses folder by folder, checks new or changed files, persists retries and uses a serial write queue. Library traversal is checkpointed in small steps, so discovered folders can be processed before the entire tree has been inventoried. The service retries an exited worker every 30 seconds; its lock prevents concurrent writers. Interrupted writes are flagged for inspection instead of blindly replayed.
 
 ComicVine, Metron, GCD, Google Books and publisher/web research are supported. Open Library uses an optional local dump index. See [source connectors](SOURCE_CONNECTORS.md) and [synopsis policy](SYNOPSIS_POLICY.md).
 

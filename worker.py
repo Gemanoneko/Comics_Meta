@@ -94,9 +94,17 @@ def main():
                 try:
                     import automatic as discovery
                     import scheduler
-                    folder = scheduler.select(automatic.get('library_root',automatic['root']))
+                    root=automatic.get('library_root',automatic['root'])
+                    def inventory_progress(visited,found):
+                        batch.progress(phase='Inventorying live folders',current_folder=root,
+                                       detail=str(visited)+' directories visited; '+str(found)+' comic folders found. No archives are changed during this step.')
+                    folder = scheduler.select(root,on_progress=inventory_progress)
                     if not folder:
                         state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
+                        if state.get('inventory_pending'):
+                            next_discovery=0
+                            time.sleep(2)
+                            continue
                         waiting=[v for v in state.get('folders',{}).values() if v.get('state')=='retry_wait']
                         batch.progress(phase='Automatic lookup waiting' if waiting else 'Waiting for delta scan',detail=(str(len(waiting))+' folders waiting to retry earlier failures.' if waiting else 'Scheduled folder passes finished; watching for new or changed files.'))
                         due=[v.get('next_scan',0) for v in state.get('folders',{}).values()]

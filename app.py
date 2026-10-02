@@ -413,24 +413,19 @@ class Handler(BaseHTTPRequestHandler):
                                    'running':sum(t['state']=='running' for t in tickets),
                                    'complete':sum(t['state']=='complete' for t in tickets),
                                    'attention':[{'folder':t['folder'],'error':t.get('error','')} for t in tickets if t['state']=='needs_attention']}
-                automatic_state = DATA / 'automatic.json'
-                records = json.loads(automatic_state.read_text(encoding='utf-8')).get('checked',{}) if automatic_state.exists() and automatic_state.stat().st_size<10*1024*1024 else {}
-                outcomes = {}
-                prefix = str(Path(live_root())).rstrip('\\/') + os.sep if live_root() else ''
-                for path, record in records.items():
-                    if prefix and not path.casefold().startswith(prefix.casefold()):
-                        continue
-                    key = record.get('outcome','unknown')
-                    outcomes[key] = outcomes.get(key,0)+1
-                result['research'] = outcomes
+                import discovery_state
+                result['research'] = discovery_state.counts(live_root())
                 result['live_root'] = live_root()
+                import cover_tasks
+                result['cover_research'] = cover_tasks.status()
                 import providers
                 result['providers'] = providers.statuses()
                 folders_path=DATA/'folders.json'
                 if folders_path.exists():
-                    scheduled=json.loads(folders_path.read_text(encoding='utf-8')).get('folders',{})
+                    folder_state=json.loads(folders_path.read_text(encoding='utf-8'))
+                    scheduled=folder_state.get('folders',{})
                     result['folders']={'total':len(scheduled),'passes_complete':sum(v.get('state')=='pass_complete' for v in scheduled.values()),'retry_wait':sum(v.get('state')=='retry_wait' for v in scheduled.values()),
-                                       'next_scan_at':min((v.get('next_scan',0) for v in scheduled.values()),default=None)}
+                                       'next_scan_at':min((v.get('next_scan',0) for v in scheduled.values()),default=None),'inventory_pending':bool(folder_state.get('inventory_pending')),'directories_visited':folder_state.get('inventory_visited',0)}
                 return self.respond(result)
             if url.path == '/api/comics':
                 search = args.get('q', [''])[0]

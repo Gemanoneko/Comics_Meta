@@ -126,7 +126,7 @@ def gcd_lookup(row,old):
         series_url=urllib.parse.urlparse(detail.get('series',''))
         if series_url.hostname!='www.comics.org' or not re.fullmatch(r'/api/series/\d+/',series_url.path):continue
         series_data=request('gcd',series_url.path)
-        if research.normalize(series_data.get('name'))!=research.normalize(series):continue
+        if research.series_key(series_data.get('name'))!=research.series_key(series):continue
         if research.issue_number(detail.get('number'))!=research.issue_number(number):continue
         if detail.get('key_date') and not str(detail['key_date']).startswith(year):continue
         try:

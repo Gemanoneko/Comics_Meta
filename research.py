@@ -33,24 +33,48 @@ def fetch(url):
 def normalize(value):
     return re.sub(r'[^a-z0-9]', '', str(value).lower())
 
+
+def series_key(value):
+    return normalize(re.sub(r"^Brian Pulido['’]s\s+",'',str(value),flags=re.I))
+
 def query_identity(row, old):
     series = old.get('Series') or row.get('series') or ''
     number = old.get('Number') or row.get('number') or ''
     # Chapter filenames supply the subtitle; do not confuse chapter with issue number.
     chapter = re.search(r'\(Chapter\s+\d+\)\s*-\s*(.*?)\s+\d+\s*\(\d{4}\)', Path(row['path']).stem, re.I)
     if chapter and normalize(chapter.group(1)) not in normalize(series):
-        series += ': ' + chapter.group(1)
+        subtitle=chapter.group(1)
+        if normalize(subtitle).startswith(normalize(series)):
+            title=old.get('Title','')
+            series=title if normalize(title).startswith(normalize(series)) and not re.search(r'\bchapter\b',title,re.I) else subtitle
+        else:series += ': ' + subtitle
     return series, str(number)
 
 def product_matches(title, series, number):
-    match = re.match(r'^(.*?)\s*#\s*(\d+[A-Za-z]?)\b', title)
-    return bool(match and normalize(match[1]) == normalize(series)
+    title=re.sub(r'^(?:GCD\s*::\s*Issue\s*::\s*)','',title)
+    match = re.match(r'^(.*?)\s*#\s*(\d+(?:\.\d+)?[A-Za-z]?)\b', title)
+    name=re.sub(r'\s*\([^)]*\b(?:19|20)\d{2}\b[^)]*\)\s*',' ',match[1]) if match else ''
+    name=re.sub(r"^Brian Pulido['’]s\s+",'',name,flags=re.I)
+    return bool(match and normalize(name) == normalize(series)
                 and issue_number(match[2]) == issue_number(number))
 
 def issue_number(value):
-    value=normalize(value)
-    match=re.fullmatch(r'(\d+)([a-z]?)',value)
-    return str(int(match[1]))+match[2] if match else value
+    value=str(value).strip().lower()
+    match=re.fullmatch(r'(\d+(?:\.\d+)?)([a-z]?)',value)
+    if match:
+        from decimal import Decimal
+        return format(Decimal(match[1]).normalize(),'f')+match[2]
+    return normalize(value)
+
+
+def publisher_hint(row,old,cover_hint=None):
+    if old.get('Publisher'):return old['Publisher']
+    aliases={'avatar':'Avatar Press','avatarpress':'Avatar Press','coffin':'Coffin Comics','coffincomics':'Coffin Comics','image':'Image Comics','imagecomics':'Image Comics','marvel':'Marvel','marvelcomics':'Marvel','dc':'DC Comics','dccomics':'DC Comics'}
+    hint=aliases.get(normalize((cover_hint or {}).get('publisher') or ''))
+    if hint:return hint
+    path=row.get('path','').lower()
+    if '(avatar)' in path or '!avatar press' in path:return 'Avatar Press'
+    return ''  # A folder hint must still agree with the external source.
 
 def publisher_lookup(row, old):
     approved=app.DATA/'verified-sources.json'
@@ -114,18 +138,74 @@ def wiki_candidates(row, old):
         'action':'query','list':'search','srsearch':series+' comics','srlimit':3,'format':'json'})
     result = fetch(url)
     # Discovery only: a series article does not establish this issue's identity.
-    return [{'title':r['title'],'url':'https://en.wikipedia.org/?curid='+str(r['pageid']),
-             'scope':'Series candidate; issue not verified'} for r in result.get('query',{}).get('search',[])]
+    return [{'title':r['title'],'pageid':r['pageid'],'url':'https://en.wikipedia.org/?curid='+str(r['pageid']),
+             'scope':'Series candidate; issue not verified'} for r in result.get('query',{}).get('search',[]) if normalize(series) in normalize(r['title'])]
+
+
+def verify_web_source(row,old,source,cover_hint=None,require_cover=False):
+    """Reject broad series articles, wrong issues and discussion-only identity claims."""
+    series,number=query_identity(row,old)
+    publisher=publisher_hint(row,old,cover_hint)
+    host=urllib.parse.urlparse(source['url']).hostname or ''
+    if host=='reddit.com' or host.endswith('.reddit.com'):return None
+    titles=[source.get('title',''),*source.get('headings',[])]
+    if not any(product_matches(t,series,number) for t in titles):return None
+    body=source.get('identity_text') or source.get('text','')
+    if not publisher or normalize(publisher) not in normalize(body):return None
+    year=str(old.get('Year') or row.get('year') or '')
+    if year and not re.search(r'\b'+re.escape(year)+r'\b',body):return None
+    if require_cover:
+        import web_search,reverse_image,automatic
+        image=source.get('image')
+        if not image:return None
+        image=urllib.parse.urljoin(source['url'],image)
+        remote=web_search.read(image,binary=True)
+        local,_,_=reverse_image.cover(row['path'],0)
+        if not automatic.covers_agree(local,remote):return None
+    evidence=dict(source,scope='Exact issue, publisher and available year agree'+('; cover agrees' if require_cover else '; edition-specific facts excluded'))
+    return {'provider':'Verified web research','fields':{'Series':series,'Number':issue_number(number),'Publisher':publisher},'sources':[evidence],'identity':{'series':series,'number':number},'status':'web_issue_found'}
+
+
+def resolve_leads(row,old,cover_hint=None):
+    """Follow relevant wiki references and saved web/reverse-image results automatically."""
+    import web_search
+    target=CACHE/('evidence-'+hashlib.sha256(row['path'].encode()).hexdigest()+'.json')
+    evidence=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+    leads=list(evidence.get('web_candidates',[]))+list(evidence.get('reverse_image_matches',[]))
+    inspected=[];errors=[]
+    series,_=query_identity(row,old)
+    wiki=[c for c in evidence.get('wiki_candidates',[]) if normalize(series) in normalize(c.get('title',''))]
+    for candidate in wiki[:2]:
+        if not candidate.get('pageid'):continue
+        try:
+            url='https://en.wikipedia.org/w/api.php?'+urllib.parse.urlencode({'action':'query','prop':'extlinks','pageids':candidate['pageid'],'ellimit':20,'format':'json'})
+            payload=fetch(url)
+            for page in payload.get('query',{}).get('pages',{}).values():
+                for link in page.get('extlinks',[]):
+                    value=link.get('*') or link.get('url','')
+                    if value.startswith('https://'):leads.append({'url':value,'title':candidate['title']})
+        except ValueError as exc:errors.append(str(exc))
+    seen=set()
+    for lead in leads:
+        url=lead.get('url','')
+        if not url or url in seen:continue
+        seen.add(url)
+        if len(seen)>8:break
+        try:
+            source=web_search.source(url)
+            verified=verify_web_source(row,old,source,cover_hint,require_cover=True)
+            inspected.append({'url':url,'verified':bool(verified)})
+            if verified:
+                save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors})
+                return verified
+        except ValueError as exc:errors.append(str(exc))
+    save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors})
+    return None
 
 def general_lookup(row,old,cover_hint=None):
     import web_search
     series,number=query_identity(row,old)
-    publisher=old.get('Publisher') or ''
-    if not publisher:
-        aliases={'avatar':'Avatar Press','avatarpress':'Avatar Press','coffin':'Coffin Comics',
-                 'coffincomics':'Coffin Comics','image':'Image Comics','imagecomics':'Image Comics',
-                 'marvel':'Marvel','marvelcomics':'Marvel','dc':'DC Comics','dccomics':'DC Comics'}
-        publisher=aliases.get(normalize((cover_hint or {}).get('publisher') or ''),'')
+    publisher=publisher_hint(row,old,cover_hint)
     query='"'+series+'" #'+number+' '+publisher+' '+str(old.get('Year') or row.get('year') or '')+' comic synopsis'
     queries=[query]
     hint=(cover_hint or {}).get('search_query')
@@ -139,19 +219,9 @@ def general_lookup(row,old,cover_hint=None):
         for hit in hits[:3]:
             try:
                 source=web_search.source(hit['url'])
-                title=source['title']
-                # Remove common catalog prefixes, not meaningful series text.
-                title=re.sub(r'^(?:GCD\s*::\s*Issue\s*::\s*)','',title)
-                body=source['identity_text']
-                year=str(old.get('Year') or row.get('year') or '')
-                if not product_matches(title,series,number):continue
-                if not publisher or normalize(publisher) not in normalize(body):continue
-                if year and not re.search(r'\b'+re.escape(year)+r'\b',body):continue
-                # Discussion posts are leads, not sole identity proof.
-                host=urllib.parse.urlparse(source['url']).hostname or ''
-                if host=='reddit.com' or host.endswith('.reddit.com'):continue
-                source['scope']='Exact issue title, publisher and year agree; edition-specific facts excluded'
-                sources.append(source)
+                verified=verify_web_source(row,old,source,cover_hint)
+                if not verified:continue
+                sources.extend(verified['sources'])
                 break
             except ValueError as exc:errors.append(str(exc))
         if sources:break

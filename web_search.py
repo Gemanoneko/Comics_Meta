@@ -42,7 +42,7 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         validate_url(newurl)
         return super().redirect_request(req,fp,code,msg,headers,newurl)
 
-def read(url,headers=None):
+def read(url,headers=None,binary=False):
     validate_url(url)
     opener=urllib.request.build_opener(SafeRedirect())
     request=urllib.request.Request(url,headers=dict({'User-Agent':'ComicMetadataResearch/0.3'},**(headers or {})))
@@ -50,18 +50,19 @@ def read(url,headers=None):
         with opener.open(request,timeout=25) as response:
             raw=response.read(2_000_001)
             if len(raw)>2_000_000:raise ValueError('Source response too large.')
-            return raw.decode('utf-8',errors='replace')
+            return raw if binary else raw.decode('utf-8',errors='replace')
     except Exception as exc:
         # URLs or headers must never leak a credential in a dashboard error.
         raise SearchBlocked('Web source unavailable or blocked; no bypass attempted.') from None
 
 class Page(HTMLParser):
     def __init__(self):
-        super().__init__();self.text=[];self.title=[];self.in_title=False;self.hidden=0;self.links=[];self.link=None;self.image=None;self.description=None
+        super().__init__();self.text=[];self.title=[];self.in_title=False;self.hidden=0;self.links=[];self.link=None;self.image=None;self.description=None;self.headings=[];self.heading=None
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if tag in ('script','style','noscript'):self.hidden+=1
         if tag=='title':self.in_title=True
+        if tag=='h1':self.heading=''
         if tag=='meta' and a.get('property')=='og:image':self.image=a.get('content')
         if tag=='meta' and (a.get('name')=='description' or a.get('property')=='og:description'):
             self.description=a.get('content')
@@ -70,11 +71,13 @@ class Page(HTMLParser):
     def handle_endtag(self,tag):
         if tag in ('script','style','noscript'):self.hidden=max(0,self.hidden-1)
         if tag=='title':self.in_title=False
+        if tag=='h1' and self.heading is not None:self.headings.append(self.heading);self.heading=None
         if tag=='a' and self.link:self.links.append(self.link);self.link=None
     def handle_data(self,data):
         if self.hidden:return
         self.text.append(data)
         if self.in_title:self.title.append(data)
+        if self.heading is not None:self.heading+=data
         if self.link:self.link['title']+=data
 
 def cached(query):
@@ -129,7 +132,13 @@ def search(query):
         raise
 
 def source(url):
+    cache_key='web-source:'+url
+    with app.db() as con:
+        cached=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
+    if cached:return json.loads(cached['value'])
     page=Page();page.feed(read(url))
-    return {'url':url,'title':' '.join(page.title),'text':re.sub(r'\s+',' ',page.description or ' '.join(page.text))[:12000],
+    result={'url':url,'title':' '.join(page.title),'headings':page.headings,'text':re.sub(r'\s+',' ',page.description or ' '.join(page.text))[:12000],
             'identity_text':re.sub(r'\s+',' ',' '.join(page.text))[:24000],
             'image':page.image,'retrieved':time.time(),'scope':'Web candidate; identity must be verified'}
+    with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
+    return result

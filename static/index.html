@@ -34,7 +34,7 @@ $('queueAttention').replaceChildren(...(q.attention||[]).map(t=>node('p','Your h
 $('liveProgress').textContent=waiting?(next?'Next folder check: '+next:'Watching for new or changed comics'):(p.current_folder||'Selecting next folder');
 $('liveDetail').textContent=waiting?'Folder checks can finish while metadata research is still unresolved. No manual review is required unless a request appears above.':p.detail||'Checking the live library.';
 const unresolved=(r.wiki_candidates_found||0)+(r.needs_identity_lookup||0)+(r.identity_conflict||0);
-$('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' folders checked this pass · '+unresolved+' comics still need research. A checked folder is not a completeness guarantee.';
+$('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' folders checked this pass'+(f.inventory_pending?' · discovering folders ('+(f.directories_visited||0)+' directories visited)':'')+' · '+unresolved+' comics still need research · '+(p.cover_research?.pending||0)+' browser cover searches queued. A checked folder is not a completeness guarantee.';
 $('completedBatches').replaceChildren(...(p.completed||[]).map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));
 $('updatedAt').textContent=p.timestamp?'Last activity: '+new Date(p.timestamp).toLocaleString():'';
 }catch(e){$('queueStatus').textContent='Cannot reach the local service';$('liveProgress').textContent='Status unavailable';}}
@@ -57,6 +57,3 @@ $('rescan').onclick=async()=>{try{await request('scan',{});await state()}catch(e
 $('filter').onclick=()=>{offset=0;load()};$('query').onkeydown=e=>{if(e.key==='Enter'){offset=0;load()}};$('status').onchange=()=>{offset=0;load()};$('previous').onclick=()=>{offset=Math.max(0,offset-100);load()};$('next').onclick=()=>{offset+=100;load()};
 state();load();progress();setInterval(()=>{state();progress()},2000);
 </script><script src="/reverse-image.js"></script></html>
-
-
-

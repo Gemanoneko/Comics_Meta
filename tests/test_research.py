@@ -37,8 +37,8 @@ class PublisherTests(unittest.TestCase):
 
     def test_source_backed_draft_accepted(self):
         import local_model
-        source={'url':'https://example.org','text':'A rebel confronts the queen.'}
-        draft={'summary':'A '*25,'sufficient':True,'narrative':True,'evidence':[source['text']]}
+        source={'url':'https://example.org','text':'A rebel confronts the queen in a city where rival factions compete for power, while a mysterious visitor offers a dangerous bargain.'}
+        draft={'summary':source['text'],'sufficient':True,'narrative':True,'evidence':[source['text']]}
         review={'supported':True,'spoiler_free':True,'narrative':True,'claims':[{'supported':True,'quote':source['text']}]}
         with patch.object(local_model,'chat',side_effect=[draft,review]):
             self.assertEqual(local_model.sourced_synopsis([source])['sources'],[source['url']])

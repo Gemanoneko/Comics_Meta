@@ -96,13 +96,13 @@ def lookup(row, old):
     # A truncated candidate list cannot establish uniqueness.
     if payload.get('next'):
         return None
-    matches = [i for i in payload.get('results', []) if research.normalize((i.get('series') or {}).get('name'))==research.normalize(series)
+    matches = [i for i in payload.get('results', []) if research.series_key((i.get('series') or {}).get('name'))==research.series_key(series)
                and research.issue_number(i.get('number'))==research.issue_number(number)
                and str(i.get('cover_date') or '').startswith(str(year)+'-')]
     if len(matches)!=1:
         return None
     detail = request('issue/'+str(int(matches[0]['id']))+'/')
-    if research.normalize((detail.get('series') or {}).get('name')) != research.normalize(series) or research.issue_number(detail.get('number')) != research.issue_number(number):
+    if research.series_key((detail.get('series') or {}).get('name')) != research.series_key(series) or research.issue_number(detail.get('number')) != research.issue_number(number):
         return None
     url = detail.get('image') or ''
     parsed = urllib.parse.urlparse(url)

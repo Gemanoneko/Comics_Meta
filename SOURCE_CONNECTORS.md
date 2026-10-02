@@ -24,10 +24,20 @@ The importer streams compressed data and retains only current catalog title/ISBN
 
 ## Validation and current scope
 
-46 automated checks passed, including wrong-issue rejection, edition ambiguity, redirect refusal, local ISBN/work linkage, synopsis write/read-back, archive-content preservation and verified-backup cleanup. GCD and Google Books also returned real API JSON through these connectors.
+62 automated checks passed, including wrong-issue rejection, edition ambiguity, redirect refusal, local ISBN/work linkage, synopsis write/read-back, archive-content preservation, verified-backup cleanup and checkpointed folder traversal. GCD and Google Books also returned real API JSON through these connectors.
 
-Processing remains scoped to `Y:\Comix\!Coffin Comics`. This release has not yet demonstrated a newly discovered GCD or Google Books match being written to a live archive, or a new synopsis displayed in YACReader. The write-and-read-back regression check uses an isolated test archive.
+Initial validation used `Y:\Comix\!Coffin Comics`. The user has since confirmed a live synopsis in YACReader and authorized broader rollout. A newly discovered GCD or Google Books live write has not yet been demonstrated. The write-and-read-back regression check uses an isolated test archive.
 
 The oversized automatic lookup cache was rebuilt from 49 recoverable records. Comic archives and source evidence were retained. Cache reads now have a size guard, per-file errors are bounded, and queue/storage errors cannot silently end the worker's main loop.
 
 The server now supervises the worker and retries an exited process every 30 seconds. The queue lock prevents concurrent writers; interrupted writes remain flagged for inspection. The dashboard reports the next folder check time.
+
+## Lead resolution and cover research
+
+Saved web results and relevant Wikipedia external references are followed automatically. Unrelated wiki hits are discarded. Issue identity checks reject broad series pages, wrong issue numbers and Reddit-only identity claims. Cover verification compares layout and edges to tolerate scan brightness, in addition to the existing pixel check. Fractional issue numbers remain distinct.
+
+Unresolved cover searches are persisted in the catalog. Configured TinEye requests can run unattended; free Google Lens requires an active browser research session. Lens candidates enter the ordinary verifier and do not directly authorize writes. General free search can still be blocked or capped.
+
+Per-file research state now lives in SQLite and is loaded one folder at a time. Legacy JSON state is migrated once. A 25,000-record regression check verifies that only the current folder is loaded.
+
+A live Lady Death / Shi #1 commemorative cover was found through Google Lens, independently compared with its catalog cover, and paired with the exact ComicVine issue. Issue-wide credits and an agent-reviewed internet synopsis were written and read back successfully; verified backups were removed. The user confirmed the synopsis appears correctly in YACReader. Folder-by-folder rollout is now configured for Y:\Comix; explicitly non-English comics are skipped, while unknown languages are not guessed.

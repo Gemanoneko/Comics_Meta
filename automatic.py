@@ -11,14 +11,28 @@ import urllib.request
 import urllib.parse
 import reverse_image
 import research
+import discovery_state
 
-MATCHER_VERSION = 8
+MATCHER_VERSION = 9
 
 def normalized(value):
     return re.sub(r'[^a-z0-9]', '', str(value).lower())
 
+
+def verified_issue_fields(issue):
+    fields=app.metadata_from_issue(issue)
+    fields.pop('Summary',None)  # Separate narrative and spoiler review.
+    fields.pop('CoverArtist',None)  # A primary issue ID does not identify every variant cover.
+    return fields
+
+
+def language_eligible(row,old):
+    language=str(old.get('LanguageISO') or '').strip().lower().replace('_','-').split('-')[0]
+    if language and language not in ('en','eng','english'):return False
+    return not re.search(r'\((?:fr|french|de|german|es|spanish|it|italian|ru|russian|jp|japanese)\)',Path(row['path']).name,re.I)
+
 def unique_volume(candidates, series, publisher):
-    matches = [v for v in candidates if normalized(v.get('name')) == normalized(series)
+    matches = [v for v in candidates if research.series_key(v.get('name')) == research.series_key(series)
                and publisher and normalized((v.get('publisher') or {}).get('name')) == normalized(publisher)]
     return matches[0] if len(matches) == 1 else None
 
@@ -27,14 +41,26 @@ def covers_agree(local, remote):
     with Image.open(io.BytesIO(local)) as a, Image.open(io.BytesIO(remote)) as b:
         if abs(a.width / a.height - b.width / b.height) > .08:
             return False
+        grey_a=list(a.convert('L').resize((32,48)).tobytes())
+        grey_b=list(b.convert('L').resize((32,48)).tobytes())
         a = ImageOps.autocontrast(a.convert('RGB').resize((96, 144)))
         b = ImageOps.autocontrast(b.convert('RGB').resize((96, 144)))
-        return sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3 < 12
+        if sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3 < 12:return True
+        # Scanned covers can have very different printing/brightness from catalog images.
+        # Require agreement in both overall layout and fine structure; flat images fail.
+        from math import sqrt
+        def correlation(x,y):
+            mx=sum(x)/len(x);my=sum(y)/len(y)
+            vx=sum((v-mx)**2 for v in x);vy=sum((v-my)**2 for v in y)
+            if min(vx,vy)/len(x)<25:return 0
+            return sum((u-mx)*(v-my) for u,v in zip(x,y))/sqrt(vx*vy)
+        edges=lambda values:[values[i+1]-values[i] for i in range(len(values)-1) if i%32!=31]
+        return correlation(grey_a,grey_b)>.94 and correlation(edges(grey_a),edges(grey_b))>.80
 
 def lookup_unidentified(row, old):
     series = old.get('Series') or row['series']
     number = old.get('Number') or row['number']
-    publisher = old.get('Publisher')
+    publisher = research.publisher_hint(row,old)
     year = old.get('Year') or row['year']
     if not series or not number or not publisher or not year:
         return None
@@ -67,7 +93,7 @@ STATE = app.DATA / 'automatic.json'
 def identity_matches(old, issue):
     def normalized(value):
         return re.sub(r'[^a-z0-9]', '', str(value).lower())
-    return (normalized(old.get('Series')) == normalized((issue.get('volume') or {}).get('name'))
+    return (research.series_key(old.get('Series')) == research.series_key((issue.get('volume') or {}).get('name'))
             and research.issue_number(old.get('Number')) == research.issue_number(issue.get('issue_number'))
             and bool(old.get('Series')) and bool(old.get('Number')))
 
@@ -81,9 +107,10 @@ def discover(root):
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
     app.scan([str(root)],recursive=False)
-    state = load_state()
+    state = discovery_state.load(root)
     with app.db() as con:
-        rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','unsupported') ORDER BY path")]
+        scope,args=app.scope_filter(root)
+        rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','unsupported') AND "+scope+' ORDER BY path',args)]
     checked = 0
     for row in rows:
         path = Path(row['path']).resolve()
@@ -91,7 +118,10 @@ def discover(root):
             continue
         signature = [row['size'], row['mtime']]
         previous = state['checked'].get(str(path), {})
-        if previous.get('version') == MATCHER_VERSION and previous.get('signature') == signature and previous.get('retry_at', 0) > time.time():
+        evidence_path=research.CACHE/('evidence-'+__import__('hashlib').sha256(str(path).encode()).hexdigest()+'.json')
+        saved=json.loads(evidence_path.read_text(encoding='utf-8')) if evidence_path.exists() else {}
+        new_cover_leads=saved.get('reverse_image_signature')==signature and previous.get('cover_leads')!=saved.get('reverse_image_matches')
+        if not new_cover_leads and previous.get('version') == MATCHER_VERSION and previous.get('signature') == signature and previous.get('retry_at', 0) > time.time():
             continue
         checked += 1
         if checked > 20:
@@ -100,6 +130,9 @@ def discover(root):
                        checked=checked, total=0, updated=0, review=0,
                        detail='Checking ' + path.name)
         old = json.loads(row['metadata'])
+        if not language_eligible(row,old):
+            discovery_state.save_one(path,{'version':MATCHER_VERSION,'signature':signature,'outcome':'excluded_language','retry_at':time.time()+30*86400})
+            continue
         match = re.search(r'https?://(?:www\.)?comicvine\.gamespot\.com/[^\s]*4000-(\d+)', old.get('Web', ''))
         outcome = 'needs_identity_lookup'
         retry = time.time() + 86400
@@ -111,6 +144,7 @@ def discover(root):
             issue = None
             batch.progress(phase='Automatic metadata lookup', detail='ComicVine lookup failed; trying publisher catalog for '+path.name)
         external = None
+        hint = None
         if not issue or not old.get('Summary'):
             try:
                 import metron
@@ -160,12 +194,15 @@ def discover(root):
                 try:
                     import local_model
                     hint=None
-                    if local_model.available():
+                    if saved.get('cover_signature')==signature:hint=saved.get('cover_identification')
+                    if not hint and local_model.available():
                         try:hint=local_model.identify_cover(path)
                         except Exception:pass  # A cover-reading failure must not block filename search.
-                    if hint:research.save_evidence(path,{'cover_identification':hint,'status':'search_hint_only'})
+                    if hint:research.save_evidence(path,{'cover_identification':hint,'cover_signature':signature,'status':'search_hint_only'})
+                    batch.progress(phase='Automatic metadata lookup',detail='Verifying saved web and wiki references for '+path.name)
+                    external=research.resolve_leads(row,old,hint)
                     batch.progress(phase='Automatic metadata lookup',detail='Searching the web for '+path.name)
-                    external=research.general_lookup(row,old,hint)
+                    if not external:external=research.general_lookup(row,old,hint)
                     if external:
                         research.save_evidence(path,external)
                         outcome='web_issue_found'
@@ -176,16 +213,32 @@ def discover(root):
                     candidates = research.wiki_candidates(row,old)
                     research.save_evidence(path,{'wiki_candidates':candidates,'status':'needs_issue_verification'})
                     if candidates:
-                        outcome = 'wiki_candidates_found'
+                        external=research.resolve_leads(row,old,hint)
+                        outcome = 'web_issue_found' if external else 'wiki_candidates_found'
+                        if external:research.save_evidence(path,external)
                 except Exception as exc:
                     lookup_error = (lookup_error or '') + '; wiki: ' + str(exc)
+            if not external:
+                import cover_tasks
+                cover_tasks.enqueue(row)
+                # Paid image APIs remain optional. Browser work is explicitly queued,
+                # rather than presenting a manual upload button as unattended search.
+                image_config=json.loads((app.BASE/'config.json').read_text(encoding='utf-8')).get('reverse_image',{})
+                if image_config.get('enabled'):
+                    try:
+                        result=reverse_image.search(row['path'],0)
+                        if result.get('matches'):
+                            cover_tasks.record(row,result['matches'])
+                            external=research.resolve_leads(row,old,hint)
+                            if external:outcome='web_issue_found'
+                    except Exception as exc:lookup_error=(lookup_error or '')+'; image search: '+str(exc)
         if issue:
             identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
             if identity_matches(identity, issue):
                 if not external and issue.get('description'):
                     from html import unescape
                     external={'provider':'ComicVine','fields':{},'sources':[{'url':issue.get('site_detail_url') or old.get('Web',''),'title':issue.get('name') or identity['Series'],'text':unescape(re.sub('<[^>]+>',' ',issue['description'])),'scope':'Verified issue identity'}]}
-                fields = app.metadata_from_issue(issue)
+                fields = verified_issue_fields(issue)
                 # Descriptions may contain plot outcomes. Synopsis review remains separate.
                 fields.pop('Summary', None)
                 try:
@@ -239,8 +292,8 @@ def discover(root):
                 retry = min(retry,time.time()+600)
         if lookup_error:
             retry = min(retry,time.time()+3600)
-        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'error':lookup_error[:2000] if lookup_error else None}
-        worker.save(STATE, state)
+        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'error':lookup_error[:2000] if lookup_error else None}
+        discovery_state.save_one(path,state['checked'][str(path)])
         if outcome == 'queued':
             return True
     batch.progress(phase='Automatic discovery complete', detail='Discovery checked this root. Unidentified comics remain pending further identity lookup; next delta scan in 10 minutes.')

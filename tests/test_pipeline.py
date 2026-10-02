@@ -9,6 +9,23 @@ import research
 from test_worker import scratch_directory
 
 class PipelineTests(unittest.TestCase):
+    def test_large_inventory_can_process_before_traversal_finishes_and_resume(self):
+        with scratch_directory() as d:
+            root=Path(d)
+            for i in range(70):
+                folder=root/('Folder'+str(i).zfill(3));folder.mkdir();(folder/'one.cbz').touch()
+            with patch.object(scheduler,'STATE',root/'state.json'):
+                first=scheduler.select(root)
+                self.assertIsNotNone(first)
+                state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
+                self.assertTrue(state['inventory_pending'])
+                self.assertLess(len(state['folders']),70)
+                scheduler.finish(first)
+                scheduler.select(root)
+                state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
+                self.assertFalse(state['inventory_pending'])
+                self.assertEqual(len(state['folders']),70)
+
     def test_folder_progress_and_restart(self):
         with scratch_directory() as d:
             root=Path(d);a=root/'A';b=root/'B';a.mkdir();b.mkdir()
