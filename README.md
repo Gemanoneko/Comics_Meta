@@ -50,6 +50,10 @@ Optional `SERPAPI_API_KEY` enables the configured SerpApi fallback when browser 
 
 ## Writes and recovery
 
+Use **Pause & release GPU** whenever you need the computer's resources, for games or other work. **Pausing** means the current operation is finishing; a comic write completes verification and backup cleanup before stopping. **Paused** means both workers have stopped processing. The dashboard separately confirms when Gemma has been unloaded from the GPU. Other applications and other Ollama models are unaffected.
+
+The pause setting survives service restarts. Queues, completed writes, research evidence and folder progress are retained. **Resume processing** continues the saved queue and loads Gemma again only when needed. A partially completed batch skips its verified archives after checking that they have not changed. Manual processing actions are blocked while paused. This is a manual control, with no automatic game detection.
+
 Only ZIP-backed CBZ archives are rewritten. Other formats are inventoried without modification. Existing populated fields are generally preserved; automatic correction of all existing fields is unfinished. Writes preserve page contents and verify the resulting XML and archive integrity. Verified automatic-write backups are removed; failed or interrupted writes retain recovery material.
 
 YACReader needs a **Rescan library for XML info** after metadata changes. The app does not directly edit YACReader's database.

@@ -4,7 +4,7 @@
 <style>
 :root{color-scheme:dark;font-family:Segoe UI,system-ui,sans-serif;background:#12151c;color:#e7eaf1}*{box-sizing:border-box}body{margin:0 auto;max-width:1450px;padding:32px}h1{font-size:30px;margin:0}h2{font-size:20px}p{color:#aab4c6;line-height:1.6}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}.badge{background:#24364c;padding:8px 14px;border-radius:24px;color:#bcd8f9}.panel{background:#1b202b;border:1px solid #303848;border-radius:14px;padding:22px;margin-bottom:20px}.flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}input,select,button{font:inherit;padding:10px 14px;border-radius:8px;border:1px solid #3c465a;background:#242c3b;color:#eef2fb}input{flex:1;min-width:180px}button{cursor:pointer;background:#385ea1}button:hover{background:#4776c6}button:disabled{opacity:.5;cursor:wait}table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #303848;padding:12px 9px}th{font-size:12px;text-transform:uppercase;color:#9dacc2}small{color:#9dacc2}.file{max-width:550px;overflow-wrap:anywhere}.message{white-space:pre-wrap;padding:12px;color:#ffd697}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:16px}.card{border:1px solid #38445a;padding:12px;border-radius:10px}.card img{height:200px;width:100%;object-fit:contain}.card button{width:100%;margin-top:10px}dialog{width:min(1000px,95vw);max-height:90vh;border:1px solid #485771;border-radius:16px;background:#1b202b;color:#e7eaf1;padding:24px}dialog::backdrop{background:#000a}#localCover{max-height:310px;max-width:230px;object-fit:contain}.preview{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;background:#12151c;padding:16px;border-radius:10px}.grow{flex:1;min-width:250px}.count{font-size:24px;margin-right:24px}#error{position:sticky;top:8px;background:#402b29;display:none;border-radius:8px;padding:14px;z-index:2}@media(max-width:700px){body{padding:15px}table{font-size:13px}td:nth-child(3),th:nth-child(3){display:none}}
 </style>
-<header><div><h1>Comic Metadata</h1><p>Your collection, with better information.</p></div><span class="badge">Live library · English comics</span></header>
+<header><div><h1>Comic Metadata</h1><p>Your collection, with better information.</p></div><div><button id="pauseControl">Pause &amp; release GPU</button><p id="controlStatus" aria-live="polite"></p></div></header>
 <div id="error" role="alert"></div>
 <section class="panel"><h2>Live enrichment progress</h2><p id="queueStatus" aria-live="polite">Checking worker…</p><div id="queueAttention"></div><div id="liveProgress" aria-live="polite">Loading status…</div><p id="liveDetail"></p><p id="researchStatus"></p><p id="providerStatus" aria-live="polite"></p><p id="browserStatus" aria-live="polite"></p><button id="browserResume" hidden>Open browser verification</button><details><summary>Previous write batches</summary><div id="completedBatches"></div></details><small id="updatedAt"></small></section>
 <section class="panel"><h2>Live library</h2><p id="roots"></p><p>Processing and checks for new comics run automatically. You only need to act when a specific request appears above.</p><div id="counts" class="flex"></div><details><summary>Manual scan controls</summary><p>A manual scan updates the inventory; it does not prove metadata is complete.</p><div class="flex"><input id="root" placeholder="Folder to scan" aria-label="Library folder"><button id="scan">Scan folder</button><button id="rescan">Rescan live library</button></div><p id="progress"></p><p id="provider"></p></details></section>
@@ -25,23 +25,30 @@ $('providerStatus').textContent=Object.entries(providers).map(([name,state])=>{c
 }
 async function progress(){try{
 const p=await request('progress');showProviders(p.providers||{});
+processingControl=p.control||{};
+$('pauseControl').textContent=processingControl.requested?'Resume processing':'Pause & release GPU';
+$('controlStatus').textContent=processingControl.phase==='pausing'?'Pausing — finishing the current operation. Progress is saved.':processingControl.requested?(processingControl.gpu_released?'Paused — Gemma released from GPU. Progress saved.':processingControl.error||'Workers paused — releasing Gemma from GPU…'):'Processing enabled';
 if(lastMetadataRevision!==p.timestamp){lastMetadataRevision=p.timestamp;await load()}
 const f=p.folders||{},r=p.research||{},q=p.queue||{};
 const bs=p.browser_search||{};
 $('browserStatus').textContent='Cover search: '+(bs.alive?(bs.state||'starting'):'not running')+(bs.current?' · '+bs.current:'')+' · '+(bs.human_verification?'Google needs your verification. Other processing continues.':bs.detail||'');
-$('browserResume').hidden=!bs.human_verification;
+$('browserResume').hidden=!bs.human_verification||processingControl.requested;
 const waiting=p.phase==='Waiting for delta scan'||p.phase==='Automatic lookup waiting';
 const next=f.next_scan_at?new Date(f.next_scan_at*1000).toLocaleTimeString():null;
 $('queueStatus').textContent=!q.alive?'Stopped — automatic restart is being attempted':q.running?'Working — writing and verifying metadata':q.pending?'Working — preparing queued updates':waiting?'Waiting — '+(f.retry_wait?'some folders will be retried':'scheduled folder checks finished'):'Working — looking up comic information';
+if(processingControl.requested)$('queueStatus').textContent=processingControl.phase==='pausing'?'Pausing safely…':'Paused — queue and progress retained';
 $('queueAttention').replaceChildren(...(q.attention||[]).map(t=>node('p','Your help is needed: '+t.folder+' — '+t.error)));
 $('liveProgress').textContent=waiting?(next?'Next folder check: '+next:'Watching for new or changed comics'):(p.current_folder||'Selecting next folder');
 $('liveDetail').textContent=waiting?'Folder checks can finish while metadata research is still unresolved. No manual review is required unless a request appears above.':p.detail||'Checking the live library.';
+if(processingControl.requested)$('liveDetail').textContent=processingControl.phase==='pausing'?'Finishing the current operation before stopping.':'Last folder shown above. No new lookups or comic writes will start until you resume.';
 const unresolved=(r.wiki_candidates_found||0)+(r.needs_identity_lookup||0)+(r.identity_conflict||0);
 $('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' folders checked this pass'+(f.inventory_pending?' · discovering folders ('+(f.directories_visited||0)+' directories visited)':'')+' · '+unresolved+' comics still need research · '+(p.cover_research?.pending||0)+' browser cover searches queued. A checked folder is not a completeness guarantee.';
 $('completedBatches').replaceChildren(...(p.completed||[]).map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));
 $('updatedAt').textContent=p.timestamp?'Last activity: '+new Date(p.timestamp).toLocaleString():'';
 }catch(e){$('queueStatus').textContent='Cannot reach the local service';$('liveProgress').textContent='Status unavailable';}}
 browserResume.onclick=async()=>{try{await request('browser-resume',{});browserStatus.textContent='Opening a dedicated verification window…'}catch(e){error(e)}};
+let processingControl={};
+$('pauseControl').onclick=async()=>{const button=$('pauseControl');button.disabled=true;try{await request(processingControl.requested?'resume':'pause',{});await progress()}catch(e){error(e)}finally{button.disabled=false}};
 async function load(){try{
 const d=await request('comics?q='+encodeURIComponent($('query').value)+'&status='+encodeURIComponent($('status').value)+'&offset='+offset);total=d.total;
 $('total').textContent=total+' live files · Showing '+(total?offset+1:0)+'–'+Math.min(offset+100,total);

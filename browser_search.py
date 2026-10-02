@@ -136,6 +136,8 @@ class LensBrowser:
         self.page.locator('input[type=file]').first.set_input_files({'name':'cover.jpg','mimeType':'image/jpeg','buffer':data})
         deadline=time.time()+60
         while time.time()<deadline:
+            import pause_control
+            if pause_control.requested():raise pause_control.PauseRequested()
             self.page.wait_for_timeout(1000);self.check()
             if '/search' not in self.page.url:continue
             # Capture only linked result cards, excluding navigation/footer links.
@@ -152,6 +154,8 @@ class LensBrowser:
         self.page.goto(url,wait_until='domcontentloaded',timeout=45_000)
         deadline=time.time()+600
         while time.time()<deadline:
+            import pause_control
+            if pause_control.requested():return False
             self.page.wait_for_timeout(2000)
             if not challenge(self.page.url,self.page.locator('body').inner_text()):
                 # Keep the browser the user just verified, including its session.

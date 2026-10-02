@@ -8,6 +8,7 @@ from pathlib import Path
 import batch
 import app
 import storage
+import pause_control
 
 QUEUE = app.DATA / 'queue'
 
@@ -29,6 +30,7 @@ def enqueue(plan_path):
 
 
 def run_one():
+    if pause_control.requested():return False
     QUEUE.mkdir(parents=True, exist_ok=True)
     for ticket in sorted(QUEUE.glob('*.json')):
         item = json.loads(ticket.read_text(encoding='utf-8'))
@@ -39,6 +41,8 @@ def run_one():
         try:
             batch.apply(item['plan'], remove_verified_backups=True)
             item.update(state='complete', finished=time.time())
+        except pause_control.PauseRequested:
+            item.update(state='pending',paused=time.time())
         except Exception as exc:
             # Never retry a partially written plan blindly or remove its backups.
             item.update(state='needs_attention', error=str(exc), finished=time.time())
@@ -77,6 +81,10 @@ def main():
     threading.Thread(target=heartbeat, daemon=True).start()
     next_discovery = 0
     while True:
+        if pause_control.checkpoint('metadata'):
+            time.sleep(1)
+            next_discovery=0
+            continue
         try:
             ran = run_one()
         except OSError:
@@ -86,6 +94,7 @@ def main():
             time.sleep(10)
             continue
         if not ran:
+            if pause_control.requested():continue
             config_path = app.BASE / 'config.json'
             config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
             automatic = config.get('automatic', {})
@@ -125,7 +134,7 @@ def main():
                         next_discovery = 0
                     try:batch.progress(phase='Automatic lookup waiting', detail=str(exc))
                     except OSError:pass
-            time.sleep(2)
+            pause_control.sleep(2)
 
 
 if __name__ == '__main__':

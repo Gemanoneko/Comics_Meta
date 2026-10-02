@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import app
 import storage
+import pause_control
 
 
 def progress(**updates):
@@ -70,16 +71,24 @@ def prepare(folder, reference):
 def apply(plan_path, remove_verified_backups=False):
     plan_path=Path(plan_path).resolve()
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
-    results=[]
+    result_path=plan_path.parent/'results.json'
+    results=json.loads(result_path.read_text(encoding='utf-8')) if result_path.exists() else []
+    finished={r['path']:r for r in results if r.get('metadata_readback_verified')}
     progress(phase='Writing and verifying metadata',current_folder=Path(plan['folder']).name,
-             total=len(plan['entries']),checked=len(plan['entries']),updated=0,
+             total=len(plan['entries']),checked=len(plan['entries']),updated=len(results),
              detail='Each comic is checked after writing; its backup is removed only after verification.')
     for entry in plan['entries']:
         if entry['action']!='write':
             continue
+        if pause_control.requested():raise pause_control.PauseRequested('Paused safely between archive writes.')
         path=Path(entry['path']).resolve()
         if path.parent!=Path(plan['folder']).resolve():
             raise ValueError('Target must stay in the planned folder.')
+        if str(path) in finished:
+            stat=path.stat()
+            if finished[str(path)].get('output_signature')!=[stat.st_size,stat.st_mtime_ns]:
+                raise ValueError('A completed archive changed before batch resume; inspect it before retrying.')
+            continue
         if digest(path)!=entry['sha256']:
             raise ValueError('Source changed after planning; regenerate plan.')
         app.JOB.update(running=True,visited=0,changed=0,errors=0)
@@ -105,10 +114,12 @@ def apply(plan_path, remove_verified_backups=False):
                 raise ValueError('Backup cleanup target is outside the expected folder.')
             backup_path.unlink()
             removed=True
+        stat=path.stat()
         results.append({'path':str(path),'backup':backup,'fields_updated':list(entry['changes']),
+                        'output_signature':[stat.st_size,stat.st_mtime_ns],
                         'backup_sha256_verified':True,'metadata_readback_verified':True,
                         'backup_removed_after_verification':removed})
-        (plan_path.parent/'results.json').write_text(json.dumps(results,ensure_ascii=False,indent=2),encoding='utf-8')
+        storage.save(result_path,results)
         print('Updated and verified:',path.name)
         progress(updated=len(results),detail='Verified: '+path.name)
     app.JOB.update(running=True,visited=0,changed=0,errors=0)

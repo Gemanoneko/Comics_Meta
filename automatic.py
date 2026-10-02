@@ -113,6 +113,8 @@ def discover(root):
         rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','unsupported') AND "+scope+' ORDER BY path',args)]
     checked = 0
     for row in rows:
+        import pause_control
+        if pause_control.requested():return True  # Retain a due folder; resume from persisted per-file state.
         path = Path(row['path']).resolve()
         if path.parent != root or path.suffix.lower() != '.cbz':
             continue
@@ -291,6 +293,7 @@ def discover(root):
                         worker.enqueue(target)
                         outcome = 'queued'
                 except Exception as exc:
+                    if pause_control.requested():return True
                     lookup_error = (lookup_error or '') + '; local model: ' + str(exc)
             else:
                 # Notice installation promptly instead of caching the unavailable model for a day.

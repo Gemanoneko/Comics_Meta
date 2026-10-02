@@ -403,6 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond({'job': JOB.copy(), 'counts': counts, 'roots': roots,
                                      'online': bool(api_key())})
             if url.path == '/api/progress':
+                import pause_control
                 progress = DATA / 'progress.json'
                 result = json.loads(progress.read_text(encoding='utf-8')) if progress.exists() else {'phase':'Ready','current_folder':'','completed':[]}
                 queue_dir = DATA / 'queue'
@@ -416,6 +417,7 @@ class Handler(BaseHTTPRequestHandler):
                 import discovery_state
                 result['research'] = discovery_state.counts(live_root())
                 result['live_root'] = live_root()
+                result['control'] = pause_control.status()
                 import cover_tasks
                 result['cover_research'] = cover_tasks.status()
                 import browser_search
@@ -471,6 +473,11 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length < 100_000:
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
+            import pause_control
+            if self.path in ('/api/pause','/api/resume'):
+                return self.respond(pause_control.change(self.path=='/api/pause'))
+            if pause_control.requested():
+                raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':
                 import browser_search,storage
                 if not browser_search.status().get('human_verification'):
