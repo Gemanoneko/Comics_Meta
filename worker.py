@@ -86,6 +86,9 @@ def main():
             next_discovery=0
             continue
         try:
+            import maintenance
+            try:maintenance.run()
+            except Exception:pass  # Cleanup failures must not stop metadata processing.
             ran = run_one()
         except OSError:
             # Leave a running ticket for inspection; never blindly replay a partial write.

@@ -113,6 +113,8 @@ def apply(plan_path, remove_verified_backups=False):
             if backup_path.parent != intended or not backup_path.name.startswith(path.name + '.') or backup_path.suffix!='.bak':
                 raise ValueError('Backup cleanup target is outside the expected folder.')
             backup_path.unlink()
+            try:backup_path.parent.rmdir()
+            except OSError:pass
             removed=True
         stat=path.stat()
         results.append({'path':str(path),'backup':backup,'fields_updated':list(entry['changes']),

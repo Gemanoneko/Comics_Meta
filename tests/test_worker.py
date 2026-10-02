@@ -21,6 +21,9 @@ def scratch_directory():
 
 
 class QueueTests(unittest.TestCase):
+    def setUp(self):
+        control=patch.object(worker.pause_control,'requested',return_value=False)
+        control.start();self.addCleanup(control.stop)
     def test_advance_and_do_not_replay_completed_work(self):
         with scratch_directory() as directory:
             root = Path(directory)

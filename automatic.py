@@ -107,10 +107,12 @@ def discover(root):
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
     app.scan([str(root)],recursive=False)
+    import archive_conversion
+    if archive_conversion.one(root):return True  # Verify one conversion, then continue this folder.
     state = discovery_state.load(root)
     with app.db() as con:
         scope,args=app.scope_filter(root)
-        rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','unsupported') AND "+scope+' ORDER BY path',args)]
+        rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','corrupted','unsupported') AND "+scope+' ORDER BY path',args)]
     checked = 0
     for row in rows:
         import pause_control

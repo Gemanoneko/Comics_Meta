@@ -7,6 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
@@ -126,6 +127,27 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(self.row(unsupported)['status'], 'unsupported')
         self.assertEqual(self.row(corrupt)['status'], 'error')
 
+    def test_parent_only_scan_does_not_hide_existing_subfolder_comics(self):
+        child=self.root/'child';child.mkdir()
+        path=self.make('child/Example 001.cbz')
+        self.scan()
+        app.scan([str(self.root)],recursive=False)
+        self.assertEqual(self.row(path)['status'],'missing')
+        path.unlink()
+        app.scan([str(self.root)],recursive=False)
+        self.assertEqual(self.row(path)['status'],'missing')
+        self.scan()
+        self.assertEqual(self.row(path)['status'],'absent')
+
+    def test_absent_tagged_archive_retains_write_history_status(self):
+        path=self.make(xml='<ComicInfo><Title>Verified</Title></ComicInfo>')
+        self.scan()
+        with app.db() as con:
+            con.execute("UPDATE comics SET status='absent' WHERE path=?",(str(path),))
+            con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',(str(app.filesystem_path(path)),'','',0))
+        self.scan()
+        self.assertEqual(self.row(path)['status'],'tagged')
+
     def test_metadata_mapping_uses_credits_and_date(self):
         result = app.metadata_from_issue({'volume': {'name': 'Series'}, 'issue_number': '2',
             'cover_date': '2024-01-02', 'description': '<p>A &amp; B</p>',
@@ -134,6 +156,58 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(result['Penciller'], 'Person')
         self.assertEqual(result['Summary'], 'A & B')
         self.assertEqual(result['Year'], '2024')
+
+    def test_bare_ampersand_metadata_recovery_preserves_cdata(self):
+        path=self.make(xml='<ComicInfo><Publisher>A & B</Publisher><Summary><![CDATA[A &amp; B]]></Summary></ComicInfo>')
+        metadata,status,_=app.read_metadata(path)
+        self.assertEqual(status,'embedded')
+        self.assertEqual(metadata['Publisher'],'A & B')
+        self.assertEqual(metadata['Summary'],'A &amp; B')
+        self.scan()
+        app.write_metadata(self.row(path),{'Title':'Verified title'})
+        self.assertEqual(app.read_metadata(path)[0]['Publisher'],'A & B')
+
+    def test_broken_zip_container_is_separate_from_metadata_errors(self):
+        path=self.root/'Damaged.cbz';path.write_bytes(b'PK\x03\x04broken zip container')
+        self.scan()
+        self.assertEqual(self.row(path)['status'],'corrupted')
+
+    def test_nonzip_cbz_is_other_format_not_corrupted(self):
+        path=self.root/'Readable.cbz';path.write_bytes(b'7z\xbc\xaf\x27\x1c\x00\x04')
+        self.assertEqual(app.read_metadata(path)[1],'unsupported')
+
+    def test_synopsis_filter_includes_existing_and_tagged_metadata_only(self):
+        existing=self.make('Existing.cbz','<ComicInfo><Title>Existing</Title></ComicInfo>')
+        tagged=self.make('Tagged.cbz','<ComicInfo><Title>Tagged</Title><Summary> </Summary></ComicInfo>')
+        self.make('Complete.cbz','<ComicInfo><Title>Complete</Title><Summary>Verified premise.</Summary></ComicInfo>')
+        synopsis_only=self.make('SynopsisOnly.cbz','<ComicInfo><Summary>Verified premise.</Summary><Notes>Provenance</Notes><PageCount>20</PageCount></ComicInfo>')
+        self.make('Missing.cbz')
+        self.scan()
+        with app.db() as con:con.execute("UPDATE comics SET status='tagged' WHERE path=?",(str(tagged),))
+        handler=object.__new__(app.Handler)
+        from types import SimpleNamespace
+        handler.headers={'Host':'127.0.0.1:8765'}
+        handler.server=SimpleNamespace(server_port=8765)
+        handler.path='/api/comics?status=needs_synopsis'
+        with patch.object(app,'live_root',return_value=''),patch.object(handler,'respond') as respond:
+            handler.do_GET()
+        result=respond.call_args.args[0]
+        self.assertEqual(result['total'],2)
+        self.assertEqual({r['path'] for r in result['rows']},{str(existing),str(tagged)})
+        self.assertTrue(all(not r['has_synopsis'] for r in result['rows']))
+        handler.path='/api/comics?status=metadata_complete'
+        with patch.object(app,'live_root',return_value=''),patch.object(handler,'respond') as respond:
+            handler.do_GET()
+        result=respond.call_args.args[0]
+        self.assertEqual(result['total'],1)
+        self.assertTrue(result['rows'][0]['has_synopsis'])
+        handler.path='/api/comics?status=synopsis_only'
+        with patch.object(app,'live_root',return_value=''),patch.object(handler,'respond') as respond:
+            handler.do_GET()
+        result=respond.call_args.args[0]
+        self.assertEqual(result['total'],1)
+        self.assertEqual(result['rows'][0]['path'],str(synopsis_only))
+        self.assertFalse(result['rows'][0]['has_metadata'])
 
     def test_rate_reservations_persist_and_pace_attempts(self):
         self.assertEqual(app.reserve_request(10000), 0)

@@ -21,6 +21,7 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 DATA = BASE / 'data'
+BIBLIOGRAPHIC_FIELDS=('Series','Title','Number','Count','Volume','Year','Month','Day','Writer','Penciller','Inker','Colorist','Letterer','CoverArtist','Editor','Publisher','Imprint','Genre','Tags','Characters','Teams','Locations','StoryArc','SeriesGroup','LanguageISO','Format','AgeRating','ISBN','GTIN')
 JOB = {'running': False, 'visited': 0, 'changed': 0, 'errors': 0, 'message': 'Ready'}
 LOCK = threading.Lock()
 API_LOCK = threading.Lock()
@@ -123,10 +124,25 @@ def filesystem_path(path):
     return Path(value)
 
 
+def metadata_xml(raw):
+    if b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
+        raise ValueError('XML entity declarations are not supported.')
+    try:return ET.fromstring(raw)
+    except ET.ParseError:
+        # Recover bare ampersands without changing CDATA or comments.
+        parts=re.split(rb'(<!\[CDATA\[.*?\]\]>|<!--.*?-->)',raw,flags=re.S)
+        for index in range(0,len(parts),2):
+            parts[index]=re.sub(rb'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)',b'&amp;',parts[index])
+        return ET.fromstring(b''.join(parts))
+
+
 def read_metadata(path):
     path = filesystem_path(path)
     if path.suffix.lower() != '.cbz':
         return {}, 'unsupported', 'CBR/CB7 are inventoried only in this pilot.'
+    with path.open('rb') as handle:signature=handle.read(8)
+    if signature.startswith((b'7z\xbc\xaf\x27\x1c',b'Rar!')):
+        return {}, 'unsupported', 'Readable RAR/7-Zip container with a .cbz filename; automatic ZIP metadata writes are unavailable.'
     with zipfile.ZipFile(path) as archive:
         names = [n for n in archive.namelist() if n.lower() == 'comicinfo.xml']
         if len(names) > 1:
@@ -136,9 +152,7 @@ def read_metadata(path):
         if archive.getinfo(names[0]).file_size > 2_000_000:
             raise ValueError('Metadata exceeds the 2 MB limit.')
         raw = archive.read(names[0])
-        if b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
-            raise ValueError('XML entity declarations are not supported.')
-        xml = ET.fromstring(raw)
+        xml = metadata_xml(raw)
         if xml.tag != 'ComicInfo':
             raise ValueError('Unexpected metadata root.')
         return {n.tag: n.text or '' for n in xml if n.tag != 'Pages'}, 'embedded', ''
@@ -154,7 +168,7 @@ def scan(roots, recursive=True):
             with db() as con:
                 con.execute('INSERT OR IGNORE INTO roots VALUES (?)', (str(root),))
                 for folder, dirs, files in os.walk(filesystem_path(root), onerror=lambda e: (_ for _ in ()).throw(e)):
-                    dirs[:] = [d for d in dirs if d not in {'.yacreaderlibrary', '.comic-metadata-backups'}]
+                    dirs[:] = [d for d in dirs if d not in {'.yacreaderlibrary', '.comic-metadata-backups'} and not d.startswith('.comic-metadata-convert-')]
                     if not recursive:dirs[:] = []
                     for name in files:
                         native_folder = folder
@@ -173,6 +187,8 @@ def scan(roots, recursive=True):
                                 restored_status = old['status']
                                 if restored_status == 'absent':
                                     restored_status = 'unsupported' if path.suffix.lower() != '.cbz' else 'embedded' if json.loads(old['metadata']) else 'missing'
+                                    if restored_status == 'embedded' and con.execute('SELECT 1 FROM history WHERE path IN (?,?) LIMIT 1',(str(path),str(filesystem_path(path)))).fetchone():
+                                        restored_status = 'tagged'
                                 con.execute('UPDATE comics SET seen=?,status=? WHERE id=?', (generation, restored_status, old['id']))
                                 continue
                             metadata, status, error = read_metadata(path)
@@ -185,7 +201,9 @@ def scan(roots, recursive=True):
                             if not filesystem_path(path).exists():
                                 continue
                             stat = filesystem_path(path).stat()
-                            metadata, status, error = {}, 'error', str(exc)
+                            with filesystem_path(path).open('rb') as handle:signature=handle.read(4)
+                            status='corrupted' if isinstance(exc,zipfile.BadZipFile) and signature.startswith(b'PK') else 'error'
+                            metadata, error = {}, str(exc)
                             series, number, year = parse_name(path)
                         con.execute('''INSERT INTO comics(path,root,size,mtime,series,number,year,metadata,status,error,seen)
                             VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
@@ -198,7 +216,16 @@ def scan(roots, recursive=True):
                         if JOB['visited'] % 100 == 0:
                             con.commit()
                 # Only a completed traversal may mark files absent. No files are deleted.
-                con.execute("UPDATE comics SET status='absent' WHERE root=? AND seen<>?", (str(root), generation))
+                for candidate in con.execute('SELECT id,path FROM comics WHERE root=? AND seen<>?',(str(root),generation)).fetchall():
+                    candidate_path=Path(candidate['path'])
+                    if not recursive and candidate_path.parent!=root:
+                        continue  # Subfolders were deliberately outside this scan.
+                    try:
+                        filesystem_path(candidate_path).stat()
+                    except FileNotFoundError:
+                        con.execute("UPDATE comics SET status='absent' WHERE id=?",(candidate['id'],))
+                    except OSError:
+                        pass  # An inaccessible file is not confirmed missing.
         JOB['message'] = 'Scan complete'
     except Exception as exc:
         JOB['message'] = str(exc)
@@ -323,7 +350,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
         if len({i.filename for i in infos}) != len(infos) or len(names) > 1:
             raise ValueError('Duplicate ZIP entries require manual review.')
         read_metadata(path)
-        xml = ET.fromstring(source.read(names[0])) if names else ET.Element('ComicInfo')
+        xml = metadata_xml(source.read(names[0])) if names else ET.Element('ComicInfo')
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -437,14 +464,27 @@ class Handler(BaseHTTPRequestHandler):
                 offset = max(0, int(args.get('offset', ['0'])[0]))
                 with db() as con:
                     scope, scope_args = scope_filter(live_root())
-                    where = "WHERE "+scope+" AND path LIKE ? AND (?='' OR status=?)"
-                    params = (*scope_args, '%' + search + '%', status, status)
+                    descriptive="EXISTS(SELECT 1 FROM json_each(comics.metadata) WHERE key IN ("+','.join("'"+key+"'" for key in BIBLIOGRAPHIC_FIELDS)+") AND trim(COALESCE(value,''))<>'')"
+                    summary="trim(COALESCE(json_extract(metadata,'$.Summary'),''))<>''"
+                    category={
+                        'needs_synopsis':descriptive+' AND NOT ('+summary+')',
+                        'metadata_complete':descriptive+' AND '+summary,
+                        'synopsis_only':'NOT ('+descriptive+') AND '+summary,
+                    }
+                    if status in category:
+                        where='WHERE '+scope+" AND path LIKE ? AND status IN ('embedded','tagged') AND "+category[status]
+                        params=(*scope_args,'%'+search+'%')
+                    else:
+                        where = "WHERE "+scope+" AND path LIKE ? AND (?='' OR status=?)"
+                        params = (*scope_args, '%' + search + '%', status, status)
                     rows = con.execute('SELECT * FROM comics ' + where + ' ORDER BY path LIMIT 100 OFFSET ?', (*params, offset)).fetchall()
                     total = con.execute('SELECT COUNT(*) FROM comics ' + where, params).fetchone()[0]
                 result_rows = []
                 for r in rows:
                     item = dict(r)
-                    item['has_synopsis'] = bool(json.loads(item['metadata']).get('Summary'))
+                    item['has_synopsis'] = bool(json.loads(item['metadata']).get('Summary','').strip())
+                    metadata=json.loads(item['metadata'])
+                    item['has_metadata']=any(str(metadata.get(key,'')).strip() for key in BIBLIOGRAPHIC_FIELDS)
                     result_rows.append(item)
                 return self.respond({'rows': result_rows, 'total': total})
             if url.path == '/api/cover':

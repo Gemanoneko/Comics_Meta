@@ -14,6 +14,9 @@ from test_worker import scratch_directory
 
 
 class BrowserSearchTests(unittest.TestCase):
+    def setUp(self):
+        control=patch.object(browser_worker.pause_control,'requested',return_value=False)
+        control.start();self.addCleanup(control.stop)
     def test_identified_comic_with_missing_synopsis_is_not_reverse_searched(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'live_root',return_value=d):
             import discovery_state

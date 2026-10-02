@@ -45,7 +45,7 @@ def select(root,now=None,on_progress=None):
                 with os.scandir(app.filesystem_path(folder)) as entries:items=list(entries)
                 children=[];has_comics=False
                 for entry in items:
-                    if entry.name.lower() in {'.yacreaderlibrary','.comic-metadata-backups','.git'}:continue
+                    if entry.name.lower() in {'.yacreaderlibrary','.comic-metadata-backups','.git'} or entry.name.startswith('.comic-metadata-convert-'):continue
                     if entry.is_symlink():continue
                     if entry.is_dir(follow_symlinks=False):
                         if getattr(entry.stat(follow_symlinks=False),'st_file_attributes',0)&0x400:continue

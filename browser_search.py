@@ -117,7 +117,9 @@ class LensBrowser:
     def open(self,visible=False):
         if self.context:self.context.close()
         profile=app.DATA/'lens-profile';profile.mkdir(parents=True,exist_ok=True)
-        self.context=self.runtime.chromium.launch_persistent_context(str(profile),channel=self.options.get('channel','msedge'),headless=not visible,locale='en-US',accept_downloads=False)
+        import maintenance
+        maintenance.browser_cache(profile)
+        self.context=self.runtime.chromium.launch_persistent_context(str(profile),channel=self.options.get('channel','msedge'),headless=not visible,locale='en-US',accept_downloads=False,args=['--disk-cache-size=67108864','--media-cache-size=16777216'])
         self.page=self.context.pages[0] if self.context.pages else self.context.new_page()
         self.page.set_default_timeout(15_000)
 
@@ -165,6 +167,8 @@ class LensBrowser:
     def close(self):
         if self.context:self.context.close()
         self.runtime.stop()
+        import maintenance
+        maintenance.browser_cache(app.DATA/'lens-profile')
 
 
 def request_json(request):

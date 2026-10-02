@@ -54,7 +54,17 @@ Use **Pause & release GPU** whenever you need the computer's resources, for game
 
 The pause setting survives service restarts. Queues, completed writes, research evidence and folder progress are retained. **Resume processing** continues the saved queue and loads Gemma again only when needed. A partially completed batch skips its verified archives after checking that they have not changed. Manual processing actions are blocked while paused. This is a manual control, with no automatic game detection.
 
-Only ZIP-backed CBZ archives are rewritten. Other formats are inventoried without modification. Existing populated fields are generally preserved; automatic correction of all existing fields is unfinished. Writes preserve page contents and verify the resulting XML and archive integrity. Verified automatic-write backups are removed; failed or interrupted writes retain recovery material.
+ZIP-backed CBZ archives receive metadata writes. Installed 7-Zip enables automatic conversion of CBR/CB7 and RAR/7-Zip containers named CBZ. Conversion checks original archive integrity, decodes comic images, and compares every extracted member's SHA-256 and size against the resulting ZIP before removing the original. A conflicting CBZ is never overwritten. Failed conversions retain originals; same-name replacement rolls back if final readback fails. Each folder pass converts at most one archive.
+
+Existing populated fields are generally preserved; automatic correction of all existing fields is unfinished. Writes preserve page contents and verify the resulting XML and archive integrity. Verified automatic-write backups are removed; failed or interrupted writes retain recovery material. Unescaped ampersands in otherwise valid metadata XML are recovered when reading; later metadata writes serialize valid XML.
+
+The list has separate filters for metadata with a synopsis, metadata lacking a synopsis, and a synopsis without other descriptive metadata. These indicate which fields exist, not that every possible field is complete. **Tagged by this app** remains a separate write-history filter. **Corrupted · Needs reacquiring** is separate from metadata syntax errors and unsupported containers.
+
+## Disk cleanup
+
+The serial worker performs hourly housekeeping. Expired lookup responses are removed, database response payloads and regenerable research caches are each capped at 64 MB, and browser disk/media caches are limited to 64/16 MB. Browser cache directories are cleaned when its context is closed; cookies and session data are preserved. Catalog records, queues, completed write audit records, source evidence, model weights and recovery backups are retained.
+
+Completed conversion attempts remove extraction files immediately. Interrupted conversion staging is eligible for cleanup after 24 hours only when its registered original is still present and unchanged; possible recovery copies remain protected. Stale project temporary files and abandoned test folders are cleaned after 24 hours. Conversion reserves room for extraction and the new CBZ before starting. `data/maintenance.json` records routine cleanup; `conversions` and `conversion_staging` in the catalog record archive conversion and recovery state.
 
 YACReader needs a **Rescan library for XML info** after metadata changes. The app does not directly edit YACReader's database.
 
