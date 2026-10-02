@@ -66,6 +66,16 @@ def select(root,now=None,on_progress=None):
             state['inventoried_at']=now
             state.pop('inventory_seen',None)
         save(state)
+    import cover_tasks
+    with app.db() as con:
+        cover_tasks.table(con)
+        retries=[r[0] for r in con.execute('SELECT folder FROM cover_retries')]
+        for folder in retries:
+            if folder in state['folders']:
+                # Verify newly found cover leads before the next ordinary folder.
+                state['folders'][folder]['next_scan']=-1
+                con.execute('DELETE FROM cover_retries WHERE folder=?',(folder,))
+    if retries:save(state)
     due=[p for p,v in state['folders'].items() if v.get('next_scan',0)<=now]
     if not due:return None
     return min(due,key=lambda p:(state['folders'][p].get('next_scan',0),p.casefold()))

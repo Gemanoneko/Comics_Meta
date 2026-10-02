@@ -38,6 +38,14 @@ ComicVine, Metron, GCD, Google Books and publisher/web research are supported. O
 
 The dashboard shows the configured live scope, working/waiting state, unresolved research and whether a synopsis exists. A completed folder pass or existing metadata does not prove completeness or accuracy. Manual lookups are optional.
 
+## Automatic cover search
+
+Automatic browser cover search is available through `browser_search.enabled`. The independent supervised worker uses Playwright and installed Microsoft Edge (`channel: "msedge"`), with a dedicated profile under `data/lens-profile`. Normal searches run in the background. Only the first archive image is uploaded as a resized cover; archive filenames, folder paths and interior pages are not uploaded.
+
+Searches are paced at least 30 seconds apart (60 by default), capped at 100 attempts per UTC day by default, and successful results are cached for 30 days. Changed archives are rejected. If Google requests human verification, use **Open browser verification** on the dashboard and complete it yourself in the dedicated window. The worker observes completion and resumes; it does not solve challenges or spoof fingerprints. Other metadata processing continues.
+
+Optional `SERPAPI_API_KEY` enables the configured SerpApi fallback when browser search fails or yields no candidates. The app uploads a resized cover via SerpApi's Image API and uses its Lens API. All attempts count conservatively against the app's cap of at most 250 per UTC calendar month. The provider's billing period and usage outside this app may differ; stay on its free plan and leave paid renewal disabled. Candidate links pass through the ordinary identity and cover verifier; search matches alone never authorize writes.
+
 ## Writes and recovery
 
 Only ZIP-backed CBZ archives are rewritten. Other formats are inventoried without modification. Existing populated fields are generally preserved; automatic correction of all existing fields is unfinished. Writes preserve page contents and verify the resulting XML and archive integrity. Verified automatic-write backups are removed; failed or interrupted writes retain recovery material.
@@ -52,4 +60,4 @@ YACReader needs a **Rescan library for XML info** after metadata changes. The ap
 python -m unittest discover -s tests -v
 ```
 
-Tests cover archive preservation, safe writes, delta scans, matching rejection, quotas, encoding and worker supervision. General web research and autonomous reverse-image fallback remain incomplete. Human-verification challenges can interrupt free web searches. Uncertain identities remain unresolved; source availability and coverage vary.
+Tests cover archive preservation, safe writes, delta scans, matching rejection, quotas, encoding and worker supervision. Browser layout changes and human-verification challenges can interrupt free cover searches. Uncertain identities remain unresolved; source availability and coverage vary.

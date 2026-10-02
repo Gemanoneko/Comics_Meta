@@ -124,10 +124,13 @@ def publisher_lookup(row, old):
 def save_evidence(path, result):
     CACHE.mkdir(parents=True, exist_ok=True)
     target = CACHE / ('evidence-' + hashlib.sha256(str(path).encode()).hexdigest() + '.json')
-    previous = json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
-    result = dict(previous, **result, path=str(path))
-    import storage
-    storage.save(target,result)
+    # Serialize read/merge/write across discovery and the separate browser process.
+    with app.db() as con:
+        con.execute('BEGIN IMMEDIATE')
+        previous = json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+        result = dict(previous, **result, path=str(path))
+        import storage
+        storage.save(target,result)
     return target
 
 def wiki_candidates(row, old):

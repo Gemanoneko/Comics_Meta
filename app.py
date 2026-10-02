@@ -418,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
                 result['live_root'] = live_root()
                 import cover_tasks
                 result['cover_research'] = cover_tasks.status()
+                import browser_search
+                result['browser_search'] = browser_search.status()
                 import providers
                 result['providers'] = providers.statuses()
                 folders_path=DATA/'folders.json'
@@ -469,6 +471,12 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length < 100_000:
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
+            if self.path == '/api/browser-resume':
+                import browser_search,storage
+                if not browser_search.status().get('human_verification'):
+                    raise ValueError('No browser verification is pending.')
+                storage.save(DATA/'browser-resume',{'requested':time.time()})
+                return self.respond({'ok':True})
             if self.path == '/api/reverse-image':
                 import reverse_image
                 row = comic(int(body['comic']))

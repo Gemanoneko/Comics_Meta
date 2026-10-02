@@ -7,6 +7,7 @@ import app
 
 def table(con):
     con.execute('CREATE TABLE IF NOT EXISTS cover_tasks(path TEXT PRIMARY KEY, signature TEXT, state TEXT, updated REAL, detail TEXT)')
+    con.execute('CREATE TABLE IF NOT EXISTS cover_retries(folder TEXT PRIMARY KEY)')
 
 
 def enqueue(row):
@@ -30,15 +31,30 @@ def record(row,leads):
     with app.db() as con:
         table(con)
         con.execute('INSERT OR REPLACE INTO cover_tasks VALUES(?,?,?,?,?)',(row['path'],json.dumps([row['size'],row['mtime']]),'leads_found',time.time(),'Search candidates saved; automatic identity verification pending.'))
-    # The browser researcher runs serially with discovery; requesting an early retry
-    # does not bypass the archive signature or identity checks.
-    import scheduler
-    if scheduler.STATE.exists():
-        state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
-        from pathlib import Path
-        folder=str(Path(row['path']).parent)
-        if folder in state.get('folders',{}):
-            state['folders'][folder]['next_scan']=0;storage.save(scheduler.STATE,state)
+    # Discovery owns folders.json. The separate browser process requests a retry
+    # through SQLite rather than racing a whole-file scheduler update.
+    from pathlib import Path
+    with app.db() as con:
+        table(con)
+        con.execute('INSERT OR IGNORE INTO cover_retries VALUES(?)',(str(Path(row['path']).parent),))
+
+
+def claim(now=None):
+    now=time.time() if now is None else now
+    with app.db() as con:
+        table(con);con.execute('BEGIN IMMEDIATE')
+        scope,args=app.scope_filter(app.live_root())
+        row=con.execute("SELECT comics.* FROM comics JOIN cover_tasks USING(path) WHERE "+scope+" AND comics.status NOT IN ('absent','error','unsupported') AND (cover_tasks.state='pending' OR (cover_tasks.state='retry_wait' AND cover_tasks.updated<?)) ORDER BY cover_tasks.updated LIMIT 1",(*args,now-86400)).fetchone()
+        if not row:return None
+        row=dict(row)
+        con.execute("UPDATE cover_tasks SET state='searching',updated=?,detail='Searching cover in browser' WHERE path=?",(now,row['path']))
+        return row
+
+
+def finish(row,state,detail):
+    with app.db() as con:
+        table(con)
+        con.execute('UPDATE cover_tasks SET state=?,updated=?,detail=? WHERE path=?',(state,time.time(),detail[:1000],row['path']))
 
 
 def status():

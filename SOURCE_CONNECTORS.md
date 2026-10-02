@@ -36,7 +36,9 @@ The server now supervises the worker and retries an exited process every 30 seco
 
 Saved web results and relevant Wikipedia external references are followed automatically. Unrelated wiki hits are discarded. Issue identity checks reject broad series pages, wrong issue numbers and Reddit-only identity claims. Cover verification compares layout and edges to tolerate scan brightness, in addition to the existing pixel check. Fractional issue numbers remain distinct.
 
-Unresolved cover searches are persisted in the catalog. Configured TinEye requests can run unattended; free Google Lens requires an active browser research session. Lens candidates enter the ordinary verifier and do not directly authorize writes. General free search can still be blocked or capped.
+Unresolved cover searches are persisted in the catalog. A supervised project-owned browser worker uploads covers to Google Lens independently of the chat, with a dedicated profile, pacing and daily limits. Human-verification pages stop browser searches and surface a dashboard action; the user completes verification in a dedicated window. SerpApi's Image and Lens APIs provide an optional monthly-capped fallback. Lens candidates enter the ordinary verifier and do not directly authorize writes. General free search can still be blocked or capped.
+
+70 automated checks passed after adding browser queue exclusivity, persistent request limits, stale-archive rejection, safe result extraction and key-redacted API errors. A real browser cover upload reached Google Lens and encountered a human-verification page, correctly reported without attempting to solve it. A real SerpApi fallback for Lady Death - Sacrilege #2 returned six candidate links and persisted them for ordinary verification; these search results alone did not trigger an archive write.
 
 Per-file research state now lives in SQLite and is loaded one folder at a time. Legacy JSON state is migrated once. A 25,000-record regression check verifies that only the current folder is loaded.
 
