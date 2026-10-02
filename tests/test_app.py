@@ -1,0 +1,157 @@
+import json
+import os
+import sys
+import shutil
+import uuid
+import unittest
+import zipfile
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import app
+
+
+class LibraryTests(unittest.TestCase):
+    def setUp(self):
+        scratch = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.temp_path = scratch / str(uuid.uuid4())
+        self.root = self.temp_path / 'comics'
+        self.root.mkdir(parents=True)
+        self.previous_data = app.DATA
+        app.DATA = self.temp_path / 'catalog'
+
+    def tearDown(self):
+        app.DATA = self.previous_data
+        intended = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        assert self.temp_path.resolve().parent == intended.resolve()
+        shutil.rmtree(self.temp_path)
+
+    def make(self, name='Example 001 (2024).cbz', xml=None):
+        path = self.root / name
+        with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr('001.jpg', b'pretend cover bytes')
+            archive.writestr('002.jpg', b'pretend page bytes' * 1000)
+            archive.comment = b'preserve me'
+            if xml:
+                archive.writestr('ComicInfo.xml', xml)
+        return path
+
+    def scan(self):
+        app.JOB.update(running=True, changed=0, visited=0, errors=0)
+        app.scan([str(self.root)])
+
+    def row(self, path):
+        with app.db() as con:
+            return dict(con.execute('SELECT * FROM comics WHERE path=?', (str(path),)).fetchone())
+
+    def test_delta_new_changed_and_unchanged(self):
+        first = self.make()
+        self.scan()
+        self.assertEqual(app.JOB['changed'], 1)
+        self.assertEqual(self.row(first)['number'], '1')
+        self.scan()
+        self.assertEqual(app.JOB['changed'], 0)
+        self.make('Other 002 (2023).cbz')
+        self.scan()
+        self.assertEqual(app.JOB['changed'], 1)
+        with zipfile.ZipFile(first, 'a') as archive:
+            archive.writestr('003.jpg', b'new page')
+        self.scan()
+        self.assertEqual(app.JOB['changed'], 1)
+
+    def test_backup_archive_and_xml_preservation(self):
+        path = self.make(xml='<ComicInfo><Title>Keep title</Title><Notes>Custom</Notes><Pages><Page Image="0" Type="FrontCover"/></Pages></ComicInfo>')
+        original = path.read_bytes()
+        self.scan()
+        backup = app.write_metadata(self.row(path), {'Title': 'Replace?', 'Writer': 'Test Writer', 'Series': 'Example'})
+        self.assertEqual(Path(backup).read_bytes(), original)
+        with zipfile.ZipFile(path) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(archive.comment, b'preserve me')
+            self.assertEqual(archive.read('001.jpg'), b'pretend cover bytes')
+            xml = ET.fromstring(archive.read('ComicInfo.xml'))
+            self.assertEqual(xml.findtext('Title'), 'Keep title')
+            self.assertEqual(xml.findtext('Writer'), 'Test Writer')
+            self.assertEqual(xml.findtext('Notes'), 'Custom')
+            self.assertEqual(xml.find('Pages/Page').get('Type'), 'FrontCover')
+        self.scan()
+        self.assertEqual(app.JOB['changed'], 0)
+        self.assertEqual(self.row(path)['status'], 'tagged')
+
+    def test_changed_file_is_not_written(self):
+        path = self.make()
+        self.scan()
+        row = self.row(path)
+        with zipfile.ZipFile(path, 'a') as archive:
+            archive.writestr('extra.jpg', b'extra')
+        with self.assertRaisesRegex(ValueError, 'changed'):
+            app.write_metadata(row, {'Title': 'No'})
+        self.assertFalse((self.root / '.comic-metadata-backups').exists())
+
+    def test_reviewed_corrections_preserve_personal_fields(self):
+        path = self.make(xml='<ComicInfo><Writer>Wrong credit</Writer><Notes>Personal note</Notes><Review>My review</Review></ComicInfo>')
+        self.scan()
+        app.write_metadata(self.row(path), {'Writer':'Verified writer','Notes':'Source evidence'},
+                           overwrite_fields={'Writer'}, append_notes=True)
+        metadata,_,_=app.read_metadata(path)
+        self.assertEqual(metadata['Writer'],'Verified writer')
+        self.assertEqual(metadata['Notes'],'Personal note\n\nSource evidence')
+        self.assertEqual(metadata['Review'],'My review')
+
+    def test_missing_root_does_not_mark_files_absent(self):
+        path = self.make()
+        self.scan()
+        app.scan([str(self.root / 'offline')])
+        self.assertEqual(self.row(path)['status'], 'missing')
+
+    def test_absent_reappearing_file_recovers_status(self):
+        path = self.make()
+        self.scan()
+        moved = path.with_suffix('.hold')
+        path.rename(moved)
+        self.scan()
+        self.assertEqual(self.row(path)['status'], 'absent')
+        moved.rename(path)
+        self.scan()
+        self.assertEqual(self.row(path)['status'], 'missing')
+
+    def test_unsupported_and_corrupt_files(self):
+        unsupported = self.root / 'Rare.cbr'
+        unsupported.write_bytes(b'rar')
+        corrupt = self.root / 'Corrupt.cbz'
+        corrupt.write_bytes(b'not a zip')
+        self.scan()
+        self.assertEqual(self.row(unsupported)['status'], 'unsupported')
+        self.assertEqual(self.row(corrupt)['status'], 'error')
+
+    def test_metadata_mapping_uses_credits_and_date(self):
+        result = app.metadata_from_issue({'volume': {'name': 'Series'}, 'issue_number': '2',
+            'cover_date': '2024-01-02', 'description': '<p>A &amp; B</p>',
+            'person_credits': [{'name': 'Person', 'role': 'writer, penciler'}]})
+        self.assertEqual(result['Writer'], 'Person')
+        self.assertEqual(result['Penciller'], 'Person')
+        self.assertEqual(result['Summary'], 'A & B')
+        self.assertEqual(result['Year'], '2024')
+
+    def test_rate_reservations_persist_and_pace_attempts(self):
+        self.assertEqual(app.reserve_request(10000), 0)
+        self.assertEqual(app.reserve_request(10001), 19)
+        self.assertEqual(app.reserve_request(10020), 0)
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM api_requests').fetchone()[0], 2)
+            con.execute('UPDATE api_state SET blocked_until=11000 WHERE id=1')
+        with self.assertRaisesRegex(ValueError, 'cooling down'):
+            app.reserve_request(10021)
+
+    def test_hourly_budget_and_expiry(self):
+        with app.db() as con:
+            con.executemany('INSERT INTO api_requests VALUES(?)', [(10000,)] * 180)
+        with self.assertRaisesRegex(ValueError, 'budget'):
+            app.reserve_request(11000)
+        self.assertEqual(app.reserve_request(13601), 0)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,6 @@
+{
+  "env_file": ".env",
+  "automatic": {"enabled": false, "root": "D:\\Comics"},
+  "reverse_image": {"enabled": false, "monthly_request_limit": 0},
+  "web_search": {"provider": "free", "daily_request_limit": 100}
+}
