@@ -268,6 +268,12 @@ def cooldown(seconds=3600):
                     (time.time() + seconds,))
 
 
+def comicvine_event(status, **details):
+    import storage
+    DATA.mkdir(parents=True,exist_ok=True)
+    storage.save(DATA/'comicvine-status.json',dict(status=status,checked_at=time.time(),retry_at=0,**details))
+
+
 def api(resource, **params):
     key = api_key()
     if not key:
@@ -286,6 +292,7 @@ def api(resource, **params):
             time.sleep(min(delay, 20))
             delay = reserve_request()
         query = dict(params, api_key=key)
+        comicvine_event('requesting')
         request = urllib.request.Request('https://comicvine.gamespot.com/api/' + resource + '/?' +
                                          urllib.parse.urlencode(query), headers={'User-Agent': 'LocalComicMetadataPilot/0.1'})
         try:
@@ -294,18 +301,24 @@ def api(resource, **params):
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
                 cooldown()
+                comicvine_event('rate_limit_wait',http_status=429)
                 raise ValueError('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.') from None
+            comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code)
             raise ValueError(f'Metadata service returned HTTP {exc.code}; try again later.') from None
-        except urllib.error.URLError:
+        except (urllib.error.URLError,TimeoutError,OSError,json.JSONDecodeError):
+            comicvine_event('connection_error')
             raise ValueError('Cannot reach the metadata service. Check the connection and try again.') from None
         if payload.get('status_code') == 107:
             cooldown()
+            comicvine_event('rate_limit_wait')
             raise ValueError('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.')
         if payload.get('status_code') != 1:
+            comicvine_event('access_rejected')
             raise ValueError('Metadata service did not accept the request.')
         result = payload['results']
         with db() as con:
             con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)', (cache_key, json.dumps(result), time.time()))
+        comicvine_event('available')
         return result
 
 

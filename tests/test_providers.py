@@ -12,6 +12,26 @@ import zipfile
 from test_worker import scratch_directory
 
 class ProviderTests(unittest.TestCase):
+    def test_comicvine_status_reports_budget_and_cooldown(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'api_key',return_value='test-secret'),patch.object(providers.time,'time',return_value=10000):
+            self.assertEqual(providers.comicvine_status()['status'],'configured')
+            with app.db() as con:
+                con.executemany('INSERT INTO api_requests VALUES(?)',[(9000,)]*180)
+            status=providers.comicvine_status()
+            self.assertEqual(status['status'],'hourly_budget_wait')
+            self.assertEqual(status['requests_last_hour'],180)
+            self.assertEqual(status['retry_at'],12600)
+            with app.db() as con:con.execute('UPDATE api_state SET blocked_until=11000 WHERE id=1')
+            self.assertEqual(providers.comicvine_status()['status'],'rate_limit_wait')
+
+    def test_comicvine_status_does_not_expose_credentials(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'api_key',return_value='test-secret'):
+            app.comicvine_event('available')
+            self.assertEqual(providers.comicvine_status()['status'],'available')
+            self.assertNotIn('test-secret',json.dumps(providers.comicvine_status()))
+            with patch.object(app,'api_key',return_value=''):
+                self.assertEqual(providers.comicvine_status()['status'],'not_configured')
+
     def test_source_summary_writer_readback_and_backup_cleanup(self):
         with scratch_directory() as d:
             base=Path(d);folder=base/'comics';folder.mkdir();data=base/'data';data.mkdir()

@@ -175,9 +175,24 @@ def google_lookup(row,old):
     return matches[0] if len(matches)==1 else None
 
 def statuses():
-    result={}
+    result={'comicvine':comicvine_status()}
     for provider in ('metron','gcd','google_books'):
         target=status_path(provider)
         result[provider]=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {'status':'not_used_yet'}
     result['open_library']={'status':'offline_index_ready' if (app.DATA/'open-library.sqlite').exists() else 'awaiting_bulk_data'}
+    return result
+
+def comicvine_status():
+    now=time.time()
+    with app.db() as con:
+        budget=con.execute('SELECT COUNT(*) AS used,MIN(timestamp) AS first FROM api_requests WHERE timestamp>?',(now-3600,)).fetchone()
+        api_state=con.execute('SELECT * FROM api_state WHERE id=1').fetchone()
+    target=status_path('comicvine')
+    result=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {'status':'configured'}
+    result.update(requests_last_hour=budget['used'],hourly_application_budget=180)
+    if not app.api_key():result.update(status='not_configured',retry_at=0)
+    elif api_state['blocked_until']>now:result.update(status='rate_limit_wait',retry_at=api_state['blocked_until'])
+    elif budget['used']>=180:result.update(status='hourly_budget_wait',retry_at=budget['first']+3600)
+    elif result['status'] in ('rate_limit_wait','hourly_budget_wait') or (result['status']=='requesting' and now-result.get('checked_at',0)>60):
+        result.update(status='configured',retry_at=0)
     return result
