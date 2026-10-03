@@ -176,6 +176,16 @@ class LibraryTests(unittest.TestCase):
         path=self.root/'Readable.cbz';path.write_bytes(b'7z\xbc\xaf\x27\x1c\x00\x04')
         self.assertEqual(app.read_metadata(path)[1],'unsupported')
 
+    def test_illegal_xml_controls_repaired_without_changing_story_text(self):
+        path=self.make(xml='<ComicInfo><Summary>Premise.\x01\x01Next paragraph.</Summary><Title>Example</Title></ComicInfo>')
+        self.scan()
+        row=self.row(path)
+        self.assertEqual(json.loads(row['metadata'])['Summary'],'Premise.\n\nNext paragraph.')
+        app.write_metadata(row,{})
+        with zipfile.ZipFile(path) as archive:
+            xml=ET.fromstring(archive.read('ComicInfo.xml'))
+            self.assertEqual(xml.findtext('Summary'),'Premise.\n\nNext paragraph.')
+
     def test_synopsis_filter_includes_existing_and_tagged_metadata_only(self):
         existing=self.make('Existing.cbz','<ComicInfo><Title>Existing</Title></ComicInfo>')
         tagged=self.make('Tagged.cbz','<ComicInfo><Title>Tagged</Title><Summary> </Summary></ComicInfo>')

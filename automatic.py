@@ -225,17 +225,6 @@ def discover(root):
             if not external:
                 import cover_tasks
                 cover_tasks.enqueue(row)
-                # Paid image APIs remain optional. Browser work is explicitly queued,
-                # rather than presenting a manual upload button as unattended search.
-                image_config=json.loads((app.BASE/'config.json').read_text(encoding='utf-8')).get('reverse_image',{})
-                if image_config.get('enabled'):
-                    try:
-                        result=reverse_image.search(row['path'],0)
-                        if result.get('matches'):
-                            cover_tasks.record(row,result['matches'])
-                            external=research.resolve_leads(row,old,hint)
-                            if external:outcome='web_issue_found'
-                    except Exception as exc:lookup_error=(lookup_error or '')+'; image search: '+str(exc)
         if external:
             import cover_tasks
             cover_tasks.identified(row)

@@ -125,15 +125,23 @@ def filesystem_path(path):
 
 
 def metadata_xml(raw):
-    if b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
+    inspected=raw.replace(b'\x00',b'').upper()
+    if b'<!DOCTYPE' in inspected or b'<!ENTITY' in inspected:
         raise ValueError('XML entity declarations are not supported.')
     try:return ET.fromstring(raw)
     except ET.ParseError:
+        declaration=re.match(rb'.*?encoding=[\"\x27]([^\"\x27]+)',raw[:200],re.S)
+        encoding='utf-16' if raw.startswith((b'\xff\xfe',b'\xfe\xff')) else declaration[1].decode('ascii').lower() if declaration else 'utf-8-sig'
+        if encoding not in ('utf-8','utf8','utf-8-sig','utf-16','utf-16le','utf-16be','iso-8859-1','windows-1252','cp1252'):
+            raise
+        text=raw.decode(encoding)
+        # Illegal controls are separators, not story text. Preserve their spacing.
+        text=re.sub('[\x00-\x08\x0b\x0c\x0e-\x1f]','\n',text)
         # Recover bare ampersands without changing CDATA or comments.
-        parts=re.split(rb'(<!\[CDATA\[.*?\]\]>|<!--.*?-->)',raw,flags=re.S)
+        parts=re.split(r'(<!\[CDATA\[.*?\]\]>|<!--.*?-->)',text,flags=re.S)
         for index in range(0,len(parts),2):
-            parts[index]=re.sub(rb'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)',b'&amp;',parts[index])
-        return ET.fromstring(b''.join(parts))
+            parts[index]=re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)','&amp;',parts[index])
+        return ET.fromstring(''.join(parts))
 
 
 def read_metadata(path):
@@ -537,10 +545,6 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('No browser verification is pending.')
                 storage.save(DATA/'browser-resume',{'requested':time.time()})
                 return self.respond({'ok':True})
-            if self.path == '/api/reverse-image':
-                import reverse_image
-                row = comic(int(body['comic']))
-                return self.respond(reverse_image.search(row['path'],int(body.get('index',0))))
             if self.path == '/api/scan':
                 with LOCK:
                     if JOB['running']:
