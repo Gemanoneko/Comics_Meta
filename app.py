@@ -540,11 +540,8 @@ class Handler(BaseHTTPRequestHandler):
             if pause_control.requested():
                 raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':
-                import browser_search,storage
-                if not browser_search.status().get('human_verification'):
-                    raise ValueError('No browser verification is pending.')
-                storage.save(DATA/'browser-resume',{'requested':time.time()})
-                return self.respond({'ok':True})
+                import browser_search
+                return self.respond(browser_search.request_verification())
             if self.path == '/api/scan':
                 with LOCK:
                     if JOB['running']:

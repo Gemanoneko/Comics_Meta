@@ -32,8 +32,11 @@ $('controlStatus').textContent=processingControl.phase==='pausing'?'Pausing — 
 if(lastMetadataRevision!==p.timestamp){lastMetadataRevision=p.timestamp;await load()}
 const f=p.folders||{},r=p.research||{},q=p.queue||{};
 const bs=p.browser_search||{};
-$('browserStatus').textContent='Cover search: '+(bs.alive?(bs.state||'starting'):'not running')+(bs.current?' · '+bs.current:'')+' · '+(bs.human_verification?'Google needs your verification. Other processing continues.':bs.detail||'');
+$('browserStatus').textContent='Cover search: '+(bs.alive?(bs.state||'starting'):'not running')+(bs.current?' · '+bs.current:'')+' · '+(bs.human_verification?(bs.verification_pending?(bs.verification_state==='open'?'Complete verification in the browser window.':'Verification requested — opening when the current operation finishes. No further clicks needed.'):'Google needs your verification. Other processing continues.'):bs.detail||'');
 $('browserResume').hidden=!bs.human_verification||processingControl.requested;
+$('browserResume').disabled=!!bs.verification_pending;
+$('browserResume').textContent=bs.verification_pending?(bs.verification_state==='open'?'Verification window open':'Opening verification…'):'Open browser verification';
+if(!bs.human_verification&&bs.verification_window==='minimized')$('browserStatus').textContent+=' Keep the verified browser open; it can stay minimized.';
 const waiting=p.phase==='Waiting for delta scan'||p.phase==='Automatic lookup waiting';
 const next=f.next_scan_at?new Date(f.next_scan_at*1000).toLocaleTimeString():null;
 $('queueStatus').textContent=!q.alive?'Stopped — automatic restart is being attempted':q.running?'Working — writing and verifying metadata':q.pending?'Working — preparing queued updates':waiting?'Waiting — '+(f.retry_wait?'some folders will be retried':'scheduled folder checks finished'):'Working — looking up comic information';
@@ -47,7 +50,7 @@ $('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' fol
 $('completedBatches').replaceChildren(...(p.completed||[]).map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));
 $('updatedAt').textContent=p.timestamp?'Last activity: '+new Date(p.timestamp).toLocaleString():'';
 }catch(e){$('queueStatus').textContent='Cannot reach the local service';$('liveProgress').textContent='Status unavailable';}}
-browserResume.onclick=async()=>{try{await request('browser-resume',{});browserStatus.textContent='Opening a dedicated verification window…'}catch(e){error(e)}};
+browserResume.onclick=async()=>{browserResume.disabled=true;browserResume.textContent='Opening verification…';try{await request('browser-resume',{});await progress()}catch(e){browserResume.disabled=false;browserResume.textContent='Open browser verification';error(e)}};
 let processingControl={};
 $('pauseControl').onclick=async()=>{const button=$('pauseControl');button.disabled=true;try{await request(processingControl.requested?'resume':'pause',{});await progress()}catch(e){error(e)}finally{button.disabled=false}};
 async function load(){try{

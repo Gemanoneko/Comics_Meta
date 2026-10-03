@@ -17,6 +17,52 @@ class BrowserSearchTests(unittest.TestCase):
     def setUp(self):
         control=patch.object(browser_worker.pause_control,'requested',return_value=False)
         control.start();self.addCleanup(control.stop)
+
+    def test_verification_request_is_persistent_and_duplicate_clicks_are_ignored(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
+            self.assertEqual(browser_search.request_verification()['state'],'queued')
+            path=app.DATA/'browser-resume';original=path.read_bytes()
+            self.assertEqual(browser_search.request_verification()['state'],'already_requested')
+            self.assertEqual(path.read_bytes(),original)
+            self.assertTrue(browser_search.status()['verification_pending'])
+
+    def test_verification_request_interrupts_long_pacing_without_sleep(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)),patch.object(browser_worker.time,'sleep') as sleep:
+            (app.DATA/'browser-resume').write_text('{}')
+            browser_worker.wait_for_work(60)
+            sleep.assert_not_called()
+
+    def test_verified_session_keeps_browser_and_minimizes_it(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
+            browser_search.request_verification()
+            browser=Mock();browser.human_session.return_value=True;browser.minimize.return_value=True
+            result=browser_worker.verification_request(browser,{})
+            self.assertIs(result,browser)
+            browser.minimize.assert_called_once();browser.close.assert_not_called()
+            state=browser_search.status()
+            self.assertFalse(state['human_verification']);self.assertFalse(state['verification_pending'])
+            self.assertEqual(state['verification_window'],'minimized')
+            self.assertFalse((app.DATA/'browser-resume').exists())
+
+    def test_verification_failure_allows_single_retry(self):
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
+            browser_search.request_verification()
+            browser=Mock();browser.human_session.side_effect=ValueError('failed')
+            browser_worker.verification_request(browser,{})
+            self.assertEqual(browser_search.request_verification()['state'],'queued')
+
+    def test_minimize_only_changes_window_state_and_retains_context(self):
+        browser=object.__new__(browser_search.LensBrowser)
+        browser.context=Mock();browser.page=Mock()
+        session=browser.context.new_cdp_session.return_value
+        session.send.side_effect=[{'windowId':7},{}]
+        self.assertTrue(browser.minimize())
+        self.assertEqual(session.send.call_args.args,('Browser.setWindowBounds',{'windowId':7,'bounds':{'windowState':'minimized'}}))
+        browser.context.close.assert_not_called()
+        session.detach.assert_called_once()
     def test_identified_comic_with_missing_synopsis_is_not_reverse_searched(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(app,'live_root',return_value=d):
             import discovery_state

@@ -57,7 +57,7 @@ def process(row,browser,options):
         except pause_control.PauseRequested:
             cover_tasks.finish(row,'pending','Paused; search remains queued.');return
         except search.HumanVerification as exc:
-            search.status(human_verification=True,verification_url=exc.url,browser_retry_at=time.time()+3600)
+            search.status(human_verification=True,verification_state='required',verification_url=exc.url,browser_retry_at=time.time()+3600)
             leads=None
         except Exception:
             search.status(browser_retry_at=time.time()+3600,browser_error='Browser search could not finish; retrying after a cooldown.')
@@ -86,6 +86,34 @@ def process(row,browser,options):
         search.status(state='waiting',detail='No usable candidates for this cover. Continuing with other comics.')
 
 
+def wait_for_work(seconds):
+    """Interrupt pacing promptly for a user verification request or a pause."""
+    deadline=time.monotonic()+seconds
+    while time.monotonic()<deadline:
+        if pause_control.requested() or (app.DATA/'browser-resume').exists():return
+        time.sleep(min(1,max(0,deadline-time.monotonic())))
+
+
+def verification_request(browser,options):
+    resume=app.DATA/'browser-resume'
+    if not resume.exists():return browser
+    resume.unlink()
+    state=search.status()
+    if not state.get('human_verification') or not state.get('verification_url'):return browser
+    try:
+        search.status(state='opening_verification',verification_state='opening',detail='Opening the verification browser; no further clicks are needed.')
+        if not browser:browser=search.LensBrowser(options)
+        resolved=browser.human_session(state['verification_url'])
+        minimized=browser.minimize() if resolved else False
+        search.status(human_verification=not resolved,verification_state='verified' if resolved else 'required',
+                      verification_window='minimized' if minimized else 'open' if resolved else 'closed',
+                      browser_retry_at=0 if resolved else time.time()+3600,
+                      detail=('Verification complete. The browser is minimized; keep it open for automatic searches.' if minimized else 'Verification complete. You can minimize the browser; keep it open for automatic searches.') if resolved else 'Verification did not finish. Request a new window when ready.')
+    except Exception:
+        search.status(state='needs_human',verification_state='required',detail='Could not complete the verification session. Retry from the dashboard.')
+    return browser
+
+
 def main(once=False):
     handle=locked()
     if not handle:return
@@ -100,13 +128,17 @@ def main(once=False):
         cover_tasks.table(con)
         con.execute("UPDATE cover_tasks SET state='pending' WHERE state='searching'")
     browser=None
+    next_search_at=0
+    state=search.status()
+    search.status(verification_state='required' if state.get('human_verification') else 'verified',verification_window='closed')
     try:
         while True:
             if pause_control.requested():
                 if browser:
                     browser.close();browser=None
                 pause_control.checkpoint('browser')
-                search.status(state='paused',detail='Paused; cover queue retained.')
+                state=search.status()
+                search.status(state='paused',verification_state='required' if state.get('human_verification') else 'verified',verification_window='closed',detail='Paused; cover queue retained.')
                 if once:return
                 time.sleep(1);continue
             pause_control.checkpoint('browser')
@@ -115,22 +147,14 @@ def main(once=False):
                 search.status(state='disabled',detail='Browser cover research is disabled.')
                 if once:return
                 time.sleep(5);continue
-            resume=app.DATA/'browser-resume'
-            if resume.exists():
-                resume.unlink()
-                state=search.status()
-                if state.get('human_verification') and state.get('verification_url'):
-                    try:
-                        if not browser:browser=search.LensBrowser(options)
-                        search.status(state='needs_human',detail='Complete verification in the dedicated browser window. Other metadata processing continues.')
-                        resolved=browser.human_session(state['verification_url'])
-                        search.status(human_verification=not resolved,browser_retry_at=0 if resolved else time.time()+3600)
-                    except Exception:search.status(state='needs_human',detail='Could not open or complete the verification session. Retry from the dashboard.')
+            browser=verification_request(browser,options)
+            if time.monotonic()<next_search_at:
+                wait_for_work(next_search_at-time.monotonic());continue
             row=cover_tasks.claim()
             if not row:
                 search.status(state='waiting',detail='Watching for unresolved covers.')
                 if once:return
-                time.sleep(5);continue
+                wait_for_work(5);continue
             try:
                 if not browser:browser=search.LensBrowser(options)
                 process(row,browser,options)
@@ -143,7 +167,8 @@ def main(once=False):
                     except Exception:pass
                     browser=None
             if once:return
-            pause_control.sleep(max(30,int(options.get('interval_seconds',60))))
+            next_search_at=time.monotonic()+max(30,int(options.get('interval_seconds',60)))
+            wait_for_work(next_search_at-time.monotonic())
     finally:
         stop.set()
         if browser:browser.close()

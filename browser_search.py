@@ -17,6 +17,9 @@ from PIL import Image
 import app
 import reverse_image
 import storage
+import threading
+
+VERIFICATION_LOCK=threading.Lock()
 
 
 class HumanVerification(Exception):
@@ -51,7 +54,17 @@ def status(**changes):
         previous.update(changes,timestamp=time.time());storage.save(path,previous)
     heartbeat=app.DATA/'browser-heartbeat'
     previous['alive']=heartbeat.exists() and time.time()-json.loads(heartbeat.read_text(encoding='utf-8'))['timestamp']<15
+    previous['verification_pending']=(app.DATA/'browser-resume').exists() or (previous['alive'] and previous.get('human_verification') and previous.get('verification_state') in ('opening','open'))
     return previous
+
+def request_verification():
+    with VERIFICATION_LOCK:
+        state=status()
+        if not state.get('human_verification'):raise ValueError('No browser verification is pending.')
+        if state.get('verification_pending'):return {'ok':True,'state':'already_requested'}
+        status(verification_state='queued',detail='Verification requested; waiting for the current cover operation to finish.')
+        storage.save(app.DATA/'browser-resume',{'requested':time.time()})
+        return {'ok':True,'state':'queued'}
 
 
 def cover_bytes(path):
@@ -154,6 +167,7 @@ class LensBrowser:
             raise ValueError('Verification URL is not a Google page.')
         self.open(visible=True)
         self.page.goto(url,wait_until='domcontentloaded',timeout=45_000)
+        status(state='needs_human',verification_state='open',detail='Complete verification in the browser window. It will be minimized when verification succeeds.')
         deadline=time.time()+600
         while time.time()<deadline:
             import pause_control
@@ -163,6 +177,17 @@ class LensBrowser:
                 # Keep the browser the user just verified, including its session.
                 return True
         self.open();return False
+
+    def minimize(self):
+        """Keep the verified browser session intact while hiding its window."""
+        try:
+            session=self.context.new_cdp_session(self.page)
+            try:
+                window=session.send('Browser.getWindowForTarget')
+                session.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'minimized'}})
+                return True
+            finally:session.detach()
+        except Exception:return False
 
     def close(self):
         if self.context:self.context.close()
