@@ -537,6 +537,17 @@ class Handler(BaseHTTPRequestHandler):
             import pause_control
             if self.path in ('/api/pause','/api/resume'):
                 return self.respond(pause_control.change(self.path=='/api/pause'))
+            if self.path == '/api/open-folder':
+                with db() as con:
+                    scope, params = scope_filter(live_root())
+                    row = con.execute('SELECT path FROM comics WHERE id=? AND '+scope, (int(body['comic']), *params)).fetchone()
+                if row is None:
+                    raise ValueError('Comic is not in the current library.')
+                folder = filesystem_path(row['path']).parent
+                if not folder.is_dir():
+                    raise ValueError('Folder is unavailable. Check that the library drive is connected.')
+                os.startfile(str(folder))
+                return self.respond({'ok': True})
             if pause_control.requested():
                 raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':
