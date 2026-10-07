@@ -418,6 +418,12 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
     return str(backup)
 
 
+def inventory_totals(counts):
+    total = sum(value for status, value in counts.items() if status != 'absent')
+    return {'total': total, 'updated': counts.get('tagged', 0),
+            'corrupted': counts.get('corrupted', 0), 'conversion': counts.get('unsupported', 0)}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -448,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
                     scope, scope_args = scope_filter(root)
                     counts = {r['status']: r['n'] for r in con.execute('SELECT status,COUNT(*) n FROM comics WHERE '+scope+' GROUP BY status',scope_args)}
                     roots = [root] if root else [r['path'] for r in con.execute('SELECT path FROM roots')]
-                return self.respond({'job': JOB.copy(), 'counts': counts, 'roots': roots,
+                return self.respond({'job': JOB.copy(), 'counts': counts, 'totals': inventory_totals(counts), 'roots': roots,
                                      'online': bool(api_key())})
             if url.path == '/api/progress':
                 import pause_control
@@ -476,7 +482,7 @@ class Handler(BaseHTTPRequestHandler):
                 if folders_path.exists():
                     folder_state=json.loads(folders_path.read_text(encoding='utf-8'))
                     scheduled=folder_state.get('folders',{})
-                    result['folders']={'total':len(scheduled),'passes_complete':sum(v.get('state')=='pass_complete' for v in scheduled.values()),'retry_wait':sum(v.get('state')=='retry_wait' for v in scheduled.values()),
+                    result['folders']={'total':len(scheduled),'scanned':sum(bool(v.get('last_pass')) and not v.get('error') for v in scheduled.values()),'passes_complete':sum(v.get('state')=='pass_complete' for v in scheduled.values()),'retry_wait':sum(v.get('state')=='retry_wait' for v in scheduled.values()),
                                        'next_scan_at':min((v.get('next_scan',0) for v in scheduled.values()),default=None),'inventory_pending':bool(folder_state.get('inventory_pending')),'directories_visited':folder_state.get('inventory_visited',0)}
                 return self.respond(result)
             if url.path == '/api/comics':
