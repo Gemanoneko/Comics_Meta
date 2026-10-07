@@ -424,6 +424,15 @@ def inventory_totals(counts):
             'corrupted': counts.get('corrupted', 0), 'conversion': counts.get('unsupported', 0)}
 
 
+def metadata_present_count(con, root):
+    scope, params = scope_filter(root)
+    fields = ','.join('?' for _ in BIBLIOGRAPHIC_FIELDS)
+    return con.execute("SELECT COUNT(*) FROM comics WHERE "+scope+
+        " AND status IN ('embedded','tagged') AND trim(COALESCE(json_extract(metadata,'$.Summary'),''))<>''"
+        " AND EXISTS(SELECT 1 FROM json_each(comics.metadata) WHERE key IN ("+fields+
+        ") AND trim(COALESCE(value,''))<>'')", (*params, *BIBLIOGRAPHIC_FIELDS)).fetchone()[0]
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -454,7 +463,10 @@ class Handler(BaseHTTPRequestHandler):
                     scope, scope_args = scope_filter(root)
                     counts = {r['status']: r['n'] for r in con.execute('SELECT status,COUNT(*) n FROM comics WHERE '+scope+' GROUP BY status',scope_args)}
                     roots = [root] if root else [r['path'] for r in con.execute('SELECT path FROM roots')]
-                return self.respond({'job': JOB.copy(), 'counts': counts, 'totals': inventory_totals(counts), 'roots': roots,
+                    totals = inventory_totals(counts)
+                    totals['metadata_and_synopsis'] = metadata_present_count(con, root)
+                    totals['needs_information'] = totals['total'] - totals['metadata_and_synopsis']
+                return self.respond({'job': JOB.copy(), 'counts': counts, 'totals': totals, 'roots': roots,
                                      'online': bool(api_key())})
             if url.path == '/api/progress':
                 import pause_control
