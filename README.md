@@ -20,6 +20,8 @@ python app.py
 
 The dashboard opens at http://127.0.0.1:8765. Keep the service running. Local configuration, credentials, comics, generated plans and runtime state are excluded from Git.
 
+On Windows, double-click `run.cmd` for the persistent launcher. It registers an on-demand task named `ComicsMeta-Local-8765` under your current Windows account and starts the server independently of the launching terminal or client. You can close the launcher window. Windows retries a failed task up to three times, one minute apart. There is no automatic sign-in/startup trigger; start it again after reboot. The saved pause setting remains in effect. Server logs retain one bounded tail from the previous run, and `data/server-exit.json` records observed server exit codes. Pause processing and wait for Paused before stopping the task in Windows Task Scheduler.
+
 ## Local model
 
 Install Ollama and download the optional model:
