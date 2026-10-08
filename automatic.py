@@ -161,9 +161,9 @@ def discover(root):
             except Exception as exc:
                 lookup_error = (lookup_error or '') + '; Metron: ' + str(exc)
         if (not issue or not old.get('Summary')) and not external:
-            import providers, open_library
+            import providers, open_library, getcomics
             attempts=[]
-            for name,lookup in [('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup)]:
+            for name,lookup in [('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),('GetComics',getcomics.lookup)]:
                 try:
                     batch.progress(phase='Automatic metadata lookup',detail='Checking '+name+' for '+path.name)
                     external=lookup(row,old)

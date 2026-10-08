@@ -20,9 +20,9 @@ async function state(){try{const s=await request('state');$('roots').textContent
 const count=Object.entries(s.counts).filter(([k])=>k!=='absent').reduce((n,[k,v])=>n+v,0);$('counts').replaceChildren(node('span',count+' live comics in the inventory'));if(wasRunning&&!s.job.running)await load();wasRunning=s.job.running}catch(e){error(e)}}
 let wasRunning=false,lastMetadataRevision=null;
 function showProviders(providers){
-const labels={comicvine:'ComicVine',metron:'Metron',gcd:'GCD',google_books:'Google Books',open_library:'Open Library'};
+const labels={comicvine:'ComicVine',metron:'Metron',gcd:'GCD',google_books:'Google Books',open_library:'Open Library',getcomics:'GetComics'};
 const states={available:'Connected',requesting:'Looking up',not_used_yet:'Ready for first lookup',unavailable:'Unavailable; retry scheduled',access_rejected:'Access rejected',authentication_failed:'Access rejected',daily_budget_wait:'Daily budget reached',awaiting_bulk_data:'Waiting for local bulk data',offline_index_ready:'Local index ready',cover_unavailable:'Cover verification unavailable'};
-Object.assign(states,{configured:'Configured',not_configured:'Not configured',hourly_budget_wait:'Local hourly budget reached',rate_limit_wait:'Rate limit cooldown',connection_error:'Unavailable; waiting for another lookup'});
+Object.assign(states,{ready:'Ready',human_verification:'Human verification needed; requests stopped',access_blocked:'Access blocked; requests stopped',configured:'Configured',not_configured:'Not configured',hourly_budget_wait:'Local hourly budget reached',rate_limit_wait:'Rate limit cooldown',connection_error:'Unavailable; waiting for another lookup'});
 $('providerStatus').textContent=Object.entries(providers).map(([name,state])=>{const retry=state.retry_at>Date.now()/1000?' · retry '+new Date(state.retry_at*1000).toLocaleTimeString():'';const budget=name==='comicvine'?' · '+state.requests_last_hour+'/'+state.hourly_application_budget+' local requests/hour':'';return (labels[name]||name)+': '+(states[state.status]||state.status)+budget+retry}).join(' | ');
 }
 async function progress(){try{

@@ -40,18 +40,32 @@ def validate_url(url):
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl):
         validate_url(newurl)
+        import getcomics
+        if getcomics.is_host(newurl):getcomics.reserve()
         return super().redirect_request(req,fp,code,msg,headers,newurl)
 
 def read(url,headers=None,binary=False):
     validate_url(url)
+    import getcomics
+    limited=getcomics.is_host(url)
+    if limited:getcomics.reserve()
     opener=urllib.request.build_opener(SafeRedirect())
     request=urllib.request.Request(url,headers=dict({'User-Agent':'ComicMetadataResearch/0.3'},**(headers or {})))
     try:
         with opener.open(request,timeout=25) as response:
             raw=response.read(2_000_001)
             if len(raw)>2_000_000:raise ValueError('Source response too large.')
-            return raw if binary else raw.decode('utf-8',errors='replace')
+            text=raw.decode('utf-8',errors='replace') if not binary else ''
+            if limited:
+                if any(marker in text.lower() for marker in ('verify you are human','prove you are human','just a moment','cf-chl-','challenge-platform','checking your browser')):
+                    getcomics.mark('human_verification',True)
+                    raise SearchBlocked('GetComics needs human verification; automatic requests stopped.')
+                getcomics.mark('available')
+            return raw if binary else text
+    except SearchBlocked:
+        raise
     except Exception as exc:
+        if limited:getcomics.mark('access_blocked',True)
         # URLs or headers must never leak a credential in a dashboard error.
         raise SearchBlocked('Web source unavailable or blocked; no bypass attempted.') from None
 

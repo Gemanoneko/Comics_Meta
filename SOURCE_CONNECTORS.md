@@ -6,6 +6,7 @@ Metron, GCD and Google Books are connected to automatic discovery. Credentials r
 - GCD: exact series and number plus cover agreement; check the key date when present. If a cover cannot be retrieved, no identity-dependent write is made.
 - Google Books: graphic novels and collected editions only. Match an existing ISBN, or an exact title and matching cover; reject ambiguous results.
 - Open Library: local dump index, exact ISBN matching. This avoids bulk API harvesting. The dashboard reports that bulk data is required until an index exists.
+- GetComics: metadata-only fallback after database sources. A shared SQLite gate permits at most one uncached HTTP request per five minutes across workers and restarts, including followed pages and redirects. Search results and source pages are cached for seven days. Exact issue checks or exact book title/year/known publisher checks must pass before synopsis review; ambiguous candidates are rejected. Human verification and access failures stop further site requests and are shown on the dashboard. No challenge bypass or comic-download links are used. Contact the assistant after manually verifying access to arrange a controlled retry.
 
 New descriptions pass the existing quotation, claim and spoiler checks before being queued. The serial writer verifies metadata and archive page integrity before removing a full backup. Existing populated fields are retained by these fallback connectors.
 
