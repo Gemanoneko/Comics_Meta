@@ -164,9 +164,13 @@ def discover(root):
             except Exception as exc:
                 lookup_error = record_failure(lookup_error,provider_waits,'Metron',exc)
         if (not issue or not old.get('Summary')) and not external:
-            import providers, open_library, getcomics
+            import providers, open_library, getcomics, publisher_catalogs
             attempts=[]
-            for name,lookup in [('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),('GetComics',getcomics.lookup)]:
+            for name,lookup in [('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
+                                ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog')),
+                                ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog')),
+                                ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog')),
+                                ('GetComics',getcomics.lookup)]:
                 try:
                     batch.progress(phase='Automatic metadata lookup',detail='Checking '+name+' for '+path.name)
                     external=lookup(row,old)

@@ -183,6 +183,8 @@ def statuses():
     result['open_library']={'status':'offline_index_ready' if (app.DATA/'open-library.sqlite').exists() else 'awaiting_bulk_data'}
     import getcomics
     result['getcomics']=getcomics.status()
+    import publisher_catalogs
+    result.update(publisher_catalogs.statuses())
     return result
 
 def comicvine_status():

@@ -43,6 +43,9 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         validate_url(newurl)
         import getcomics
         if getcomics.is_host(newurl):getcomics.reserve()
+        import publisher_catalogs
+        name=publisher_catalogs.provider(newurl)
+        if name:publisher_catalogs.reserve(name)
         return super().redirect_request(req,fp,code,msg,headers,newurl)
 
 def read(url,headers=None,binary=False):
@@ -50,6 +53,9 @@ def read(url,headers=None,binary=False):
     import getcomics
     limited=getcomics.is_host(url)
     if limited:getcomics.reserve()
+    import publisher_catalogs
+    catalog=publisher_catalogs.provider(url)
+    if catalog:publisher_catalogs.reserve(catalog)
     opener=urllib.request.build_opener(SafeRedirect())
     request=urllib.request.Request(url,headers=dict({'User-Agent':'ComicMetadataResearch/0.3'},**(headers or {})))
     try:
@@ -62,11 +68,19 @@ def read(url,headers=None,binary=False):
                     getcomics.mark('human_verification',True)
                     raise SearchBlocked('GetComics needs human verification; automatic requests stopped.')
                 getcomics.mark('available')
+            if catalog:
+                if any(marker in text.lower() for marker in ('verify you are human','just a moment','cf-chl-','challenge-platform','prove you are human')):
+                    publisher_catalogs.mark(catalog,'human_verification')
+                    raise ProviderDeferred('Catalog needs human verification; requests stopped.',catalog)
+                publisher_catalogs.mark(catalog,'available')
             return raw if binary else text
-    except SearchBlocked:
+    except ProviderDeferred:
         raise
     except Exception as exc:
         if limited:getcomics.mark('access_blocked',True)
+        if catalog:
+            publisher_catalogs.mark(catalog,'unavailable')
+            raise ProviderDeferred('Catalog unavailable; retry scheduled.',catalog,time.time()+3600) from None
         # URLs or headers must never leak a credential in a dashboard error.
         raise SearchBlocked('Web source unavailable or blocked; no bypass attempted.') from None
 
@@ -148,12 +162,17 @@ def search(query):
 
 def source(url):
     cache_key='web-source:'+url
+    import publisher_catalogs
+    if publisher_catalogs.provider(url):cache_key='catalog-source:v1:'+url
     with app.db() as con:
         cached=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
     if cached:return json.loads(cached['value'])
-    page=Page();page.feed(read(url))
+    raw=read(url)
+    page=Page();page.feed(raw)
     result={'url':url,'title':' '.join(page.title),'headings':page.headings,'text':re.sub(r'\s+',' ',page.description or ' '.join(page.text))[:12000],
             'identity_text':re.sub(r'\s+',' ',' '.join(page.text))[:24000],
             'image':page.image,'retrieved':time.time(),'scope':'Web candidate; identity must be verified'}
+    import publisher_catalogs
+    if publisher_catalogs.provider(url):publisher_catalogs.enrich(raw,result)
     with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
     return result
