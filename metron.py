@@ -10,6 +10,7 @@ import urllib.request
 from pathlib import Path
 from html import unescape
 import app
+from provider_wait import ProviderDeferred
 import storage
 
 STATE = app.DATA / 'metron-status.json'
@@ -46,7 +47,7 @@ def request(endpoint, **params):
             return json.loads(row['value'])
         state = json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {}
         if state.get('retry_at', 0) > time.time():
-            raise ValueError('Metron is waiting before retrying; other sources remain available.')
+            raise ProviderDeferred('Metron is waiting before retrying; other sources remain available.','metron',state['retry_at'])
         time.sleep(max(0, state.get('last_request', 0)+3.2-time.time()))
         state.update(last_request=time.time(), status='requesting')
         storage.save(STATE, state)
@@ -81,7 +82,7 @@ def request(endpoint, **params):
             status = 'authentication_failed' if code in (401,403) else 'unavailable'
             state.update(status=status, retry_at=time.time()+delay, checked_at=time.time(), http_status=code)
             storage.save(STATE, state)
-            raise ValueError('Metron '+status.replace('_',' ')+'; retry scheduled, other sources remain available.') from None
+            raise ProviderDeferred('Metron '+status.replace('_',' ')+'; retry scheduled, other sources remain available.','metron',state['retry_at']) from None
 
 def lookup(row, old):
     """Accept a unique exact series/number/year candidate only after cover agreement."""

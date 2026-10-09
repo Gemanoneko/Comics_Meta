@@ -13,6 +13,7 @@ from html import unescape
 from pathlib import Path
 import app
 import storage
+from provider_wait import ProviderDeferred
 
 LOCK=threading.Lock()
 HOSTS={'gcd':'www.comics.org','google_books':'www.googleapis.com'}
@@ -44,11 +45,11 @@ def request(provider,path,params=None):
     cache_key=provider+':'+path+':'+json.dumps(params,sort_keys=True)
     if provider=='gcd':
         email,password=setting('GCD_EMAIL'),setting('GCD_PASSWORD')
-        if not email or not password:raise ValueError('GCD credentials not configured.')
+        if not email or not password:raise ProviderDeferred('GCD credentials not configured.','gcd')
         headers['Authorization']='Basic '+base64.b64encode((email+':'+password).encode()).decode()
     else:
         secret=setting('GOOGLE_BOOKS_API_KEY')
-        if not secret:raise ValueError('Google Books key not configured.')
+        if not secret:raise ProviderDeferred('Google Books key not configured.','google_books')
         params['key']=secret
     url='https://'+HOSTS[provider]+path+('?' + urllib.parse.urlencode(params) if params else '')
     with LOCK:
@@ -59,11 +60,11 @@ def request(provider,path,params=None):
         if cached:return json.loads(cached['value'])
         target=status_path(provider)
         state=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
-        if state.get('retry_at',0)>time.time():raise ValueError(provider+' is waiting before retrying.')
+        if state.get('retry_at',0)>time.time():raise ProviderDeferred(provider+' is waiting before retrying.',provider,state['retry_at'])
         if used>=BUDGETS[provider]:
             state.update(status='daily_budget_wait',retry_at=time.time()+3600)
             storage.save(target,state)
-            raise ValueError(provider+' daily application budget reached.')
+            raise ProviderDeferred(provider+' daily application budget reached.',provider,state['retry_at'])
         time.sleep(max(0,state.get('last_request',0)+3.2-time.time()))
         state.update(status='requesting',last_request=time.time(),requests_last_day=used+1)
         storage.save(target,state)
@@ -86,7 +87,7 @@ def request(provider,path,params=None):
                 except (TypeError,ValueError):pass
             state.update(status='access_rejected' if code in (401,403) else 'unavailable',http_status=code,retry_at=time.time()+delay,checked_at=time.time())
             storage.save(target,state)
-            raise ValueError(provider+' unavailable; retry scheduled.') from None
+            raise ProviderDeferred(provider+' unavailable; retry scheduled.',provider,state['retry_at']) from None
 
 def text(value):return unescape(re.sub('<[^>]+>',' ',str(value or ''))).strip()
 

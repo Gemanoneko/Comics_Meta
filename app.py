@@ -18,6 +18,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from provider_wait import ProviderDeferred
 
 BASE = Path(__file__).resolve().parent
 DATA = BASE / 'data'
@@ -257,11 +258,11 @@ def reserve_request(now=None):
         state = con.execute('SELECT * FROM api_state WHERE id=1').fetchone()
         if state['blocked_until'] > now:
             minutes = max(1, int((state['blocked_until'] - now + 59) // 60))
-            raise ValueError(f'Metadata lookup is cooling down; retry in about {minutes} minutes.')
+            raise ProviderDeferred(f'Metadata lookup is cooling down; retry in about {minutes} minutes.','comicvine',state['blocked_until'])
         con.execute('DELETE FROM api_requests WHERE timestamp<=?', (now - 3600,))
         count = con.execute('SELECT COUNT(*) FROM api_requests').fetchone()[0]
         if count >= 180:
-            raise ValueError('Local hourly request budget reached. Pause and retry later; cached results remain available.')
+            raise ProviderDeferred('Local hourly request budget reached. Pause and retry later; cached results remain available.','comicvine',con.execute('SELECT MIN(timestamp) FROM api_requests').fetchone()[0]+3600)
         delay = max(0, 20 - (now - state['last_attempt']))
         if delay:
             return delay
@@ -285,7 +286,7 @@ def comicvine_event(status, **details):
 def api(resource, **params):
     key = api_key()
     if not key:
-        raise ValueError('Set COMICVINE_API_KEY before starting the app to enable online lookup.')
+        raise ProviderDeferred('Set COMICVINE_API_KEY before starting the app to enable online lookup.','comicvine')
     params['format'] = 'json'
     cache_key = resource + '?' + urllib.parse.urlencode(sorted(params.items()))
     with API_LOCK:
@@ -310,19 +311,22 @@ def api(resource, **params):
             if exc.code == 429:
                 cooldown()
                 comicvine_event('rate_limit_wait',http_status=429)
-                raise ValueError('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.') from None
-            comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code)
-            raise ValueError(f'Metadata service returned HTTP {exc.code}; try again later.') from None
+                raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600) from None
+            cooldown(300)
+            comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code,retry_at=time.time()+300)
+            raise ProviderDeferred(f'Metadata service returned HTTP {exc.code}; try again later.','comicvine',time.time()+3600) from None
         except (urllib.error.URLError,TimeoutError,OSError,json.JSONDecodeError):
-            comicvine_event('connection_error')
-            raise ValueError('Cannot reach the metadata service. Check the connection and try again.') from None
+            cooldown(300)
+            comicvine_event('connection_error',retry_at=time.time()+300)
+            raise ProviderDeferred('Cannot reach the metadata service. Check the connection and try again.','comicvine',time.time()+3600) from None
         if payload.get('status_code') == 107:
             cooldown()
             comicvine_event('rate_limit_wait')
-            raise ValueError('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.')
+            raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600)
         if payload.get('status_code') != 1:
-            comicvine_event('access_rejected')
-            raise ValueError('Metadata service did not accept the request.')
+            cooldown(300)
+            comicvine_event('access_rejected',retry_at=time.time()+300)
+            raise ProviderDeferred('Metadata service did not accept the request.','comicvine',time.time()+300)
         result = payload['results']
         with db() as con:
             con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)', (cache_key, json.dumps(result), time.time()))

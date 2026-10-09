@@ -44,3 +44,7 @@ Unresolved cover searches are persisted in the catalog. A supervised project-own
 Per-file research state now lives in SQLite and is loaded one folder at a time. Legacy JSON state is migrated once. A 25,000-record regression check verifies that only the current folder is loaded.
 
 A live Lady Death / Shi #1 commemorative cover was found through Google Lens, independently compared with its catalog cover, and paired with the exact ComicVine issue. Issue-wide credits and an agent-reviewed internet synopsis were written and read back successfully; verified backups were removed. The user confirmed the synopsis appears correctly in YACReader. Folder-by-folder rollout is now configured for Y:\Comix; explicitly non-English comics are skipped, while unknown languages are not guessed.
+
+## Provider waits and research priority
+
+Provider-wide request budgets, verification blocks and service outages are recorded separately from comic-specific errors. They retain the normal research retry (one day for unresolved identity, 30 days for current verified identity), rather than shortening it to an hour. Actual per-comic errors still use the shorter retry. Cached responses remain usable before provider cooldown checks. A one-time migration repairs old GetComics-only hourly retry records without changing comic archives or hiding other errors. Within each folder, unresearched comics are preferred, followed by verified source leads, then unresolved retries. ComicVine transient connection failures impose a shared five-minute cooldown instead of being repeated for each comic.

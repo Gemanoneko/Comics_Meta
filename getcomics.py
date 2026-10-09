@@ -18,8 +18,8 @@ def reserve():
         con.execute("INSERT OR IGNORE INTO getcomics_state VALUES(1,0,0,'ready')")
         con.execute('BEGIN IMMEDIATE') if not con.in_transaction else None
         state = con.execute('SELECT * FROM getcomics_state WHERE id=1').fetchone()
-        if state['blocked']: raise web_search.SearchBlocked('GetComics needs human verification or rejected access; automatic requests stopped.')
-        if time.time() < state['last_request'] + 300: raise web_search.SearchBlocked('GetComics five-minute request interval; retry later.')
+        if state['blocked']: raise web_search.SearchBlocked('GetComics needs human verification or rejected access; automatic requests stopped.','getcomics')
+        if time.time() < state['last_request'] + 300: raise web_search.SearchBlocked('GetComics five-minute request interval; retry later.','getcomics',state['last_request']+300)
         con.execute("UPDATE getcomics_state SET last_request=?,status='requesting' WHERE id=1", (time.time(),))
 
 

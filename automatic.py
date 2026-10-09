@@ -12,6 +12,7 @@ import urllib.parse
 import reverse_image
 import research
 import discovery_state
+from provider_wait import record_failure, retry_time
 
 MATCHER_VERSION = 9
 
@@ -113,6 +114,7 @@ def discover(root):
     with app.db() as con:
         scope,args=app.scope_filter(root)
         rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','corrupted','unsupported') AND "+scope+' ORDER BY path',args)]
+    rows.sort(key=lambda row: (bool(state['checked'].get(row['path'])), state['checked'].get(row['path'],{}).get('outcome') not in ('web_issue_found','publisher_issue_found','current'), row['path']))
     checked = 0
     for row in rows:
         import pause_control
@@ -141,10 +143,11 @@ def discover(root):
         outcome = 'needs_identity_lookup'
         retry = time.time() + 86400
         lookup_error = None
+        provider_waits = {}
         try:
             issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
         except Exception as exc:
-            lookup_error = str(exc)
+            lookup_error = record_failure(lookup_error,provider_waits,'ComicVine',exc)
             issue = None
             batch.progress(phase='Automatic metadata lookup', detail='ComicVine lookup failed; trying publisher catalog for '+path.name)
         external = None
@@ -159,7 +162,7 @@ def discover(root):
                         research.save_evidence(path, external)
                         outcome = 'web_issue_found'
             except Exception as exc:
-                lookup_error = (lookup_error or '') + '; Metron: ' + str(exc)
+                lookup_error = record_failure(lookup_error,provider_waits,'Metron',exc)
         if (not issue or not old.get('Summary')) and not external:
             import providers, open_library, getcomics
             attempts=[]
@@ -174,7 +177,7 @@ def discover(root):
                         break
                 except Exception as exc:
                     attempts.append({'provider':name,'result':'unavailable','error':str(exc)})
-                    lookup_error=(lookup_error or '')+'; '+str(exc)
+                    lookup_error=record_failure(lookup_error,provider_waits,name,exc)
             research.save_evidence(path,{'provider_attempts':attempts})
         if not issue:
             try:
@@ -193,7 +196,7 @@ def discover(root):
                         worker.enqueue(target)
                         outcome = 'queued'
             except Exception as exc:
-                lookup_error = (lookup_error or '') + '; publisher: ' + str(exc)
+                lookup_error = record_failure(lookup_error,provider_waits,'Publisher',exc)
             if not external:
                 try:
                     import local_model
@@ -211,7 +214,7 @@ def discover(root):
                         research.save_evidence(path,external)
                         outcome='web_issue_found'
                 except Exception as exc:
-                    lookup_error=(lookup_error or '')+'; web: '+str(exc)
+                    lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
             if not external:
                 try:
                     candidates = research.wiki_candidates(row,old)
@@ -221,7 +224,7 @@ def discover(root):
                         outcome = 'web_issue_found' if external else 'wiki_candidates_found'
                         if external:research.save_evidence(path,external)
                 except Exception as exc:
-                    lookup_error = (lookup_error or '') + '; wiki: ' + str(exc)
+                    lookup_error = record_failure(lookup_error,provider_waits,'Wiki',exc)
             if not external:
                 import cover_tasks
                 cover_tasks.enqueue(row)
@@ -242,7 +245,7 @@ def discover(root):
                 try:
                     volume = app.api('volume/4050-' + str(issue['volume']['id']))
                 except Exception as exc:
-                    lookup_error = (lookup_error or '') + '; ComicVine publisher: ' + str(exc)
+                    lookup_error = record_failure(lookup_error,provider_waits,'ComicVine publisher',exc)
                     volume = {}  # Keep verified issue fields and synopsis evidence usable.
                 if (volume.get('publisher') or {}).get('name'):
                     fields['Publisher'] = volume['publisher']['name']
@@ -289,9 +292,8 @@ def discover(root):
             else:
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
-        if lookup_error:
-            retry = min(retry,time.time()+3600)
-        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'error':lookup_error[:2000] if lookup_error else None}
+        retry = retry_time(retry,lookup_error,time.time())
+        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'error':lookup_error[:2000] if lookup_error else None}
         discovery_state.save_one(path,state['checked'][str(path)])
         if outcome == 'queued':
             return True

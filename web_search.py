@@ -11,8 +11,9 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 import app
+from provider_wait import ProviderDeferred
 
-class SearchBlocked(ValueError):
+class SearchBlocked(ProviderDeferred):
     pass
 
 def config():
