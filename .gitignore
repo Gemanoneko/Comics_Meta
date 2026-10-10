@@ -8,6 +8,7 @@ config.json
 pilot/
 batches/
 work/
+scratch/
 *.cbz
 *.cbr
 *.cb7

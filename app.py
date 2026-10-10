@@ -1,5 +1,6 @@
 """Local comic metadata pilot. Python standard library only."""
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -362,7 +363,24 @@ def metadata_from_issue(issue):
     return {k: str(v) for k, v in fields.items() if v}
 
 
-def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
+def remove_verified_backup(path, backup, original_sha256):
+    path, backup = filesystem_path(path), filesystem_path(backup)
+    intended = path.parent / '.comic-metadata-backups'
+    if (backup.is_symlink() or intended.is_symlink()
+            or getattr(backup.stat(), 'st_file_attributes', 0) & 0x400
+            or getattr(intended.stat(), 'st_file_attributes', 0) & 0x400
+            or backup.parent != intended or not backup.name.startswith(path.name + '.')
+            or backup.suffix != '.bak'):
+        raise ValueError('Backup cleanup target is outside the expected folder.')
+    with backup.open('rb') as handle:
+        if hashlib.file_digest(handle, 'sha256').hexdigest() != original_sha256:
+            raise ValueError('Backup verification failed.')
+    backup.unlink()
+    try: intended.rmdir()
+    except OSError: pass
+
+
+def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False):
     path = filesystem_path(row['path'])
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
@@ -372,6 +390,9 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
     temporary = path.with_name(path.name + '.metadata-tmp')
     if temporary.exists():
         raise ValueError('A temporary file already exists; inspect it before proceeding.')
+    if remove_verified_backups:
+        with path.open('rb') as handle:
+            original_sha256 = hashlib.file_digest(handle, 'sha256').hexdigest()
     # Parse before backing up; preserve unknown XML fields and page metadata.
     with zipfile.ZipFile(path) as source:
         infos = source.infolist()
@@ -425,12 +446,18 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
     finally:
         temporary.unlink(missing_ok=True)
     metadata, _, _ = read_metadata(path)
+    if remove_verified_backups:
+        for key, value in expected_fields.items():
+            if metadata.get(key, '') != value:
+                raise ValueError('Readback verification failed for ' + key)
     stat = path.stat()
     with db() as con:
         con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
                     (stat.st_size, stat.st_mtime_ns, json.dumps(metadata), row['id']))
         con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
                     (str(path), str(backup), fields.get('Web', ''), time.time()))
+    if remove_verified_backups:
+        remove_verified_backup(path, backup, original_sha256)
     return str(backup)
 
 
@@ -638,8 +665,8 @@ class Handler(BaseHTTPRequestHandler):
                         volume = api('volume/4050-' + str(int(volume_id)), field_list='publisher')
                         if (volume.get('publisher') or {}).get('name'):
                             fields['Publisher'] = volume['publisher']['name']
-                    backup = write_metadata(comic(int(body['comic'])), fields)
-                return self.respond({'ok': True, 'backup': backup})
+                    backup = write_metadata(comic(int(body['comic'])), fields, remove_verified_backups=True)
+                return self.respond({'ok': True, 'backup': backup, 'backup_removed_after_verification': True})
             self.respond({'error': 'Not found'}, 404)
         except Exception as exc:
             self.respond({'error': str(exc)}, 400)

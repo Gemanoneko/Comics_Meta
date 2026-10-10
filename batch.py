@@ -108,13 +108,7 @@ def apply(plan_path, remove_verified_backups=False):
             raise ValueError('Backup verification failed.')
         removed=False
         if remove_verified_backups:
-            backup_path=app.filesystem_path(backup)
-            intended=app.filesystem_path(path.parent / '.comic-metadata-backups')
-            if backup_path.parent != intended or not backup_path.name.startswith(path.name + '.') or backup_path.suffix!='.bak':
-                raise ValueError('Backup cleanup target is outside the expected folder.')
-            backup_path.unlink()
-            try:backup_path.parent.rmdir()
-            except OSError:pass
+            app.remove_verified_backup(path, backup, entry['sha256'])
             removed=True
         stat=path.stat()
         results.append({'path':str(path),'backup':backup,'fields_updated':list(entry['changes']),
