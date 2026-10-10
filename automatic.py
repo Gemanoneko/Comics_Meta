@@ -114,10 +114,12 @@ def discover(root):
     import archive_conversion
     if archive_conversion.one(root):return True  # Verify one conversion, then continue this folder.
     state = discovery_state.load(root)
+    import providers,source_scheduling
+    source_statuses=providers.statuses()
     with app.db() as con:
         scope,args=app.scope_filter(root)
         rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','corrupted','unsupported') AND "+scope+' ORDER BY path',args)]
-    rows.sort(key=lambda row: (bool(state['checked'].get(row['path'])), state['checked'].get(row['path'],{}).get('outcome') not in ('web_issue_found','publisher_issue_found','current'), row['path']))
+    rows.sort(key=lambda row: (bool(state['checked'].get(row['path'])) and state['checked'][row['path']].get('signature')==[row['size'],row['mtime']], state['checked'].get(row['path'],{}).get('outcome') not in ('web_issue_found','publisher_issue_found','current'), row['path']))
     checked = 0
     for row in rows:
         import pause_control
@@ -130,7 +132,7 @@ def discover(root):
         evidence_path=research.CACHE/('evidence-'+__import__('hashlib').sha256(str(path).encode()).hexdigest()+'.json')
         saved=json.loads(evidence_path.read_text(encoding='utf-8')) if evidence_path.exists() else {}
         new_cover_leads=saved.get('reverse_image_signature')==signature and previous.get('cover_leads')!=saved.get('reverse_image_matches')
-        if not new_cover_leads and previous.get('version') == MATCHER_VERSION and previous.get('signature') == signature and previous.get('retry_at', 0) > time.time():
+        if not source_scheduling.due(previous,signature,MATCHER_VERSION,source_statuses,new_cover_leads):
             continue
         checked += 1
         if checked > 20:
@@ -147,11 +149,16 @@ def discover(root):
         retry = time.time() + 86400
         lookup_error = None
         provider_waits = {}
+        source_schedule=dict(previous.get('source_schedule',{})) if previous.get('signature')==signature and previous.get('version')==MATCHER_VERSION and not new_cover_leads else {}
         external=research_runtime.reuse(path,row,old,saved,MATCHER_VERSION)
         reused_evidence=bool(external)
         issue=saved.get('verified_evidence',{}).get('issue') if external else None
+        issue_reused=bool(issue)
+        if external and not source_scheduling.useful(external,old):
+            external=None
+            reused_evidence=False  # A thin cached match must not block richer sources.
         try:
-            if not external:
+            if not external and not issue_reused:
                 with research_runtime.stage('ComicVine'):
                     issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
         except Exception as exc:
@@ -165,7 +172,8 @@ def discover(root):
             attempts=[]
             def completed(name,result,exc):
                 nonlocal lookup_error
-                attempts.append({'provider':name,'result':'unavailable' if exc else 'verified' if result else 'no_verified_match'})
+                source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
+                attempts.append({'provider':name,'result':source_schedule[name]['result']})
                 if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
             sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
                      ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
@@ -173,8 +181,13 @@ def discover(root):
                      ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog')),
                      ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog')),
                      ('GetComics',getcomics.lookup)]
+            sources=source_scheduling.order(sources,row,old)
+            ready=[]
+            for name,lookup in sources:
+                if source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):ready.append((name,lookup))
+                else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})
             batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
-            try:external=research_runtime.first_verified(sources,row,old,completed)
+            try:external=research_runtime.first_verified(ready,row,old,completed,accept=lambda result:source_scheduling.useful(result,old))
             except pause_control.PauseRequested:return True
             if external:
                 research.save_evidence(path,external)
@@ -272,7 +285,7 @@ def discover(root):
             else:
                 outcome = 'identity_conflict'
         if external and not reused_evidence:
-            research_runtime.remember(path,row,old,external,MATCHER_VERSION,issue=issue if issue and identity_matches(old if match else dict(Series=old.get('Series') or row['series'],Number=old.get('Number') or row['number']),issue) else None)
+            research_runtime.remember(path,row,old,external,MATCHER_VERSION,issue=issue if not issue_reused and issue and identity_matches(old if match else dict(Series=old.get('Series') or row['series'],Number=old.get('Number') or row['number']),issue) else None)
         if external and outcome == 'web_issue_found':
             fields={k:v for k,v in external['fields'].items() if not old.get(k)}
             if fields:
@@ -307,7 +320,7 @@ def discover(root):
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
-        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'error':lookup_error[:2000] if lookup_error else None}
+        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         discovery_state.save_one(path,state['checked'][str(path)])
         research_runtime.record_check(outcome)
         if outcome == 'queued':

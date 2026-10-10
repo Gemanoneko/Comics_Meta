@@ -85,7 +85,7 @@ def save(state):
 
 def finish(folder,queued=False,error=None):
     state=json.loads(STATE.read_text(encoding='utf-8'))
-    state['folders'][str(folder)]={'next_scan':0 if queued else time.time()+(3600 if error else 600),
+    state['folders'][str(folder)]={'next_scan':time.time() if queued else time.time()+(3600 if error else 600),
         'last_pass':time.time(),'state':'writing' if queued else 'retry_wait' if error else 'pass_complete',
         'error':error}
     save(state)

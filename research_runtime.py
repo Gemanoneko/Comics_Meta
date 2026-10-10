@@ -75,7 +75,7 @@ def throughput():
             'writes':writes['writes'],'updated_comics':writes['comics'],'started_at':started}
 
 
-def first_verified(attempts,row,old,on_result,concurrency=2):
+def first_verified(attempts,row,old,on_result,concurrency=2,accept=None):
     """At most two independent sources; stop scheduling after a verified match."""
     concurrency=max(1,min(2,int(concurrency)))
     def invoke(name,lookup):
@@ -96,7 +96,7 @@ def first_verified(attempts,row,old,on_result,concurrency=2):
                 try:
                     result=future.result()
                     on_result(name,result,None)
-                    if result:found[index]=result
+                    if result and (accept is None or accept(result)):found[index]=result
                 except (pause_control.PauseRequested,CancelledError):
                     pass
                 except Exception as exc:on_result(name,None,exc)
