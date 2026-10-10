@@ -86,6 +86,29 @@ def request(endpoint, **params):
             storage.save(STATE, state)
             raise ProviderDeferred('Metron '+status.replace('_',' ')+'; retry scheduled, other sources remain available.','metron',state['retry_at']) from None
 
+def candidates(series,number,year):
+    """Share a complete year list; a partial list falls back to exact issue search."""
+    import research_runtime
+    with research_runtime.stage('Metron candidate search'):
+        payload=request('issue/',series_name=series,cover_year=year)
+        results=payload.get('results',[])
+        if payload.get('next') or payload.get('count',len(results))!=len(results):
+            payload=request('issue/',series_name=series,number=number,cover_year=year)
+        return payload
+
+
+def verified_cover(path,url):
+    import automatic,reverse_image,research_runtime
+    parsed=urllib.parse.urlparse(url)
+    if parsed.scheme!='https' or parsed.hostname!='static.metron.cloud' or parsed.username or parsed.password or parsed.port not in (None,443):return False
+    with research_runtime.stage('Metron cover verification'):
+        with urllib.request.build_opener(NoRedirect()).open(url,timeout=25) as response:
+            remote=response.read(20*1024*1024+1)
+        if len(remote)>20*1024*1024:return False
+        local,_,_=reverse_image.cover(path,0)
+        return automatic.covers_agree(local,remote)
+
+
 def lookup(row, old):
     """Accept a unique exact series/number/year candidate only after cover agreement."""
     import research
@@ -95,7 +118,7 @@ def lookup(row, old):
     year = old.get('Year') or row.get('year')
     if not token() or not series or not number or not year:
         return None
-    payload = request('issue/', series_name=series, number=research.issue_number(number), cover_year=year)
+    payload = candidates(series,research.issue_number(number),year)
     # A truncated candidate list cannot establish uniqueness.
     if payload.get('next'):
         return None
@@ -104,20 +127,18 @@ def lookup(row, old):
                and str(i.get('cover_date') or '').startswith(str(year)+'-')]
     if len(matches)!=1:
         return None
-    detail = request('issue/'+str(int(matches[0]['id']))+'/')
-    if research.series_key((detail.get('series') or {}).get('name')) != research.series_key(series) or research.issue_number(detail.get('number')) != research.issue_number(number):
+    candidate=matches[0]
+    preview=candidate.get('image') or ''
+    if preview and not verified_cover(row['path'],preview):return None
+    import research_runtime
+    with research_runtime.stage('Metron issue details'):
+        detail = request('issue/'+str(int(candidate['id']))+'/')
+    if (detail.get('id')!=candidate['id'] or research.series_key((detail.get('series') or {}).get('name')) != research.series_key(series)
+        or research.issue_number(detail.get('number')) != research.issue_number(number)
+        or not str(detail.get('cover_date') or '').startswith(str(year)+'-')):
         return None
     url = detail.get('image') or ''
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme!='https' or parsed.hostname!='static.metron.cloud' or parsed.username or parsed.password or parsed.port not in (None,443):
-        return None
-    with urllib.request.build_opener(NoRedirect()).open(url,timeout=25) as response:
-        remote=response.read(20*1024*1024+1)
-    if len(remote)>20*1024*1024:
-        return None
-    local, _, _ = reverse_image.cover(row['path'],0)
-    if not automatic.covers_agree(local,remote):
-        return None
+    if (not preview or url!=preview) and not verified_cover(row['path'],url):return None
     fields={'Series':series,'Number':str(detail['number'])}
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
     return {'provider':'Metron','fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':'Exact issue identity and cover verified','retrieved':time.time()}] if text else [],'status':'issue_verified'}

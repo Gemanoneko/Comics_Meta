@@ -42,7 +42,37 @@ def metrics():
     with app.db() as con:
         exists=con.execute("SELECT 1 FROM sqlite_master WHERE name='stage_metrics'").fetchone()
         rows=[dict(r) for r in con.execute('SELECT * FROM stage_metrics ORDER BY seconds DESC')] if exists else []
-    return {'stages':rows,'research_concurrency':2}
+    return {'stages':rows,'research_concurrency':2,'throughput':throughput()}
+
+
+def record_check(outcome):
+    try:_record_check(outcome)
+    except (OSError,sqlite3.Error):pass  # Measurement must not stop enrichment.
+
+
+def _record_check(outcome):
+    now=time.time()
+    with app.db() as con:
+        con.execute('CREATE TABLE IF NOT EXISTS throughput_buckets(minute INTEGER PRIMARY KEY,checks INTEGER,queued INTEGER)')
+        con.execute('CREATE TABLE IF NOT EXISTS throughput_settings(key TEXT PRIMARY KEY,value REAL)')
+        con.execute("INSERT OR IGNORE INTO throughput_settings VALUES('started_at',?)",(now,))
+        con.execute('INSERT INTO throughput_buckets VALUES(?,1,?) ON CONFLICT(minute) DO UPDATE SET checks=checks+1,queued=queued+excluded.queued',
+                    (int(now//60),int(outcome=='queued')))
+        con.execute('DELETE FROM throughput_buckets WHERE minute<?',(int(now//60)-7*24*60,))
+
+
+def throughput():
+    now=time.time()
+    with app.db() as con:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE name='throughput_settings'").fetchone():return None
+        setting=con.execute("SELECT value FROM throughput_settings WHERE key='started_at'").fetchone()
+        if not setting:return None
+        started=setting[0]
+        since=max(started,now-3600)
+        counts=con.execute('SELECT COALESCE(SUM(checks),0) checks,COALESCE(SUM(queued),0) queued FROM throughput_buckets WHERE minute>=?',(int(since//60),)).fetchone()
+        writes=con.execute('SELECT COUNT(*) writes,COUNT(DISTINCT path) comics FROM history WHERE timestamp>=?',(since,)).fetchone()
+    return {'window_seconds':max(0,now-since),'checks':counts['checks'],'queued':counts['queued'],
+            'writes':writes['writes'],'updated_comics':writes['comics'],'started_at':started}
 
 
 def first_verified(attempts,row,old,on_result,concurrency=2):

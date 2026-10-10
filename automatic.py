@@ -309,6 +309,7 @@ def discover(root):
         retry = retry_time(retry,lookup_error,time.time())
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'error':lookup_error[:2000] if lookup_error else None}
         discovery_state.save_one(path,state['checked'][str(path)])
+        research_runtime.record_check(outcome)
         if outcome == 'queued':
             return True
     batch.progress(phase='Automatic discovery complete', detail='Discovery checked this root. Unidentified comics remain pending further identity lookup; next delta scan in 10 minutes.')

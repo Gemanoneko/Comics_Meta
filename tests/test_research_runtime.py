@@ -162,5 +162,22 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(pause_control.PauseRequested):metron.request('issue/')
             opener.assert_not_called()
 
+    def test_throughput_counts_checks_and_distinct_verified_writes_in_observed_window(self):
+        with patch.object(runtime.time,'time',return_value=100000):
+            self.assertIsNone(runtime.throughput())
+            runtime.record_check('current');runtime.record_check('queued')
+        with app.db() as con:
+            con.executemany('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
+                [('same.cbz','','verified',100020),('same.cbz','','verified',100025),('old.cbz','','verified',90000)])
+        with patch.object(runtime.time,'time',return_value=100060):
+            report=runtime.throughput()
+            self.assertEqual((report['checks'],report['queued'],report['writes'],report['updated_comics'],report['window_seconds']),(2,1,2,1,60))
+        with patch.object(runtime.time,'time',return_value=101000):runtime.record_check('current')
+        with patch.object(runtime.time,'time',return_value=104000):
+            report=runtime.throughput()
+            self.assertEqual((report['checks'],report['writes'],report['window_seconds']),(1,0,3600))
+        with patch.object(runtime.time,'time',return_value=800000):runtime.record_check('current')
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM throughput_buckets').fetchone()[0],1)
+
 
 if __name__=='__main__':unittest.main()
