@@ -13,6 +13,7 @@ import reverse_image
 import research
 import discovery_state
 from provider_wait import record_failure, retry_time
+import research_runtime
 
 MATCHER_VERSION = 9
 
@@ -103,11 +104,13 @@ def load_state():
         raise ValueError('Research cache exceeds its size limit; repair required.')
     return json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'checked': {}}
 
+@research_runtime.timed("Research pass")
 def discover(root):
     root = Path(root).resolve()
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
-    app.scan([str(root)],recursive=False)
+    with research_runtime.stage('Folder inventory'):
+        app.scan([str(root)],recursive=False)
     import archive_conversion
     if archive_conversion.one(root):return True  # Verify one conversion, then continue this folder.
     state = discovery_state.load(root)
@@ -144,48 +147,43 @@ def discover(root):
         retry = time.time() + 86400
         lookup_error = None
         provider_waits = {}
+        external=research_runtime.reuse(path,row,old,saved,MATCHER_VERSION)
+        reused_evidence=bool(external)
+        issue=saved.get('verified_evidence',{}).get('issue') if external else None
         try:
-            issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
+            if not external:
+                with research_runtime.stage('ComicVine'):
+                    issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
         except Exception as exc:
             lookup_error = record_failure(lookup_error,provider_waits,'ComicVine',exc)
             issue = None
             batch.progress(phase='Automatic metadata lookup', detail='ComicVine lookup failed; trying publisher catalog for '+path.name)
-        external = None
         hint = None
-        if not issue or not old.get('Summary'):
-            try:
-                import metron
-                if metron.token():
-                    batch.progress(phase='Automatic metadata lookup', detail='Checking Metron for '+path.name)
-                    external = metron.lookup(row, old)
-                    if external:
-                        research.save_evidence(path, external)
-                        outcome = 'web_issue_found'
-            except Exception as exc:
-                lookup_error = record_failure(lookup_error,provider_waits,'Metron',exc)
+        if external:outcome='web_issue_found'
         if (not issue or not old.get('Summary')) and not external:
-            import providers, open_library, getcomics, publisher_catalogs
+            import providers, open_library, getcomics, publisher_catalogs, metron
             attempts=[]
-            for name,lookup in [('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
-                                ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog')),
-                                ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog')),
-                                ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog')),
-                                ('GetComics',getcomics.lookup)]:
-                try:
-                    batch.progress(phase='Automatic metadata lookup',detail='Checking '+name+' for '+path.name)
-                    external=lookup(row,old)
-                    attempts.append({'provider':name,'result':'verified' if external else 'no_verified_match'})
-                    if external:
-                        research.save_evidence(path,external)
-                        outcome='web_issue_found'
-                        break
-                except Exception as exc:
-                    attempts.append({'provider':name,'result':'unavailable','error':str(exc)})
-                    lookup_error=record_failure(lookup_error,provider_waits,name,exc)
+            def completed(name,result,exc):
+                nonlocal lookup_error
+                attempts.append({'provider':name,'result':'unavailable' if exc else 'verified' if result else 'no_verified_match'})
+                if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
+            sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
+                     ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
+                     ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog')),
+                     ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog')),
+                     ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog')),
+                     ('GetComics',getcomics.lookup)]
+            batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
+            try:external=research_runtime.first_verified(sources,row,old,completed)
+            except pause_control.PauseRequested:return True
+            if external:
+                research.save_evidence(path,external)
+                outcome='web_issue_found'
             research.save_evidence(path,{'provider_attempts':attempts})
         if not issue:
             try:
-                publisher = research.publisher_lookup(row, old) if not external else None
+                with research_runtime.stage('Publisher research'):
+                    publisher = research.publisher_lookup(row, old) if not external else None
                 if publisher:
                     external = publisher
                     research.save_evidence(path,external)
@@ -211,9 +209,12 @@ def discover(root):
                         except Exception:pass  # A cover-reading failure must not block filename search.
                     if hint:research.save_evidence(path,{'cover_identification':hint,'cover_signature':signature,'status':'search_hint_only'})
                     batch.progress(phase='Automatic metadata lookup',detail='Verifying saved web and wiki references for '+path.name)
-                    external=research.resolve_leads(row,old,hint)
+                    with research_runtime.stage('Saved lead verification'):
+                        external=research.resolve_leads(row,old,hint)
                     batch.progress(phase='Automatic metadata lookup',detail='Searching the web for '+path.name)
-                    if not external:external=research.general_lookup(row,old,hint)
+                    if not external:
+                        with research_runtime.stage('General web research'):
+                            external=research.general_lookup(row,old,hint)
                     if external:
                         research.save_evidence(path,external)
                         outcome='web_issue_found'
@@ -221,10 +222,12 @@ def discover(root):
                     lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
             if not external:
                 try:
-                    candidates = research.wiki_candidates(row,old)
+                    with research_runtime.stage('Wiki research'):
+                        candidates = research.wiki_candidates(row,old)
                     research.save_evidence(path,{'wiki_candidates':candidates,'status':'needs_issue_verification'})
                     if candidates:
-                        external=research.resolve_leads(row,old,hint)
+                        with research_runtime.stage('Saved lead verification'):
+                            external=research.resolve_leads(row,old,hint)
                         outcome = 'web_issue_found' if external else 'wiki_candidates_found'
                         if external:research.save_evidence(path,external)
                 except Exception as exc:
@@ -247,7 +250,8 @@ def discover(root):
                 # Descriptions may contain plot outcomes. Synopsis review remains separate.
                 fields.pop('Summary', None)
                 try:
-                    volume = app.api('volume/4050-' + str(issue['volume']['id']))
+                    with research_runtime.stage('ComicVine publisher'):
+                        volume = app.api('volume/4050-' + str(issue['volume']['id'])) if not old.get('Publisher') else {}
                 except Exception as exc:
                     lookup_error = record_failure(lookup_error,provider_waits,'ComicVine publisher',exc)
                     volume = {}  # Keep verified issue fields and synopsis evidence usable.
@@ -267,6 +271,8 @@ def discover(root):
                 retry = time.time() + 30 * 86400
             else:
                 outcome = 'identity_conflict'
+        if external and not reused_evidence:
+            research_runtime.remember(path,row,old,external,MATCHER_VERSION,issue=issue if issue and identity_matches(old if match else dict(Series=old.get('Series') or row['series'],Number=old.get('Number') or row['number']),issue) else None)
         if external and outcome == 'web_issue_found':
             fields={k:v for k,v in external['fields'].items() if not old.get(k)}
             if fields:
@@ -281,7 +287,11 @@ def discover(root):
                 batch.progress(phase='Automatic metadata lookup', detail='Reviewing internet-sourced synopsis: '+path.name)
                 try:
                     sources = (external or {}).get('sources',[])
-                    proposal = local_model.sourced_synopsis(sources) if sources else None
+                    proposal=None
+                    if sources:
+                        with research_runtime.stage('Synopsis review'):
+                            proposal = local_model.sourced_synopsis(sources)
+                        with research_runtime.stage('Synopsis accepted' if proposal else 'Synopsis rejected'):pass
                     if proposal:
                         research.save_evidence(path,dict(external or {}, synopsis=proposal))
                         fields = {'Summary':proposal['summary'],'Notes':'Synopsis composed from verified internet source text; generated by '+proposal['model']+'. Supporting quotations and claim/spoiler review stored in research evidence. Sources: '+', '.join(proposal['sources'])}

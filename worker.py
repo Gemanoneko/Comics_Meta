@@ -39,7 +39,9 @@ def run_one():
         item.update(state='running', started=time.time())
         save(ticket, item)
         try:
-            batch.apply(item['plan'], remove_verified_backups=True)
+            import research_runtime
+            with research_runtime.stage('Archive write and verification'):
+                batch.apply(item['plan'], remove_verified_backups=True)
             item.update(state='complete', finished=time.time())
         except pause_control.PauseRequested:
             item.update(state='pending',paused=time.time())

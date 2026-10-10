@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from PIL import Image
 import app
+import research_runtime
 
 MODEL = 'gemma3:4b'
 
@@ -18,6 +19,7 @@ def available():
     except (OSError, ValueError):
         return False
 
+@research_runtime.timed('Local model')
 def chat(prompt, images=()):
     import pause_control
     if pause_control.requested():raise pause_control.PauseRequested('Processing is paused.')

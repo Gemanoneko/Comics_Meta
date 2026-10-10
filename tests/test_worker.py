@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import worker
+import app
 
 @contextmanager
 def scratch_directory():
@@ -22,6 +23,8 @@ def scratch_directory():
 
 class QueueTests(unittest.TestCase):
     def setUp(self):
+        directory=self.enterContext(scratch_directory())
+        self.enterContext(patch.object(app,'DATA',Path(directory)/'catalog'))
         control=patch.object(worker.pause_control,'requested',return_value=False)
         control.start();self.addCleanup(control.stop)
     def test_advance_and_do_not_replay_completed_work(self):

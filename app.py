@@ -87,21 +87,25 @@ class Connection(sqlite3.Connection):
 def db():
     DATA.mkdir(exist_ok=True)
     con = sqlite3.connect(DATA / 'catalog.sqlite', timeout=30, factory=Connection)
-    con.row_factory = sqlite3.Row
-    con.execute('PRAGMA journal_mode=WAL')
-    con.executescript('''
-        CREATE TABLE IF NOT EXISTS roots(path TEXT PRIMARY KEY);
-        CREATE TABLE IF NOT EXISTS comics(
-            id INTEGER PRIMARY KEY, path TEXT UNIQUE, root TEXT,
-            size INTEGER, mtime INTEGER, series TEXT, number TEXT, year TEXT,
-            metadata TEXT, status TEXT, error TEXT, seen INTEGER);
-        CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, value TEXT, fetched REAL);
-        CREATE TABLE IF NOT EXISTS history(
-            id INTEGER PRIMARY KEY, path TEXT, backup TEXT, source TEXT, timestamp REAL);
-        CREATE TABLE IF NOT EXISTS api_requests(timestamp REAL NOT NULL);
-        CREATE TABLE IF NOT EXISTS api_state(id INTEGER PRIMARY KEY, last_attempt REAL, blocked_until REAL);
-        INSERT OR IGNORE INTO api_state VALUES(1,0,0);
-    ''')
+    try:
+        con.row_factory = sqlite3.Row
+        con.execute('PRAGMA journal_mode=WAL')
+        con.executescript('''
+            CREATE TABLE IF NOT EXISTS roots(path TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS comics(
+                id INTEGER PRIMARY KEY, path TEXT UNIQUE, root TEXT,
+                size INTEGER, mtime INTEGER, series TEXT, number TEXT, year TEXT,
+                metadata TEXT, status TEXT, error TEXT, seen INTEGER);
+            CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, value TEXT, fetched REAL);
+            CREATE TABLE IF NOT EXISTS history(
+                id INTEGER PRIMARY KEY, path TEXT, backup TEXT, source TEXT, timestamp REAL);
+            CREATE TABLE IF NOT EXISTS api_requests(timestamp REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS api_state(id INTEGER PRIMARY KEY, last_attempt REAL, blocked_until REAL);
+            INSERT OR IGNORE INTO api_state VALUES(1,0,0);
+        ''')
+    except BaseException:
+        con.close()
+        raise
     return con
 
 
@@ -494,6 +498,8 @@ class Handler(BaseHTTPRequestHandler):
                 result['browser_search'] = browser_search.status()
                 import providers
                 result['providers'] = providers.statuses()
+                import research_runtime
+                result['performance'] = research_runtime.metrics()
                 folders_path=DATA/'folders.json'
                 if folders_path.exists():
                     folder_state=json.loads(folders_path.read_text(encoding='utf-8'))

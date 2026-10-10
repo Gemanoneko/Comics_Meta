@@ -41,6 +41,8 @@ def request(endpoint, **params):
     url = 'https://metron.cloud/api/' + endpoint + '?' + urllib.parse.urlencode(params)
     cache_key = 'metron:' + url
     with LOCK:
+        import pause_control
+        if pause_control.requested():raise pause_control.PauseRequested()
         with app.db() as con:
             row = con.execute('SELECT value FROM cache WHERE key=? AND fetched>?', (cache_key, time.time()-7*86400)).fetchone()
         if row:
@@ -48,7 +50,7 @@ def request(endpoint, **params):
         state = json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {}
         if state.get('retry_at', 0) > time.time():
             raise ProviderDeferred('Metron is waiting before retrying; other sources remain available.','metron',state['retry_at'])
-        time.sleep(max(0, state.get('last_request', 0)+3.2-time.time()))
+        pause_control.sleep(max(0, state.get('last_request', 0)+3.2-time.time()))
         state.update(last_request=time.time(), status='requesting')
         storage.save(STATE, state)
         req = urllib.request.Request(url, headers={'Authorization':'Bearer '+secret, 'Accept':'application/json', 'User-Agent':'ComicMetadata/0.4 (personal catalog)'})

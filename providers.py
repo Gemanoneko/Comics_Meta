@@ -15,7 +15,7 @@ import app
 import storage
 from provider_wait import ProviderDeferred
 
-LOCK=threading.Lock()
+LOCKS={provider:threading.Lock() for provider in ('gcd','google_books')}
 HOSTS={'gcd':'www.comics.org','google_books':'www.googleapis.com'}
 BUDGETS={'gcd':1000,'google_books':500}
 
@@ -38,6 +38,8 @@ def status_path(provider):return app.DATA/(provider+'-status.json')
 
 def request(provider,path,params=None):
     """Never put keys in cache identifiers, errors, or persisted status."""
+    import pause_control
+    if pause_control.requested():raise pause_control.PauseRequested()
     if provider not in HOSTS or not path.startswith('/') or '?' in path:
         raise ValueError('Unsupported metadata source.')
     params=dict(params or {})
@@ -52,7 +54,8 @@ def request(provider,path,params=None):
         if not secret:raise ProviderDeferred('Google Books key not configured.','google_books')
         params['key']=secret
     url='https://'+HOSTS[provider]+path+('?' + urllib.parse.urlencode(params) if params else '')
-    with LOCK:
+    with LOCKS[provider]:
+        if pause_control.requested():raise pause_control.PauseRequested()
         with app.db() as con:
             con.execute('CREATE TABLE IF NOT EXISTS provider_requests (provider TEXT, timestamp REAL)')
             cached=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
@@ -65,7 +68,7 @@ def request(provider,path,params=None):
             state.update(status='daily_budget_wait',retry_at=time.time()+3600)
             storage.save(target,state)
             raise ProviderDeferred(provider+' daily application budget reached.',provider,state['retry_at'])
-        time.sleep(max(0,state.get('last_request',0)+3.2-time.time()))
+        pause_control.sleep(max(0,state.get('last_request',0)+3.2-time.time()))
         state.update(status='requesting',last_request=time.time(),requests_last_day=used+1)
         storage.save(target,state)
         with app.db() as con:con.execute('INSERT INTO provider_requests VALUES (?,?)',(provider,time.time()))
