@@ -284,7 +284,7 @@ def cooldown(seconds=3600):
 def comicvine_event(status, **details):
     import storage
     DATA.mkdir(parents=True,exist_ok=True)
-    storage.save(DATA/'comicvine-status.json',dict(status=status,checked_at=time.time(),retry_at=0,**details))
+    storage.save(DATA/'comicvine-status.json',dict({'status':status,'checked_at':time.time(),'retry_at':0},**details))
 
 
 def api(resource, **params):

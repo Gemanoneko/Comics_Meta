@@ -109,6 +109,42 @@ def verified_cover(path,url):
         return automatic.covers_agree(local,remote)
 
 
+def metadata_fields(detail):
+    """Issue-wide facts only; primary issue credits cannot establish variant covers."""
+    series=detail.get('series') or {}
+    fields={'Series':series.get('name'),'Number':detail.get('number'),'Title':detail.get('title'),
+            'Publisher':(detail.get('publisher') or {}).get('name'),'Imprint':(detail.get('imprint') or {}).get('name'),
+            'Volume':series.get('volume'),'LanguageISO':series.get('language'),
+            'AgeRating':(detail.get('rating') or {}).get('name'),
+            'Web':'https://metron.cloud/issue/'+str(detail['id'])+'/'}
+    date=detail.get('cover_date') or ''
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}',date):fields.update(zip(('Year','Month','Day'),date.split('-')))
+    roles={'writer':'Writer','artist':'Penciller','penciller':'Penciller','penciler':'Penciller','inker':'Inker',
+           'colorist':'Colorist','letterer':'Letterer','editor':'Editor','translator':'Translator'}
+    credits={}
+    for credit in detail.get('credits',[]):
+        name=credit.get('creator')
+        if not isinstance(name,str) or not name.strip():continue
+        for role in credit.get('role',[]):
+            field=roles.get(str(role.get('name','')).lower())
+            if field:credits.setdefault(field,[]).append(name.strip())
+    fields.update({field:', '.join(dict.fromkeys(names)) for field,names in credits.items()})
+    for source,target in [('characters','Characters'),('teams','Teams'),('arcs','StoryArc')]:
+        names=[item.get('name') for item in detail.get(source,[]) if isinstance(item,dict) and item.get('name')]
+        if names:fields[target]=', '.join(dict.fromkeys(names))
+    genres=[g.get('name') for g in series.get('genres',[]) if g.get('name')]
+    if genres:fields['Genre']=', '.join(dict.fromkeys(genres))
+    kind=(series.get('series_type') or {}).get('name','')
+    formats={'Single Issue':'Single Issue','Limited Series':'Single Issue','One-Shot':'One-Shot',
+             'Trade Paperback':'Trade Paperback','Hardcover':'Hardcover','Graphic Novel':'Graphic Novel','Omnibus':'Omnibus'}
+    if kind in formats:fields['Format']=formats[kind]
+    isbn=re.sub(r'[^0-9X]','',str(detail.get('isbn') or '').upper())
+    if re.fullmatch(r'\d{9}[\dX]|\d{13}',isbn):fields['ISBN']=isbn
+    barcode=str(detail.get('upc') or '')
+    if re.fullmatch(r'\d{8}|\d{12,14}',barcode):fields['GTIN']=barcode
+    return {key:str(value) for key,value in fields.items() if isinstance(value,(str,int)) and str(value).strip()}
+
+
 def lookup(row, old):
     """Accept a unique exact series/number/year candidate only after cover agreement."""
     import research
@@ -139,6 +175,8 @@ def lookup(row, old):
         return None
     url = detail.get('image') or ''
     if (not preview or url!=preview) and not verified_cover(row['path'],url):return None
-    fields={'Series':series,'Number':str(detail['number'])}
+    language=(detail.get('series') or {}).get('language')
+    if language and str(language).lower() not in ('en','eng','english'):return None
+    fields=metadata_fields(detail)
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
-    return {'provider':'Metron','fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':'Exact issue identity and cover verified','retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    return {'provider':'Metron','metadata_version':2,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':'Exact issue identity and cover verified','retrieved':time.time()}] if text else [],'status':'issue_verified'}

@@ -32,7 +32,7 @@ class DiscoveryStateTests(unittest.TestCase):
             with self.assertRaises(ValueError):cover_tasks.record(row,[{'url':'http://example.org'}])
 
     def test_reversed_bargain_is_rejected_before_model_review(self):
-        source={'url':'https://example.org','text':"Her mother's freedom in exchange for Shi's life."}
+        source={'url':'https://example.org','text':"Her mother's freedom in exchange for Shi's life. A desperate visitor arrives at the castle to face an uncertain bargain with its mysterious occupant."}
         draft={'summary':'A '*24+"Offered Shi's life for her mother's freedom.",'sufficient':True,'narrative':True,'evidence':[source['text']]}
         with patch.object(local_model,'chat',return_value=draft) as chat:
             self.assertIsNone(local_model.sourced_synopsis([source]));self.assertEqual(chat.call_count,1)

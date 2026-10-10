@@ -9,6 +9,18 @@ import app
 from test_worker import scratch_directory
 
 class MetronTests(unittest.TestCase):
+    def test_supported_issue_metadata_maps_credits_without_variant_cover_artists(self):
+        detail={'id':42,'number':'1','title':'Beginning','cover_date':'2024-02-03','publisher':{'name':'Publisher'},'imprint':{'name':'Imprint'},
+                'series':{'name':'Example','volume':2,'language':'en','genres':[{'name':'Fantasy'}],'series_type':{'name':'Limited Series'}},
+                'rating':{'name':'Teen'},'isbn':'9780062995081','characters':[{'name':'Hero'}],'teams':[{'name':'Team'}],'arcs':[{'name':'Arc'}],
+                'credits':[{'creator':'Writer','role':[{'name':'Writer'}]},{'creator':'Writer','role':[{'name':'Writer'}]},
+                           {'creator':'Artist','role':[{'name':'Artist'},{'name':'Inker'}]},{'creator':'Variant artist','role':[{'name':'Cover'}]}]}
+        fields=metron.metadata_fields(detail)
+        self.assertEqual((fields['Writer'],fields['Penciller'],fields['Inker']),('Writer','Artist','Artist'))
+        self.assertEqual((fields['Year'],fields['Month'],fields['Day']),('2024','02','03'))
+        for key in ('Publisher','Imprint','Genre','Characters','Teams','StoryArc','AgeRating','ISBN','Volume','LanguageISO','Format','Web'):self.assertIn(key,fields)
+        self.assertNotIn('CoverArtist',fields)
+        self.assertNotIn('Summary',fields)
     def setUp(self):
         root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',root/'data'))

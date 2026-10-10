@@ -132,7 +132,9 @@ def discover(root):
         evidence_path=research.CACHE/('evidence-'+__import__('hashlib').sha256(str(path).encode()).hexdigest()+'.json')
         saved=json.loads(evidence_path.read_text(encoding='utf-8')) if evidence_path.exists() else {}
         new_cover_leads=saved.get('reverse_image_signature')==signature and previous.get('cover_leads')!=saved.get('reverse_image_matches')
-        if not source_scheduling.due(previous,signature,MATCHER_VERSION,source_statuses,new_cover_leads):
+        old_metron=(saved.get('verified_evidence') or {}).get('result',{})
+        metron_upgrade=old_metron.get('provider')=='Metron' and old_metron.get('metadata_version',0)<2 and previous.get('metron_metadata_version',0)<2
+        if not metron_upgrade and not source_scheduling.due(previous,signature,MATCHER_VERSION,source_statuses,new_cover_leads):
             continue
         checked += 1
         if checked > 20:
@@ -150,7 +152,9 @@ def discover(root):
         lookup_error = None
         provider_waits = {}
         source_schedule=dict(previous.get('source_schedule',{})) if previous.get('signature')==signature and previous.get('version')==MATCHER_VERSION and not new_cover_leads else {}
+        if metron_upgrade:source_schedule.pop('Metron',None)
         external=research_runtime.reuse(path,row,old,saved,MATCHER_VERSION)
+        if external and external.get('provider')=='Metron' and external.get('metadata_version',0)<2:external=None
         reused_evidence=bool(external)
         issue=saved.get('verified_evidence',{}).get('issue') if external else None
         issue_reused=bool(issue)
@@ -298,12 +302,16 @@ def discover(root):
             import local_model
             if local_model.available():
                 batch.progress(phase='Automatic metadata lookup', detail='Reviewing internet-sourced synopsis: '+path.name)
+                diagnostics={}
                 try:
                     sources = (external or {}).get('sources',[])
                     proposal=None
                     if sources:
                         with research_runtime.stage('Synopsis review'):
-                            proposal = local_model.sourced_synopsis(sources)
+                            proposal = local_model.sourced_synopsis(sources,diagnostics)
+                        research.save_evidence(path,{'synopsis_diagnostics':diagnostics})
+                        if not proposal:
+                            with research_runtime.stage('Synopsis rejection: '+diagnostics.get('reason','unknown')):pass
                         with research_runtime.stage('Synopsis accepted' if proposal else 'Synopsis rejected'):pass
                     if proposal:
                         research.save_evidence(path,dict(external or {}, synopsis=proposal))
@@ -315,12 +323,13 @@ def discover(root):
                         outcome = 'queued'
                 except Exception as exc:
                     if pause_control.requested():return True
+                    research.save_evidence(path,{'synopsis_diagnostics':dict(diagnostics,status='error',error=str(exc)[:500])})
                     lookup_error = (lookup_error or '') + '; local model: ' + str(exc)
             else:
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
-        state['checked'][str(path)] = {'version':MATCHER_VERSION,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
+        state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         discovery_state.save_one(path,state['checked'][str(path)])
         research_runtime.record_check(outcome)
         if outcome == 'queued':
