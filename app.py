@@ -380,6 +380,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
             raise ValueError('Duplicate ZIP entries require manual review.')
         read_metadata(path)
         xml = metadata_xml(source.read(names[0])) if names else ET.Element('ComicInfo')
+        expected_fields = {}
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -389,7 +390,10 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
                     node.text += '\n\n' + value
             elif key in overwrite_fields or not (node.text or '').strip():
                 node.text = value
-        xml_bytes = ET.tostring(xml, encoding='utf-8', xml_declaration=True)
+            expected_fields[key] = node.text or ''
+        # XML parsers normalize literal CR/CRLF to LF. Character references
+        # preserve source text exactly, including Windows paragraph breaks.
+        xml_bytes = ET.tostring(xml, encoding='utf-8', xml_declaration=True).replace(b'\r', b'&#13;')
     backup_dir = path.parent / '.comic-metadata-backups'
     backup_dir.mkdir(exist_ok=True)
     backup = backup_dir / (path.name + '.' + str(time.time_ns()) + '.bak')
@@ -410,6 +414,10 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=()):
             after = [(i.filename, i.CRC, i.file_size) for i in check.infolist() if i.filename.lower() != 'comicinfo.xml']
             if before != after:
                 raise ValueError('Archive contents changed unexpectedly.')
+            readback = metadata_xml(check.read('ComicInfo.xml'))
+            for key,value in expected_fields.items():
+                if readback.findtext(key,default='') != value:
+                    raise ValueError('Temporary archive metadata verification failed for '+key)
         current = path.stat()
         if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
             raise ValueError('Comic changed while preparing metadata. Original retained.')

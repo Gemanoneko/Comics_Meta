@@ -68,6 +68,7 @@ class LibraryTests(unittest.TestCase):
         self.scan()
         backup = app.write_metadata(self.row(path), {'Title': 'Replace?', 'Writer': 'Test Writer', 'Series': 'Example'})
         self.assertEqual(Path(backup).read_bytes(), original)
+
         with zipfile.ZipFile(path) as archive:
             self.assertIsNone(archive.testzip())
             self.assertEqual(archive.comment, b'preserve me')
@@ -81,6 +82,23 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(app.JOB['changed'], 0)
         self.assertEqual(self.row(path)['status'], 'tagged')
 
+    def test_synopsis_windows_line_breaks_survive_exact_readback(self):
+        import batch,pause_control
+        path=self.make()
+        (self.temp_path/'data').mkdir()
+        summary='A visitor arrives.\r\n\r\nA strange bargain awaits.\rLast line & more.'
+        plan=self.temp_path/'batch'/'plan.json';plan.parent.mkdir()
+        plan.write_text(json.dumps({'folder':str(self.root),'entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':{'Summary':{'before':'','after':summary}},'fields':{'Summary':summary}}]}))
+        with patch.object(app,'BASE',self.temp_path),patch.object(pause_control,'requested',return_value=False):
+            batch.apply(plan,remove_verified_backups=True)
+        self.assertEqual(app.read_metadata(path)[0]['Summary'],summary)
+        results=json.loads((plan.parent/'results.json').read_text())
+        self.assertTrue(results[0]['metadata_readback_verified'])
+        self.assertFalse((self.root/'.comic-metadata-backups').exists())
+        with zipfile.ZipFile(path) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(archive.read('001.jpg'),b'pretend cover bytes')
+
     def test_changed_file_is_not_written(self):
         path = self.make()
         self.scan()
@@ -90,6 +108,16 @@ class LibraryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed'):
             app.write_metadata(row, {'Title': 'No'})
         self.assertFalse((self.root / '.comic-metadata-backups').exists())
+
+    def test_failed_temporary_metadata_readback_preserves_original(self):
+        path=self.make();original=path.read_bytes();self.scan()
+        with patch.object(app,'metadata_xml',return_value=ET.fromstring('<ComicInfo><Summary>Wrong</Summary></ComicInfo>')):
+            with self.assertRaisesRegex(ValueError,'Temporary archive metadata verification failed'):
+                app.write_metadata(self.row(path),{'Summary':'Verified teaser'})
+        self.assertEqual(path.read_bytes(),original)
+        self.assertFalse(path.with_name(path.name+'.metadata-tmp').exists())
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT count(*) FROM history').fetchone()[0],0)
 
     def test_reviewed_corrections_preserve_personal_fields(self):
         path = self.make(xml='<ComicInfo><Writer>Wrong credit</Writer><Notes>Personal note</Notes><Review>My review</Review></ComicInfo>')

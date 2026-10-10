@@ -78,18 +78,24 @@ class SchedulingTests(unittest.TestCase):
             self.assertIn('last_pass',state['folders'][str(a)])
 
     def test_discovery_continues_past_thin_cached_evidence_and_queues_useful_fields(self):
-        import automatic,research,worker,metron,providers,archive_conversion,cover_tasks
+        import automatic,research,worker,metron,providers,archive_conversion,cover_tasks,local_model
         folder=self.root/'comics';folder.mkdir();path=folder/'Example 001 (2024).cbz';path.write_bytes(b'fixture')
         with app.db() as con:
             con.execute('INSERT INTO comics(path,root,size,mtime,series,number,year,metadata,status,seen) VALUES(?,?,?,?,?,?,?,?,?,?)',
                 (str(path),str(folder),7,1,'Example','1','2024',json.dumps({'Series':'Example','Number':'1'}),'embedded',1))
         thin={'fields':{'Series':'Example','Number':'1'},'sources':[]}
-        rich={'provider':'GCD','fields':{'Writer':'Verified writer'},'sources':[]}
+        rich={'provider':'GCD','fields':{'Writer':'Verified writer'},'sources':[{'url':'https://example.org','text':'word '*25}]}
         with patch.object(app,'BASE',self.root),patch.object(app,'scan'),patch.object(research,'CACHE',self.root/'research'),patch.object(research,'save_evidence'),patch.object(runtime,'reuse',return_value=thin),patch.object(automatic,'lookup_unidentified',return_value=None),patch.object(archive_conversion,'one',return_value=False),patch.object(providers,'statuses',return_value={}),patch.object(metron,'token',return_value='synthetic'),patch.object(metron,'lookup',return_value=thin),patch.object(providers,'gcd_lookup',return_value=rich),patch.object(worker,'enqueue') as enqueue,patch.object(cover_tasks,'identified'):
-            self.assertTrue(automatic.discover(folder))
-            self.assertEqual(enqueue.call_count,1)
-            plan=json.loads(enqueue.call_args.args[0].read_text())
-            self.assertEqual(plan['entries'][0]['fields']['Writer'],'Verified writer')
+            for proposal in (None,{'summary':'Verified teaser','model':'fixture','sources':['https://example.org']}):
+                enqueue.reset_mock()
+                with patch.object(automatic.discovery_state,'load',return_value={'checked':{}}),patch.object(local_model,'available',return_value=True),patch.object(local_model,'sourced_synopsis',return_value=proposal) as synopsis:
+                    self.assertTrue(automatic.discover(folder))
+                synopsis.assert_called_once()
+                self.assertEqual(enqueue.call_count,1)
+                plan=json.loads(enqueue.call_args.args[0].read_text())
+                self.assertEqual(plan['entries'][0]['fields']['Writer'],'Verified writer')
+                self.assertEqual(plan['entries'][0]['fields'].get('Summary'),'Verified teaser' if proposal else None)
+                self.assertEqual('Summary' in plan['entries'][0]['changes'],bool(proposal))
 
 
 if __name__=='__main__':unittest.main()
