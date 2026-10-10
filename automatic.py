@@ -15,6 +15,7 @@ import discovery_state
 from provider_wait import record_failure, retry_time
 import research_runtime
 import storage
+import coverage_priority
 
 MATCHER_VERSION = 9
 
@@ -30,9 +31,7 @@ def verified_issue_fields(issue):
 
 
 def language_eligible(row,old):
-    language=str(old.get('LanguageISO') or '').strip().lower().replace('_','-').split('-')[0]
-    if language and language not in ('en','eng','english'):return False
-    return not re.search(r'\((?:fr|french|de|german|es|spanish|it|italian|ru|russian|jp|japanese)\)',Path(row['path']).name,re.I)
+    return coverage_priority.language_eligible(row,old)
 
 def unique_volume(candidates, series, publisher):
     matches = [v for v in candidates if research.series_key(v.get('name')) == research.series_key(series)
@@ -106,7 +105,7 @@ def load_state():
     return json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'checked': {}}
 
 @research_runtime.timed("Research pass")
-def discover(root):
+def discover(root,coverage_only=False):
     root = Path(root).resolve()
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
@@ -120,7 +119,8 @@ def discover(root):
     with app.db() as con:
         scope,args=app.scope_filter(root)
         rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','corrupted','unsupported') AND "+scope+' ORDER BY path',args)]
-    rows.sort(key=lambda row: (bool(state['checked'].get(row['path'])) and state['checked'][row['path']].get('signature')==[row['size'],row['mtime']], state['checked'].get(row['path'],{}).get('outcome') not in ('web_issue_found','publisher_issue_found','current'), row['path']))
+        written=coverage_priority.written_paths(con)
+    rows=coverage_priority.order_rows(rows,state['checked'],written,coverage_priority.pending_paths(),coverage_only)
     checked = 0
     for row in rows:
         import pause_control
@@ -130,12 +130,9 @@ def discover(root):
             continue
         signature = [row['size'], row['mtime']]
         previous = state['checked'].get(str(path), {})
-        evidence_path=research.CACHE/('evidence-'+__import__('hashlib').sha256(str(path).encode()).hexdigest()+'.json')
-        saved=json.loads(evidence_path.read_text(encoding='utf-8')) if evidence_path.exists() else {}
-        new_cover_leads=saved.get('reverse_image_signature')==signature and previous.get('cover_leads')!=saved.get('reverse_image_matches')
-        old_metron=(saved.get('verified_evidence') or {}).get('result',{})
-        metron_upgrade=old_metron.get('provider')=='Metron' and old_metron.get('metadata_version',0)<2 and previous.get('metron_metadata_version',0)<2
-        if not metron_upgrade and not source_scheduling.due(previous,signature,MATCHER_VERSION,source_statuses,new_cover_leads):
+        saved=coverage_priority.saved_evidence(path)
+        due,new_cover_leads,metron_upgrade=coverage_priority.lookup_flags(row,previous,source_statuses,MATCHER_VERSION,saved,time.time())
+        if not due:
             continue
         checked += 1
         if checked > 20:

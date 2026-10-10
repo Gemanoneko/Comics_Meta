@@ -112,10 +112,13 @@ def main():
                     def inventory_progress(visited,found):
                         batch.progress(phase='Inventorying live folders',current_folder=root,
                                        detail=str(visited)+' directories visited; '+str(found)+' comic folders found. No archives are changed during this step.')
-                    folder = scheduler.select(root,on_progress=inventory_progress)
+                    selection = scheduler.select(root,on_progress=inventory_progress,with_mode=True)
+                    folder = selection['folder'] if selection else None
                     if not folder:
                         state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
-                        if state.get('inventory_pending'):
+                        if state.get('inventory_pending') or state.get('coverage_pending'):
+                            if state.get('coverage_pending'):
+                                batch.progress(phase='Checking first-update readiness',detail='Checking the next bounded catalog slice before selecting refinement work. Existing source waits are retained.')
                             next_discovery=0
                             time.sleep(2)
                             continue
@@ -125,7 +128,7 @@ def main():
                         if due:next_discovery=min(next_discovery,max(time.time()+2,min(due)))
                         time.sleep(2)
                         continue
-                    queued = discovery.discover(folder)
+                    queued = discovery.discover(folder,coverage_only=selection['coverage_only'])
                     scheduler.finish(folder,queued=queued)
                     if not queued:
                         batch.progress(phase='Advancing to next folder',detail='Folder pass finished. Unresolved research is retained; selecting the next due folder.')

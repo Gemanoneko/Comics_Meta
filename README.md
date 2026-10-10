@@ -36,6 +36,8 @@ Gemma reads cover identification text and selects exact narrative excerpts and c
 
 The scheduler progresses folder by folder, checks new or changed files, persists retries and uses a serial write queue. Library traversal is checkpointed in small steps, so discovered folders can be processed before the entire tree has been inventoried. The service retries an exited worker every 30 seconds; its lock prevents concurrent writers. Interrupted writes are flagged for inspection instead of blindly replayed.
 
+Eligible comics without an app update in the database write history take priority across folders and within each folder. Coverage passes skip refinements, including in mixed folders. Bounded catalog checks retain the existing research retry windows; refinements resume when no eligible first-update work is found in the inventoried catalog. Waiting readiness snapshots last at most 60 seconds, expire at earlier known retries, and are invalidated by new catalog entries, write history, active tickets, inventory or source availability changes. Existing embedded metadata alone does not count as an app update. Queued work and the current write finish normally.
+
 ComicVine, Metron, GCD, Google Books and publisher/web research are supported. Open Library uses an optional local dump index. See [source connectors](SOURCE_CONNECTORS.md) and [synopsis policy](SYNOPSIS_POLICY.md).
 
 The dashboard shows the configured live scope, working/waiting state, unresolved research and whether a synopsis exists. A completed folder pass or existing metadata does not prove completeness or accuracy. Manual lookups are optional.

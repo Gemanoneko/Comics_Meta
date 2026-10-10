@@ -24,7 +24,7 @@ def folders(root,on_progress=None):
         if path.is_relative_to(root):result.append(str(path))
     return sorted(result,key=lambda p:(not ('!Coffin Comics' in Path(p).parts),p.casefold()))
 
-def select(root,now=None,on_progress=None):
+def select(root,now=None,on_progress=None,with_mode=False):
     now=time.time() if now is None else now
     state=json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'folders':{}}
     root=Path(root).resolve()
@@ -34,6 +34,7 @@ def select(root,now=None,on_progress=None):
         prefix=str(root).rstrip('\\/')+os.sep
         state['folders']={p:v for p,v in state['folders'].items() if p.casefold().startswith(prefix.casefold()) or p==str(root)}
         state.update(root=str(root),inventory_pending=[str(root)],inventory_seen=[],inventory_visited=0,inventory_errors=[])
+        if changed:state.pop('coverage_cursor',None)
     if state.get('inventory_pending'):
         # Persist a bounded traversal and begin processing found folders immediately.
         # A huge DAS must not finish its entire tree walk before the first write.
@@ -75,10 +76,23 @@ def select(root,now=None,on_progress=None):
                 # Verify newly found cover leads before the next ordinary folder.
                 state['folders'][folder]['next_scan']=-1
                 con.execute('DELETE FROM cover_retries WHERE folder=?',(folder,))
-    if retries:save(state)
+    if retries:
+        state['coverage_cover_epoch']=now
+        save(state)
     due=[p for p,v in state['folders'].items() if v.get('next_scan',0)<=now]
-    if not due:return None
-    return min(due,key=lambda p:(state['folders'][p].get('next_scan',0),p.casefold()))
+    if not due:
+        if state.get('coverage_pending'):
+            state['coverage_pending']=False
+            state.pop('coverage_cursor',None)
+            save(state)
+        return None
+    import automatic,coverage_priority,providers
+    first=coverage_priority.firstpass_folder(root,set(due),state,providers.statuses(),automatic.MATCHER_VERSION,now)
+    save(state)
+    if first:return {'folder':first,'coverage_only':True} if with_mode else first
+    if state.get('coverage_pending'):return None
+    folder=min(due,key=lambda p:(state['folders'][p].get('next_scan',0),p.casefold()))
+    return {'folder':folder,'coverage_only':False} if with_mode else folder
 
 def save(state):
     storage.save(STATE,state)
