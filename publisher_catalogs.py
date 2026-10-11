@@ -50,10 +50,21 @@ def mark(name,status):
 
 
 def statuses():
+    now=time.time()
     with app.db() as con:
         tables(con)
         rows={r['provider']:{'status':r['status'],'retry_at':r['retry_at']} for r in con.execute('SELECT * FROM catalog_status')}
-    return {name:rows.get(name,{'status':'ready'}) for name in NAMES}
+        budgets={r['provider']:(r['used'],r['first']) for r in con.execute(
+            'SELECT provider,COUNT(*) used,MIN(timestamp) first FROM catalog_requests WHERE timestamp>? GROUP BY provider',
+            (now-86400,))}
+    result={name:rows.get(name,{'status':'ready'}) for name in NAMES}
+    for name,value in result.items():
+        used,first=budgets.get(name,(0,None))
+        # Reflect reserve()'s existing allowance without consuming a request or
+        # overwriting a human-verification hold or a longer provider cooldown.
+        if used>=300 and value['status']!='human_verification' and value.get('retry_at',0)<first+86400:
+            value.update(status='daily_budget_wait',retry_at=first+86400)
+    return result
 
 
 def title_key(title):

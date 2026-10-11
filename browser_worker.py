@@ -60,7 +60,11 @@ def process(row,browser,options):
             search.status(human_verification=True,verification_state='required',verification_url=exc.url,browser_retry_at=time.time()+3600)
             leads=None
         except Exception:
-            search.status(browser_retry_at=time.time()+3600,browser_error='Browser search could not finish; retrying after a cooldown.')
+            # Observing an existing cooldown is not another failed request.
+            # Retain its deadline; only a new failure starts the usual wait.
+            retry_at=state.get('browser_retry_at',0)
+            if retry_at<=time.time():retry_at=time.time()+3600
+            search.status(browser_retry_at=retry_at,browser_error='Browser search could not finish; retrying after a cooldown.')
             leads=None
         if not leads and options.get('serpapi_fallback'):
             if pause_control.requested():
