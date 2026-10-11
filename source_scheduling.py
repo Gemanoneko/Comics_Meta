@@ -6,7 +6,7 @@ from provider_wait import ProviderDeferred
 
 KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library local index':'open_library',
       'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics',
-      'General free web':'free_web'}
+      'General free web':'free_web','Wikipedia/wiki':'wikipedia'}
 FREE_SOURCES={'General free web','Wikipedia/wiki'}
 
 

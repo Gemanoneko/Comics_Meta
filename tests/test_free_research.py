@@ -1,5 +1,7 @@
 """Isolated free fallback fixtures; no real requests, models or archive writes."""
 import json
+import hashlib
+import urllib.error
 import unittest
 from pathlib import Path
 from unittest.mock import Mock,patch
@@ -156,3 +158,84 @@ class FreeResearchTests(unittest.TestCase):
 
     def test_short_positive_api_description_can_use_verified_free_synopsis(self):
         self.assertEqual(self.discover(thin_issue=True,description='<p>A brief placeholder synopsis.</p>')['fields']['Summary'],'Verified premise')
+
+    def wiki_error(self,retry='120'):
+        return urllib.error.HTTPError('https://en.wikipedia.org/w/api.php',429,'Too Many Requests',{'Retry-After':retry},None)
+
+    def wiki_response(self,url,payload):
+        response=Mock();response.url=url;response.read.return_value=json.dumps(payload).encode()
+        response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
+        return response
+
+    def test_wiki_429_blocks_next_comic_without_extending_deadline(self):
+        url='https://en.wikipedia.org/w/api.php?action=query&one=1'
+        with patch.object(research.urllib.request,'urlopen',side_effect=self.wiki_error()) as open:
+            with self.assertRaises(ProviderDeferred) as first:research.fetch(url)
+            self.assertEqual(first.exception.provider,'wikipedia')
+            self.assertEqual(first.exception.retry_at,self.now+120)
+            with patch.object(research.time,'time',return_value=self.now+10):
+                with self.assertRaises(ProviderDeferred) as second:research.fetch(url+'&other=2')
+            self.assertEqual(second.exception.retry_at,self.now+120);self.assertEqual(open.call_count,1)
+        self.assertEqual(research.wiki_status()['retry_at'],self.now+120)
+
+    def test_wiki_cached_response_usable_during_global_hold(self):
+        research.wiki_rate_wait(self.wiki_error())
+        url='https://en.wikipedia.org/w/api.php?action=cached'
+        research.CACHE.mkdir();target=research.CACHE/(hashlib.sha256(url.encode()).hexdigest()+'.json')
+        target.write_text('{"query":{"cached":true}}',encoding='utf-8')
+        with patch.object(research.urllib.request,'urlopen') as open:
+            self.assertTrue(research.fetch(url)['query']['cached']);open.assert_not_called()
+
+    def test_wiki_deadline_expiry_allows_network_without_resetting_other_holds(self):
+        research.wiki_rate_wait(self.wiki_error('1'))
+        url='https://en.wikipedia.org/w/api.php?action=expired'
+        with patch.object(research.time,'time',return_value=self.now+1),patch.object(research.urllib.request,'urlopen',return_value=self.wiki_response(url,{'query':{}})) as open:
+            self.assertEqual(research.wiki_status()['status'],'available');self.assertEqual(research.fetch(url),{'query':{}});open.assert_called_once()
+        with app.db() as con:self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
+
+    def test_wiki_http_date_retry_and_longer_hold_are_preserved(self):
+        from email.utils import formatdate
+        self.assertEqual(research.wiki_rate_wait(self.wiki_error(formatdate(self.now+600,usegmt=True))).retry_at,self.now+600)
+        self.assertEqual(research.wiki_rate_wait(self.wiki_error('10')).retry_at,self.now+600)
+
+    def test_wiki_invalid_retry_uses_existing_first_error_delay(self):
+        self.assertEqual(research.wiki_rate_wait(self.wiki_error('invalid')).retry_at,self.now+3600)
+
+    def test_wiki_global_wait_schedules_independently_and_recovers(self):
+        prev=self.previous({'Wikipedia/wiki':{'result':'unavailable','next_at':self.now+120}})
+        statuses={'wikipedia':{'status':'cooldown_wait','retry_at':self.now+120},'free_web':{'status':'daily_budget_wait','retry_at':self.now+5000}}
+        self.assertFalse(scheduling.ready('Wikipedia/wiki',prev['source_schedule']['Wikipedia/wiki'],statuses,self.now))
+        self.assertFalse(scheduling.due(prev,[10,1],9,statuses,now=self.now))
+        statuses['wikipedia']={'status':'available','retry_at':0}
+        self.assertTrue(scheduling.due(prev,[10,1],9,statuses,now=self.now+120))
+
+    def test_comic_article_ranks_before_matching_tv_and_film(self):
+        payload={'query':{'search':[{'title':'Example (TV series)','pageid':1},{'title':'Example (film)','pageid':2},{'title':'Example (comics)','pageid':3}]}}
+        with patch.object(research,'fetch',return_value=payload):candidates=research.wiki_candidates(self.row,self.old)
+        self.assertEqual(candidates[0]['pageid'],3);self.assertEqual(len(candidates),3)
+
+    def test_wiki_footer_searches_do_not_consume_issue_lead_slots(self):
+        research.save_evidence(self.row['path'],{'wiki_candidates':[{'title':'Example (comics)','pageid':1}]})
+        footers=['https://www.google.com/search?q=Example','https://www.jstor.org/action/doBasicSearch?Query=Example']
+        leads=footers+['https://example.org/article/'+str(i) for i in range(8)]+['https://example.org/comics/Example-1']
+        payload={'query':{'pages':{'1':{'extlinks':[{'*':url} for url in leads]}}}}
+        source={'url':leads[-1],'title':'Example #1','text':'Synthetic Press 2024 verified issue premise','image':'https://example.org/cover.jpg'}
+        with patch.object(research,'fetch',return_value=payload),patch.object(web,'source',return_value=source) as fetch_source, \
+             patch.object(web,'read',return_value=b'remote'),patch('reverse_image.cover',return_value=(b'local',None,None)),patch.object(automatic,'covers_agree',return_value=True):
+            self.assertIsNotNone(research.resolve_leads(self.row,self.old))
+        self.assertEqual(fetch_source.call_args.args[0],leads[-1]);self.assertEqual(fetch_source.call_count,1)
+        evidence=json.loads((research.CACHE/('evidence-'+hashlib.sha256(self.row['path'].encode()).hexdigest()+'.json')).read_text(encoding='utf-8'))
+        self.assertEqual(evidence['wiki_leads_skipped'],footers)
+
+    def test_wiki_leads_keep_eight_limit_and_reject_wrong_issue(self):
+        research.save_evidence(self.row['path'],{'wiki_candidates':[{'title':'Example (comics)','pageid':1}]})
+        payload={'query':{'pages':{'1':{'extlinks':[{'*':'https://example.org/comics/Example-'+str(i)} for i in range(2,14)]}}}}
+        source={'url':'https://example.org/comics/Example-2','title':'Example #2','identity_text':'Synthetic Press 2024','image':'cover.jpg'}
+        with patch.object(research,'fetch',return_value=payload),patch.object(web,'source',return_value=source) as fetch_source,patch.object(web,'read') as cover:
+            self.assertIsNone(research.resolve_leads(self.row,self.old));self.assertEqual(fetch_source.call_count,8);cover.assert_not_called()
+
+    def test_wiki_extlinks_deferral_is_recorded_and_propagated(self):
+        research.save_evidence(self.row['path'],{'wiki_candidates':[{'title':'Example (comics)','pageid':1}]})
+        with patch.object(research,'fetch',side_effect=ProviderDeferred('held','wikipedia',self.now+120)):
+            with self.assertRaises(ProviderDeferred) as caught:research.resolve_leads(self.row,self.old)
+        self.assertEqual(caught.exception.retry_at,self.now+120)

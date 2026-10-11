@@ -190,6 +190,8 @@ def statuses():
     result.update(publisher_catalogs.statuses())
     import web_search
     result['free_web']=web_search.free_status()
+    import research
+    result['wikipedia']=research.wiki_status()
     return result
 
 def comicvine_status():

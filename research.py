@@ -3,13 +3,44 @@ import hashlib
 import json
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
+from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
 import app
 
 CACHE = app.DATA / 'research'
+
+def wiki_status(now=None):
+    now=time.time() if now is None else now
+    target=app.DATA/'wikipedia-status.json'
+    state=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+    retry=state.get('retry_at',0)
+    return {'status':'cooldown_wait' if retry>now else 'available','retry_at':retry if retry>now else 0}
+
+
+def wiki_rate_wait(error):
+    now=time.time()
+    value=error.headers.get('Retry-After') if error.headers else None
+    retry=now+3600  # Existing first-error retry when the server supplies no valid deadline.
+    if value:
+        try:retry=now+max(1,int(value))
+        except (TypeError,ValueError):
+            try:retry=max(now+1,parsedate_to_datetime(value).timestamp())
+            except (TypeError,ValueError,OverflowError):pass
+    # The browser and metadata process can share research; never replace a longer hold.
+    import storage
+    with app.db() as con:
+        con.execute('BEGIN IMMEDIATE')
+        target=app.DATA/'wikipedia-status.json'
+        state=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+        retry=max(retry,state.get('retry_at',0))
+        storage.save(target,{'status':'cooldown_wait','retry_at':retry,'http_status':429,'checked_at':now})
+    from provider_wait import ProviderDeferred
+    return ProviderDeferred('Wikipedia is rate limited; retry scheduled.','wikipedia',retry)
+
 
 def fetch(url):
     parsed = urllib.parse.urlparse(url)
@@ -19,11 +50,21 @@ def fetch(url):
     target = CACHE / (hashlib.sha256(url.encode()).hexdigest() + '.json')
     if target.exists() and time.time() - target.stat().st_mtime < 7 * 86400:
         return json.loads(target.read_text(encoding='utf-8'))
+    if parsed.hostname=='en.wikipedia.org':
+        state=wiki_status()
+        if state['retry_at']:
+            from provider_wait import ProviderDeferred
+            raise ProviderDeferred('Wikipedia is waiting before retrying.','wikipedia',state['retry_at'])
     request = urllib.request.Request(url, headers={'User-Agent':'ComicMetadataResearch/0.2 (personal catalog)'})
-    with urllib.request.urlopen(request, timeout=25) as response:
-        if urllib.parse.urlparse(response.url).hostname != parsed.hostname:
-            raise ValueError('Research redirected to another host.')
-        raw = response.read(3_000_001)
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            if urllib.parse.urlparse(response.url).hostname != parsed.hostname:
+                raise ValueError('Research redirected to another host.')
+            raw = response.read(3_000_001)
+    except urllib.error.HTTPError as error:
+        if parsed.hostname=='en.wikipedia.org' and error.code==429:
+            raise wiki_rate_wait(error) from None
+        raise
     if len(raw) > 3_000_000:
         raise ValueError('Research response too large.')
     result = json.loads(raw)
@@ -141,8 +182,28 @@ def wiki_candidates(row, old):
         'action':'query','list':'search','srsearch':series+' comics','srlimit':3,'format':'json'})
     result = fetch(url)
     # Discovery only: a series article does not establish this issue's identity.
+    candidates=[r for r in result.get('query',{}).get('search',[]) if normalize(series) in normalize(r['title'])]
+    def rank(candidate):
+        title=candidate['title'].lower()
+        snippet=unescape(re.sub('<[^>]+>',' ',candidate.get('snippet',''))).lower()
+        comic=bool(re.search(r'\b(?:comics?|comic books?|graphic novels?)\b',title))
+        screen=bool(re.search(r'\b(?:film|television|tv series|episodes?)\b',title))
+        return (not comic,screen,not bool(re.search(r'\b(?:comics?|comic books?)\b',snippet)))
     return [{'title':r['title'],'pageid':r['pageid'],'url':'https://en.wikipedia.org/?curid='+str(r['pageid']),
-             'scope':'Series candidate; issue not verified'} for r in result.get('query',{}).get('search',[]) if normalize(series) in normalize(r['title'])]
+             'scope':'Series candidate; issue not verified'} for r in sorted(candidates,key=rank)]
+
+
+def wiki_footer_search(url):
+    parsed=urllib.parse.urlparse(url)
+    host=(parsed.hostname or '').lower().removeprefix('www.')
+    return (host in {'google.com','bing.com','duckduckgo.com','search.yahoo.com'} and parsed.path in {'/search','/html/','/html','/'}) or (host=='jstor.org' and parsed.path=='/action/doBasicSearch')
+
+
+def wiki_lead_rank(lead,series,number):
+    path=urllib.parse.unquote(urllib.parse.urlparse(lead['url']).path)
+    issue=bool(number and re.search(r'(?<!\d)0*'+re.escape(issue_number(number))+r'(?!\d)',path))
+    specific=bool(re.search(r'/(?:issues?|comics?|products?)(?:/|[-_])',path,re.I))
+    return (not (issue and normalize(series) in normalize(path)),not specific)
 
 
 def verify_web_source(row,old,source,cover_hint=None,require_cover=False):
@@ -175,8 +236,8 @@ def resolve_leads(row,old,cover_hint=None):
     target=CACHE/('evidence-'+hashlib.sha256(row['path'].encode()).hexdigest()+'.json')
     evidence=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
     leads=list(evidence.get('web_candidates',[]))+list(evidence.get('reverse_image_matches',[]))
-    inspected=[];errors=[]
-    series,_=query_identity(row,old)
+    inspected=[];errors=[];wiki_leads=[];skipped=[];deferred=None
+    series,number=query_identity(row,old)
     wiki=[c for c in evidence.get('wiki_candidates',[]) if normalize(series) in normalize(c.get('title',''))]
     for candidate in wiki[:2]:
         if not candidate.get('pageid'):continue
@@ -186,8 +247,14 @@ def resolve_leads(row,old,cover_hint=None):
             for page in payload.get('query',{}).get('pages',{}).values():
                 for link in page.get('extlinks',[]):
                     value=link.get('*') or link.get('url','')
-                    if value.startswith('https://'):leads.append({'url':value,'title':candidate['title']})
-        except ValueError as exc:errors.append(str(exc))
+                    if value.startswith('https://'):
+                        if wiki_footer_search(value):skipped.append(value)
+                        else:wiki_leads.append({'url':value,'title':candidate['title']})
+        except ValueError as exc:
+            from provider_wait import ProviderDeferred
+            if isinstance(exc,ProviderDeferred):deferred=exc
+            errors.append(str(exc))
+    leads.extend(sorted(wiki_leads,key=lambda lead:wiki_lead_rank(lead,series,number)))
     seen=set()
     for lead in leads:
         url=lead.get('url','')
@@ -199,10 +266,11 @@ def resolve_leads(row,old,cover_hint=None):
             verified=verify_web_source(row,old,source,cover_hint,require_cover=True)
             inspected.append({'url':url,'verified':bool(verified)})
             if verified:
-                save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors})
+                save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped})
                 return verified
         except ValueError as exc:errors.append(str(exc))
-    save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors})
+    save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped})
+    if deferred:raise deferred
     return None
 
 def general_lookup(row,old,cover_hint=None):
