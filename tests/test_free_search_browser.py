@@ -76,7 +76,7 @@ class RegularSearchTests(unittest.TestCase):
                'text':'Dark Horse 2008 Eighty million Togruta from the planet of Kiros.','identity_text':'Dark Horse 2008'}
         with patch.object(web,'search',return_value=[{'url':exact['url']}]) as search,patch.object(web,'source',return_value=exact),patch.object(research,'save_evidence'):
             self.assertIsNotNone(research.general_lookup(row,old))
-            search.assert_called_once_with('Star Wars - The Clone Wars #3 comics',free_only=True)
+            search.assert_called_once_with('Star Wars - The Clone Wars #3 comics',free_only=True,engine='ddg')
         for title in ('Star Wars: The Clone Wars #2','Star Wars: The Clone Wars (comic series)'):
             self.assertIsNone(research.verify_web_source(row,old,dict(exact,title=title)))
 
@@ -131,6 +131,30 @@ class RegularSearchTests(unittest.TestCase):
         finally:
             for lock,_,_ in browser._retained[before:]:lock.close()
             del browser._retained[before:];browser._mutex.release()
+
+    def test_bing_organic_selector_redirect_decode_and_own_profile(self):
+        first='a1aHR0cHM6Ly93d3cuZGFya2hvcnNlLmNvbS9jb21pY3MvMTUtNjgxL3N0YXItd2Fycy10aGUtY2xvbmUtd2Fycy0zLw'
+        second='a1aHR0cHM6Ly9zdGFyd2Fycy5mYW5kb20uY29tL3dpa2kvU3Rhcl9XYXJzOl9UaGVfQ2xvbmVfV2Fyc18oY29taWNfc2VyaWVzKQ'
+        self.links.evaluate_all.return_value=[{'url':'https://www.bing.com/ck/a?u='+first,'title':'Issue #3'},{'url':'https://www.bing.com/ck/a?u='+second,'title':'Series'}]
+        result=browser.search('Star Wars - The Clone Wars #3 comics','bing')
+        self.assertEqual(result[0]['url'],'https://www.darkhorse.com/comics/15-681/star-wars-the-clone-wars-3/')
+        self.assertEqual(result[1]['url'],'https://starwars.fandom.com/wiki/Star_Wars:_The_Clone_Wars_(comic_series)')
+        self.assertEqual(self.runtime.chromium.launch_persistent_context.call_args.args[0],str(self.root/'bing-profile'))
+        self.assertEqual(self.page.locator.call_args.args[0],'ol#b_results > li.b_algo h2 a')
+        self.assertTrue(self.page.goto.call_args.args[0].startswith('https://www.bing.com/search?q='))
+
+    def test_bing_redirect_rejects_malformed_nonpublic_credentials_and_engine_links(self):
+        import base64
+        targets=['http://example.org/','javascript:alert(1)','https://127.0.0.1/','https://[::1]/','https://10.0.0.1/','https://localhost/','https://localhost./','https://service.local/','https://127.1/','https://user:secret@example.org/','https://example.org:444/','https://www.bing.com/search?q=x','https://bing.com./search?q=x','https://example.org/\nheader']
+        items=[{'url':'https://www.bing.com/ck/a?u=a1'+base64.urlsafe_b64encode(t.encode()).decode().rstrip('=')} for t in targets]
+        items += [{'url':'https://www.bing.com/ck/a?u=a1$$$'},{'url':'https://www.bing.com/ck/a?u=a1////'},{'url':'https://www.bing.com/ck/a?u=a1_w'},{'url':'https://www.bing.com/ck/a?u=a1YQ&u=a1Yg'}]
+        self.assertEqual(browser.normalize_links(items,'bing'),[])
+
+    def test_bing_actual_challenge_does_not_touch_ddg_profile(self):
+        self.page.url='https://www.bing.com/captcha';self.body.inner_text.return_value='Verify that you are not a robot'
+        with self.assertRaisesRegex(browser.BrowserUnavailable,'human verification'):browser.search('Fixture','bing')
+        self.assertFalse((self.root/'ddg-profile.lock').exists())
+        self.context.close.assert_called_once();self.runtime.stop.assert_called_once()
 
 
 _actual_ownership=browser.own_descendants

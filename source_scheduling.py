@@ -20,33 +20,43 @@ def blocked(status,now):
     return status.get('status')=='human_verification' or status.get('retry_at',0)>now
 
 
+def attempt_status(name,attempt,statuses):
+    state=statuses.get(KEYS.get(name,''),{})
+    engine=attempt.get('engine')
+    if name=='General free web' and engine in ('ddg','bing'):
+        return state.get('engines',{}).get(engine,state)
+    return state
+
+
 def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
     if previous.get('retry_at',0)<=now:return True
     attempts=previous.get('source_schedule',{})
     if any(a.get('result')=='error' and a.get('next_at',0)<=now and
-           (name not in FREE_SOURCES or not blocked(statuses.get(KEYS.get(name,''),{}),now))
+           (name not in FREE_SOURCES or not blocked(attempt_status(name,a,statuses),now))
            for name,a in attempts.items()):return True
     # Only recorded free attempts gain independent eligibility; legacy records
     # keep their existing comic retry, rather than a deployment-wide retry wave.
     if any(name in FREE_SOURCES and a.get('next_at',0)<=now and
-           not blocked(statuses.get(KEYS.get(name,''),{}),now) for name,a in attempts.items()):return True
-    return any(attempt.get('result')=='unavailable' and statuses.get(KEYS.get(name,''),{}).get('status') in ('available','offline_index_ready')
-               and not blocked(statuses.get(KEYS.get(name,''),{}),now)
+           not blocked(attempt_status(name,a,statuses),now) for name,a in attempts.items()):return True
+    return any(attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready')
+               and not blocked(attempt_status(name,attempt,statuses),now)
                for name,attempt in previous.get('source_schedule',{}).items())
 
 
 def ready(name,attempt,statuses,now):
     if not attempt:return True  # Allow ordinary caches on a source's first attempt.
-    if attempt.get('result')=='unavailable' and blocked(statuses.get(KEYS.get(name,''),{}),now):return False
-    if attempt.get('result')=='unavailable' and statuses.get(KEYS.get(name,''),{}).get('status') in ('available','offline_index_ready'):return True
+    if attempt.get('result')=='unavailable' and blocked(attempt_status(name,attempt,statuses),now):return False
+    if attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready'):return True
     return attempt.get('next_at',0)<=now
 
 
 def record(previous,result,error,old,now):
     if isinstance(error,ProviderDeferred):
-        return {'result':'unavailable','failures':0,'next_at':error.retry_at if error.retry_at>now else now+3600}
+        value={'result':'unavailable','failures':0,'next_at':error.retry_at if error.retry_at>now else now+3600}
+        if getattr(error,'engine',None) in ('ddg','bing'):value['engine']=error.engine
+        return value
     failures=previous.get('failures',0)+1
     if error:return {'result':'error','failures':failures,'next_at':now+min(3600*2**min(failures-1,3),6*3600)}
     if useful(result,old):return {'result':'verified','failures':0,'next_at':now+86400}

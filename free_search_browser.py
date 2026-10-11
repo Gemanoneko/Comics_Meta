@@ -1,5 +1,8 @@
 """Ordinary DuckDuckGo results in a dedicated, bounded browser session."""
+import base64
+import ipaddress
 import os
+import re
 import sys
 import threading
 import time
@@ -69,31 +72,62 @@ def own_descendants():
     _query_job=active
 
 
-def challenge(url,text):
+ENGINES={
+    'ddg':{'base':'https://duckduckgo.com/','profile':'ddg-profile','selector':'li[data-layout="organic"] article[data-testid="result"] h2 a[data-testid="result-title-a"]',
+           'hosts':('duckduckgo.com','www.duckduckgo.com','links.duckduckgo.com','improving.duckduckgo.com','external-content.duckduckgo.com')},
+    'bing':{'base':'https://www.bing.com/search','profile':'bing-profile','selector':'ol#b_results > li.b_algo h2 a',
+            'hosts':('bing.com','www.bing.com','r.bing.com','th.bing.com','ts1.mm.bing.net','ts2.mm.bing.net','ts3.mm.bing.net','ts4.mm.bing.net')}
+}
+
+
+def challenge(url,text,engine='ddg'):
     parsed=urllib.parse.urlparse(url)
+    if engine=='bing':
+        return any(part in parsed.path.lower() for part in ('/captcha','/challenge','/sorry')) or any(marker in text.lower() for marker in
+                ('verify you are human','unusual traffic from your','verify that you are not a robot','enter the characters you see'))
     return ('anomaly' in parsed.path.lower() or any(marker in text.lower() for marker in
             ('bots use duckduckgo','verify you are human','complete the following challenge','anomaly.js')))
 
 
-def normalize_links(items):
+def normalize_links(items,engine='ddg'):
+    if engine not in ENGINES:raise BrowserUnavailable('Unsupported free search engine.')
     result=[];seen=set()
     for item in items:
-        url=urllib.parse.urljoin('https://duckduckgo.com',item.get('url',''))
-        parsed=urllib.parse.urlparse(url)
-        redirect=urllib.parse.parse_qs(parsed.query).get('uddg')
-        if redirect:url=redirect[0];parsed=urllib.parse.urlparse(url)
-        if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None,443):continue
-        if parsed.hostname=='duckduckgo.com' or parsed.hostname.endswith('.duckduckgo.com'):continue
+        try:
+            url=urllib.parse.urljoin(ENGINES[engine]['base'],item.get('url',''))
+            if len(url)>8192:continue
+            parsed=urllib.parse.urlparse(url)
+            if engine=='bing' and parsed.hostname=='www.bing.com' and parsed.path=='/ck/a':
+                redirect=urllib.parse.parse_qs(parsed.query).get('u',[])
+                if len(redirect)!=1 or not redirect[0].startswith('a1'):continue
+                encoded=redirect[0][2:]
+                if len(encoded)>5500 or not re.fullmatch(r'[A-Za-z0-9_-]+={0,2}',encoded):continue
+                url=base64.b64decode(encoded+'='*((-len(encoded))%4),altchars=b'-_',validate=True).decode('utf-8',errors='strict')
+                parsed=urllib.parse.urlparse(url)
+            elif engine=='ddg':
+                redirect=urllib.parse.parse_qs(parsed.query).get('uddg')
+                if redirect:url=redirect[0];parsed=urllib.parse.urlparse(url)
+            host=(parsed.hostname or '').lower().rstrip('.')
+            if len(url)>4096 or any(ord(c)<=32 or ord(c)==127 for c in url) or parsed.scheme!='https' or not host or parsed.username or parsed.password or parsed.port not in (None,443):continue
+            if host in ('duckduckgo.com','bing.com') or host.endswith(('.duckduckgo.com','.bing.com','.bing.net')):continue
+            if host=='localhost' or host.endswith(('.localhost','.local','.internal')):continue
+            try:
+                if not ipaddress.ip_address(host).is_global:continue
+            except ValueError:
+                if re.fullmatch(r'[0-9.]+',host):continue
+        except (ValueError,UnicodeError):continue
         if url in seen:continue
         seen.add(url);result.append({'url':url,'title':item.get('title','').strip()[:500]})
         if len(result)==5:break
     return result
 
 
-def checked_profile():
-    profile=app.DATA/'ddg-profile'
+def checked_profile(engine='ddg'):
+    if engine not in ENGINES:raise BrowserUnavailable('Unsupported free search engine.')
+    name=ENGINES[engine]['profile']
+    profile=app.DATA/name
     # Never attach to a user/Lens profile or follow a planted link.
-    for path in (app.DATA,profile,app.DATA/'ddg-profile.lock'):
+    for path in (app.DATA,profile,app.DATA/(name+'.lock')):
         if path.is_symlink() or (hasattr(path,'is_junction') and path.is_junction()):
             raise BrowserUnavailable('Dedicated search profile is linked; browser not launched.')
     app.DATA.mkdir(parents=True,exist_ok=True)
@@ -101,12 +135,13 @@ def checked_profile():
     return profile
 
 
-def search(query):
+def search(query,engine='ddg'):
+    if engine not in ENGINES:raise BrowserUnavailable('Unsupported free search engine.')
     if not _mutex.acquire(blocking=False):raise BrowserUnavailable('Dedicated search browser is already owned.')
     lock=None;runtime=None;context=None;locked=False;owned=False
     try:
-        profile=checked_profile()
-        lock=(app.DATA/'ddg-profile.lock').open('a+b')
+        profile=checked_profile(engine)
+        lock=(app.DATA/(ENGINES[engine]['profile']+'.lock')).open('a+b')
         if lock.tell()==0:lock.write(b'0');lock.flush()
         lock.seek(0)
         import msvcrt
@@ -122,24 +157,25 @@ def search(query):
         context=runtime.chromium.launch_persistent_context(str(profile),channel='msedge',headless=True,
             locale='en-US',accept_downloads=False,args=['--disk-cache-size=67108864','--media-cache-size=16777216'])
         # Search rendering must not become unbudgeted publisher navigation or a download.
-        context.route('**/*',lambda route:route.continue_() if urllib.parse.urlparse(route.request.url).hostname in
-                      ('duckduckgo.com','www.duckduckgo.com','links.duckduckgo.com','improving.duckduckgo.com','external-content.duckduckgo.com') else route.abort())
+        context.route('**/*',lambda route:route.continue_() if urllib.parse.urlparse(route.request.url).hostname in ENGINES[engine]['hosts'] else route.abort())
         page=context.pages[0] if context.pages else context.new_page()
         page.set_default_timeout(15_000)
-        page.goto('https://duckduckgo.com/?'+urllib.parse.urlencode({'q':query,'ia':'web'}),wait_until='domcontentloaded',timeout=45_000)
-        if challenge(page.url,page.locator('body').inner_text(timeout=10_000)):
+        params={'q':query}
+        if engine=='ddg':params['ia']='web'
+        page.goto(ENGINES[engine]['base']+'?'+urllib.parse.urlencode(params),wait_until='domcontentloaded',timeout=45_000)
+        if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
             raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
         if pause_control.requested():raise pause_control.PauseRequested()
         # Only regular organic result titles: no sponsored/navigation/footer links.
-        locator=page.locator('li[data-layout="organic"] article[data-testid="result"] h2 a[data-testid="result-title-a"]')
+        locator=page.locator(ENGINES[engine]['selector'])
         try:locator.first.wait_for(state='attached',timeout=15_000)
         except Exception:
             text=page.locator('body').inner_text(timeout=10_000)
-            if challenge(page.url,text):raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
+            if challenge(page.url,text,engine):raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
             if 'no results' in text.lower():return []
             raise BrowserUnavailable('Regular free search did not return a usable result page.') from None
         items=locator.evaluate_all('nodes => nodes.slice(0, 10).map(a => ({url: a.href, title: a.innerText}))')
-        return normalize_links(items)
+        return normalize_links(items,engine)
     except BrowserUnavailable:raise
     except Exception as exc:
         import pause_control

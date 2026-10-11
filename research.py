@@ -278,16 +278,17 @@ def general_lookup(row,old,cover_hint=None):
     series,number=query_identity(row,old)
     publisher=publisher_hint(row,old,cover_hint)
     query=series+' #'+number+' comics'
+    # Two engine attempts replace the optional second cover-hint network query.
+    # Cover hints still participate in the unchanged issue/source verifier.
     queries=[query]
-    hint=(cover_hint or {}).get('search_query')
-    if isinstance(hint,str) and hint.strip() and normalize(hint)!=normalize(query):queries.append(hint[:200]+' comic')
-    candidates=[];errors=[];sources=[];deferred=None
-    for query in queries[:2]:
-        try:hits=web_search.search(query,free_only=True)
+    candidates=[];errors=[];sources=[];deferred=[];engines=[]
+    for engine in web_search.FREE_ENGINES:
+        engines.append(engine)
+        try:hits=web_search.search(query,free_only=True,engine=engine)
         except ValueError as exc:
             from provider_wait import ProviderDeferred
-            if isinstance(exc,ProviderDeferred):deferred=exc
-            errors.append(str(exc));break
+            if isinstance(exc,ProviderDeferred):deferred.append(exc)
+            errors.append(str(exc));continue
         candidates.extend(hits)
         for hit in hits[:3]:
             try:
@@ -298,9 +299,9 @@ def general_lookup(row,old,cover_hint=None):
                 break
             except ValueError as exc:errors.append(str(exc))
         if sources:break
-    save_evidence(row['path'],{'web_candidates':candidates,'web_errors':errors,'web_queries':queries})
+    save_evidence(row['path'],{'web_candidates':candidates,'web_errors':errors,'web_queries':queries,'web_engines':engines})
     if not sources:
-        if deferred:raise deferred
+        if deferred:raise min(deferred,key=lambda error:error.retry_at if error.retry_at>0 else float('inf'))
         return None
     return {'fields':{'Series':series,'Number':issue_number(number),'Publisher':publisher},
             'sources':sources,'identity':{'series':series,'number':number},'status':'web_issue_found'}

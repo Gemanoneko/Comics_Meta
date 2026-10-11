@@ -14,12 +14,14 @@ import app
 from provider_wait import ProviderDeferred
 
 class SearchBlocked(ProviderDeferred):
-    pass
+    def __init__(self,message,provider='',retry_at=0,engine=None):
+        super().__init__(message,provider,retry_at)
+        self.engine=engine
 
 
-def free_browser_search(query):
+def free_browser_search(query,engine='ddg'):
     import free_search_browser
-    try:return free_search_browser.search(query)
+    try:return free_search_browser.search(query,engine)
     except free_search_browser.BrowserUnavailable as exc:raise SearchBlocked(str(exc)) from None
 
 def config():
@@ -116,13 +118,17 @@ class Page(HTMLParser):
         if self.heading is not None:self.heading+=data
         if self.link:self.link['title']+=data
 
-def cached(query,free_only=False):
-    cache_key='web-search:'+('free' if free_only else config().get('provider','free'))+':'+query
+def cached(query,free_only=False,engine=None):
+    cache_key='web-search:'+('bing' if engine=='bing' else 'free' if free_only or engine=='ddg' else config().get('provider','free'))+':'+query
     with app.db() as con:
         row=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
     return cache_key,json.loads(row['value']) if row else None
 
-def free_state_id():
+FREE_ENGINES=('ddg','bing')
+
+
+def free_state_id(engine='ddg'):
+    if engine=='bing':return 3
     # Keep the installed free route's saved hold. A configured paid vendor's
     # legacy hold remains separate from the explicitly requested free route.
     return 1 if config().get('provider','free')!='brave' else 2
@@ -134,12 +140,13 @@ def free_policy():
     return min(300,max(1,int(options.get('free_daily_request_limit',300)))),max(120,int(options.get('free_min_interval_seconds',120)))
 
 
-def free_status(now=None):
+def free_engine_status(engine,now=None):
+    if engine not in FREE_ENGINES:raise ValueError('Unsupported free search engine.')
     now=time.time() if now is None else now
     limit,interval=free_policy()
     with app.db() as con:
         exists={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        hold=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(),)).fetchone() if 'web_state' in exists else None
+        hold=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(engine),)).fetchone() if 'web_state' in exists else None
         used=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone() if 'web_requests' in exists else (0,None)
         previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0] if 'web_requests' in exists else None
     retry=hold[0] if hold else 0
@@ -151,30 +158,59 @@ def free_status(now=None):
     return {'status':status,'retry_at':retry if retry>now else 0}
 
 
-def search(query,free_only=False):
+def free_status(now=None):
+    now=time.time() if now is None else now
+    engines={engine:free_engine_status(engine,now) for engine in FREE_ENGINES}
+    result=dict(min(engines.values(),key=lambda state:state['retry_at']))
+    result['engines']=engines
+    return result
+
+
+def search(query,free_only=False,engine=None):
     query=re.sub(r'\s+',' ',query).strip()[:500]
     if not query:return []
-    cache_key,result=cached(query,free_only)
-    if result is not None:return result
+    if engine is not None and engine not in FREE_ENGINES:raise ValueError('Unsupported free search engine.')
     options=config()
-    is_free=free_only or options.get('provider','free')!='brave'
+    is_free=free_only or engine is not None or options.get('provider','free')!='brave'
+    choices=(engine,) if engine else FREE_ENGINES
+    empty=set()
+    if is_free:
+        for choice in choices:
+            cache_key,result=cached(query,True,choice)
+            if result is not None:
+                if result or engine:return result
+                empty.add(choice)
+        if len(empty)==len(choices):return []
+    else:
+        cache_key,result=cached(query,free_only)
+        if result is not None:return result
     limit,interval=free_policy() if is_free else (int(options.get('daily_request_limit',100)),3)
-    state_id=free_state_id() if is_free else 1
     with app.db() as con:
         con.execute('CREATE TABLE IF NOT EXISTS web_requests(timestamp REAL)')
         con.execute('CREATE TABLE IF NOT EXISTS web_state(id INTEGER PRIMARY KEY,blocked_until REAL)')
         con.execute('BEGIN IMMEDIATE') if not con.in_transaction else None
-        con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
+        if is_free:
+            eligible=[choice for choice in choices if choice not in empty]
+            for choice in eligible:con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(free_state_id(choice),))
+            now=time.time()
+            waits={choice:con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(choice),)).fetchone()[0] for choice in eligible}
+            selected=next((choice for choice in eligible if waits[choice]<=now),None)
+            if selected is None:
+                selected=min(eligible,key=waits.get)
+                raise SearchBlocked('Free search engines are cooling down; cached sources remain available.','free_web',waits[selected],selected)
+            engine=selected;state_id=free_state_id(engine);cache_key='web-search:'+('bing' if engine=='bing' else 'free')+':'+query
+        else:
+            state_id=1;con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
         now=time.time()  # Recheck after acquiring the shared reservation lock.
         until=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(state_id,)).fetchone()[0]
         if until>now:
-            raise SearchBlocked('General web search is cooling down; cached sources remain available.','free_web' if free_only else 'web',until)
+            raise SearchBlocked('General web search is cooling down; cached sources remain available.','free_web' if is_free else 'web',until,engine)
         count,first=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone()
         if count>=limit:
-            raise SearchBlocked('Daily web-search request cap reached.','free_web' if free_only else 'web',first+86400)
+            raise SearchBlocked('Daily web-search request cap reached.','free_web' if is_free else 'web',first+86400,engine)
         previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0]
         if is_free and previous is not None and previous+interval>now:
-            raise SearchBlocked('Free searches are paced; cached sources remain available.','free_web',previous+interval)
+            raise SearchBlocked('Free searches are paced; cached sources remain available.','free_web',previous+interval,engine)
         con.execute('INSERT INTO web_requests VALUES(?)',(now,))
     delay=0 if is_free else max(0,3-(now-(previous or 0)))
     if delay:time.sleep(delay)
@@ -186,7 +222,8 @@ def search(query,free_only=False):
             payload=json.loads(read(url,{'X-Subscription-Token':token}))
             result=[{'url':r['url'],'title':r.get('title','')} for r in payload.get('web',{}).get('results',[])][:5]
         else:
-            result=free_browser_search(query)
+            result=free_browser_search(query,engine)
+            result=[dict(item,engine=engine) for item in result]
         with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
         return result
     except SearchBlocked as exc:
@@ -194,7 +231,7 @@ def search(query,free_only=False):
         with app.db() as con:
             con.execute('UPDATE web_state SET blocked_until=MAX(blocked_until,?) WHERE id=?',(until,state_id))
             until=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(state_id,)).fetchone()[0]
-        raise SearchBlocked(str(exc),'free_web' if free_only else 'web',until) from None
+        raise SearchBlocked(str(exc),'free_web' if is_free else 'web',until,engine) from None
 
 def source(url):
     cache_key='web-source:'+url

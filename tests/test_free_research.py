@@ -33,23 +33,23 @@ class FreeResearchTests(unittest.TestCase):
         with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue','title':'Example #1'}]) as read,patch.object(web,'key') as key:
             self.assertEqual(web.free_status()['status'],'available')
             self.assertEqual(web.search('Example',free_only=True)[0]['url'],'https://example.org/issue')
-            read.assert_called_once_with('Example')
+            read.assert_called_once_with('Example','ddg')
             key.assert_not_called()
         with app.db() as con:self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
 
     def test_installed_free_hold_is_retained_with_exact_retry(self):
         self.options['provider']='free'
         with patch.object(web,'read') as read:
-            with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True)
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True,engine='ddg')
             self.assertEqual(caught.exception.retry_at,self.now+7200)
             self.assertEqual(caught.exception.provider,'free_web')
             read.assert_not_called()
 
     def test_shared_application_cap_remains_with_exact_rolling_release(self):
         with app.db() as con:con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-100,)]*100)
-        self.assertEqual(web.free_status(),{'status':'daily_budget_wait','retry_at':self.now-100+86400})
+        self.assertEqual(web.free_engine_status('ddg'),{'status':'daily_budget_wait','retry_at':self.now-100+86400})
         with patch.object(web,'read') as read:
-            with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True)
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True,engine='ddg')
             self.assertEqual(caught.exception.retry_at,self.now-100+86400)
             read.assert_not_called()
 
@@ -68,13 +68,13 @@ class FreeResearchTests(unittest.TestCase):
             with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True)
         self.assertEqual(caught.exception.retry_at,self.now+3600)
         with patch.object(web.time,'time',return_value=self.now+100),patch.object(web,'read') as read:
-            with self.assertRaises(web.SearchBlocked) as again:web.search('Different',free_only=True)
+            with self.assertRaises(web.SearchBlocked) as again:web.search('Different',free_only=True,engine='ddg')
             self.assertEqual(again.exception.retry_at,self.now+3600)
             read.assert_not_called()
         with patch.object(web.time,'time',return_value=self.now+3600):self.assertEqual(web.free_status()['status'],'available')
 
     def test_new_browser_failure_preserves_concurrently_saved_longer_hold(self):
-        def failed(query):
+        def failed(query,engine='ddg'):
             with app.db() as con:con.execute('INSERT OR REPLACE INTO web_state VALUES(2,?)',(self.now+7200,))
             raise web.SearchBlocked('Fixture browser challenge')
         with patch.object(web,'free_browser_search',side_effect=failed):
@@ -259,7 +259,7 @@ class FreeResearchTests(unittest.TestCase):
     def test_free_300_boundary_preserves_legacy_ledger_and_exact_release(self):
         self.options['free_daily_request_limit']=300
         with app.db() as con:con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-1000,)]*300)
-        self.assertEqual(web.free_status(),{'status':'daily_budget_wait','retry_at':self.now-1000+86400})
+        self.assertEqual(web.free_engine_status('ddg'),{'status':'daily_budget_wait','retry_at':self.now-1000+86400})
         with patch.object(web,'read') as read:
             with self.assertRaises(web.SearchBlocked):web.search('Boundary',free_only=True)
             read.assert_not_called()
@@ -269,7 +269,7 @@ class FreeResearchTests(unittest.TestCase):
 
     def test_free_pacing_119_waits_120_reserves_without_sleep(self):
         with app.db() as con:con.execute('INSERT INTO web_requests VALUES(?)',(self.now-119,))
-        self.assertEqual(web.free_status(),{'status':'pacing_wait','retry_at':self.now+1})
+        self.assertEqual(web.free_engine_status('ddg'),{'status':'pacing_wait','retry_at':self.now+1})
         with patch.object(web,'read') as read,patch.object(web.time,'sleep') as sleep:
             with self.assertRaises(web.SearchBlocked) as caught:web.search('Paced',free_only=True)
             self.assertEqual(caught.exception.retry_at,self.now+1);read.assert_not_called();sleep.assert_not_called()
@@ -283,7 +283,7 @@ class FreeResearchTests(unittest.TestCase):
             con.execute('INSERT INTO web_requests VALUES(?)',(self.now,))
             con.execute('INSERT INTO cache VALUES(?,?,?)',('web-search:free:Cached',json.dumps([]),self.now))
         with patch.object(web,'read') as read:
-            self.assertEqual(web.search('Cached',free_only=True),[]);read.assert_not_called()
+            self.assertEqual(web.search('Cached',free_only=True,engine='ddg'),[]);read.assert_not_called()
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
 
     def test_free_concurrent_reservations_allow_one_request_and_no_sliding_wait(self):
@@ -316,9 +316,92 @@ class FreeResearchTests(unittest.TestCase):
     def test_pacing_and_challenge_holds_do_not_disable_wiki_or_move_deadlines(self):
         self.options['provider']='free'
         with app.db() as con:con.execute('INSERT INTO web_requests VALUES(?)',(self.now,))
-        self.assertEqual(web.free_status()['retry_at'],self.now+7200)
+        self.assertEqual(web.free_engine_status('ddg')['retry_at'],self.now+7200)
         prev=self.previous({'Wikipedia/wiki':{'result':'no_verified_match','next_at':self.now}})
         self.assertTrue(scheduling.due(prev,[10,1],9,{'free_web':web.free_status(),'wikipedia':{'status':'available'}},now=self.now))
         with patch.object(web,'read') as read:
-            with self.assertRaises(web.SearchBlocked) as caught:web.search('Held',free_only=True)
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Held',free_only=True,engine='ddg')
             self.assertEqual(caught.exception.retry_at,self.now+7200);read.assert_not_called()
+
+    def test_bing_eligible_while_ddg_held_separate_cache_and_hold(self):
+        self.options['provider']='free'
+        with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue'}]) as browser:
+            result=web.search('Fixture',free_only=True)
+            browser.assert_called_once_with('Fixture','bing')
+            self.assertEqual(result[0]['engine'],'bing')
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
+            self.assertIsNotNone(con.execute('SELECT 1 FROM cache WHERE key=?',('web-search:bing:Fixture',)).fetchone())
+            self.assertIsNone(con.execute('SELECT 1 FROM cache WHERE key=?',('web-search:free:Fixture',)).fetchone())
+
+    def test_empty_ddg_then_bing_is_next_paced_turn_not_second_request_now(self):
+        with patch.object(web,'free_browser_search',return_value=[]) as browser:
+            self.assertEqual(web.search('Fixture',True,engine='ddg'),[])
+            with self.assertRaises(web.SearchBlocked) as wait:web.search('Fixture',True,engine='bing')
+            self.assertEqual(wait.exception.retry_at,self.now+120)
+            browser.assert_called_once_with('Fixture','ddg')
+            with patch.object(web.time,'time',return_value=self.now+120):
+                self.assertEqual(web.search('Fixture',True,engine='ddg'),[])
+                self.assertEqual(web.search('Fixture',True,engine='bing'),[])
+            self.assertEqual(browser.call_count,2)
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],2)
+
+    def test_cached_wrong_ddg_then_bing_same_query_and_cover_hint_still_verified(self):
+        wrong={'url':'https://example.org/wrong','title':'Example #2','identity_text':'Synthetic Press 2024'}
+        exact=dict(wrong,url='https://example.org/exact',title='Example #1')
+        queries=[];covers=[]
+        def search(query,free_only=False,engine=None):
+            queries.append((query,engine));return [{'url':wrong['url'] if engine=='ddg' else exact['url']}]
+        actual=research.verify_web_source
+        def verify(row,old,source,cover_hint=None):
+            covers.append(cover_hint);return actual(row,old,source,cover_hint)
+        hint={'search_query':'Keep this hint for matching; do not submit another query'}
+        with patch.object(web,'search',side_effect=search),patch.object(web,'source',side_effect=lambda url:wrong if url==wrong['url'] else exact),patch.object(research,'verify_web_source',side_effect=verify):
+            self.assertIsNotNone(research.general_lookup(self.row,self.old,hint))
+        self.assertEqual(queries,[('Example #1 comics','ddg'),('Example #1 comics','bing')]);self.assertEqual(covers,[hint,hint])
+
+    def test_bing_tagged_future_wait_cannot_wake_on_ddg_availability(self):
+        wait=web.SearchBlocked('Bing held','free_web',self.now+500,'bing')
+        attempt=scheduling.record({},None,wait,self.old,self.now)
+        prev=self.previous({'General free web':attempt})
+        states={'free_web':{'status':'available','retry_at':0,'engines':{'ddg':{'status':'available','retry_at':0},'bing':{'status':'cooldown_wait','retry_at':self.now+500}}}}
+        self.assertFalse(scheduling.due(prev,[10,1],9,states,now=self.now))
+        self.assertFalse(scheduling.ready('General free web',attempt,states,self.now))
+        states['free_web']['engines']['bing']={'status':'available','retry_at':0}
+        self.assertTrue(scheduling.due(prev,[10,1],9,states,now=self.now+500))
+        self.assertTrue(scheduling.ready('General free web',attempt,states,self.now+500))
+
+    def test_actual_free_stage_records_engine_wait_without_losing_tag(self):
+        schedules={}
+        def search(query,free_only=False,engine=None):
+            if engine=='ddg':return []
+            raise web.SearchBlocked('Bing held','free_web',self.now+500,'bing')
+        def completed(name,result,error):schedules[name]=scheduling.record({},result,error,self.old,self.now)
+        with patch.object(web,'search',side_effect=search),patch.object(research,'wiki_candidates',return_value=[]):
+            automatic.free_fallback(self.row,self.old,None,schedules,{},completed)
+        self.assertEqual(schedules['General free web']['engine'],'bing')
+        self.assertEqual(schedules['General free web']['next_at'],self.now+500)
+
+    def test_both_engine_misses_use_ordinary_backoff_not_provider_recovery_loop(self):
+        with patch.object(web,'search',return_value=[]):self.assertIsNone(research.general_lookup(self.row,self.old))
+        attempt=scheduling.record({},None,None,self.old,self.now)
+        self.assertEqual(attempt['next_at'],self.now+86400)
+        states={'free_web':{'status':'available','retry_at':0,'engines':{e:{'status':'available','retry_at':0} for e in web.FREE_ENGINES}}}
+        self.assertFalse(scheduling.due(self.previous({'General free web':attempt}),[10,1],9,states,now=self.now+120))
+
+    def test_shared_concurrent_engines_reserve_only_one_and_cap_both(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        barrier=Barrier(2)
+        def search(engine):
+            barrier.wait()
+            try:web.search('Fixture '+engine,True,engine=engine);return 'ok'
+            except web.SearchBlocked:return 'wait'
+        with patch.object(web,'free_browser_search',return_value=[]) as browser,ThreadPoolExecutor(max_workers=2) as pool:
+            a=pool.submit(search,'ddg');b=pool.submit(search,'bing')
+            self.assertCountEqual([a.result(timeout=5),b.result(timeout=5)],['ok','wait'])
+            self.assertEqual(browser.call_count,1)
+        self.options['free_daily_request_limit']=300
+        with app.db() as con:con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-100,)]*299)
+        states=web.free_status()
+        self.assertTrue(all(state['status']=='daily_budget_wait' for state in states['engines'].values()))
