@@ -122,15 +122,25 @@ def free_state_id():
     return 1 if config().get('provider','free')!='brave' else 2
 
 
+def free_policy():
+    options=config()
+    # Application trial bounds, not a published allowance from the search provider.
+    return min(300,max(1,int(options.get('free_daily_request_limit',300)))),max(120,int(options.get('free_min_interval_seconds',120)))
+
+
 def free_status(now=None):
     now=time.time() if now is None else now
+    limit,interval=free_policy()
     with app.db() as con:
         exists={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         hold=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(),)).fetchone() if 'web_state' in exists else None
         used=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone() if 'web_requests' in exists else (0,None)
+        previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0] if 'web_requests' in exists else None
     retry=hold[0] if hold else 0
     status='cooldown_wait' if retry>now else 'available'
-    if used[0]>=int(config().get('daily_request_limit',100)):
+    if previous is not None and previous+interval>max(now,retry):
+        status='pacing_wait';retry=previous+interval
+    if used[0]>=limit:
         status='daily_budget_wait';retry=max(retry,used[1]+86400)
     return {'status':status,'retry_at':retry if retry>now else 0}
 
@@ -140,25 +150,30 @@ def search(query,free_only=False):
     if not query:return []
     cache_key,result=cached(query,free_only)
     if result is not None:return result
-    now=time.time()
-    state_id=free_state_id() if free_only else 1
+    options=config()
+    is_free=free_only or options.get('provider','free')!='brave'
+    limit,interval=free_policy() if is_free else (int(options.get('daily_request_limit',100)),3)
+    state_id=free_state_id() if is_free else 1
     with app.db() as con:
         con.execute('CREATE TABLE IF NOT EXISTS web_requests(timestamp REAL)')
         con.execute('CREATE TABLE IF NOT EXISTS web_state(id INTEGER PRIMARY KEY,blocked_until REAL)')
-        con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
         con.execute('BEGIN IMMEDIATE') if not con.in_transaction else None
+        con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
+        now=time.time()  # Recheck after acquiring the shared reservation lock.
         until=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(state_id,)).fetchone()[0]
         if until>now:
             raise SearchBlocked('General web search is cooling down; cached sources remain available.','free_web' if free_only else 'web',until)
         count,first=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone()
-        if count>=int(config().get('daily_request_limit',100)):
+        if count>=limit:
             raise SearchBlocked('Daily web-search request cap reached.','free_web' if free_only else 'web',first+86400)
-        previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0] or 0
+        previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0]
+        if is_free and previous is not None and previous+interval>now:
+            raise SearchBlocked('Free searches are paced; cached sources remain available.','free_web',previous+interval)
         con.execute('INSERT INTO web_requests VALUES(?)',(now,))
-    delay=max(0,3-(now-previous))
+    delay=0 if is_free else max(0,3-(now-(previous or 0)))
     if delay:time.sleep(delay)
     try:
-        if not free_only and config().get('provider','free')=='brave':
+        if not is_free:
             token=key()
             if not token:raise SearchBlocked('BRAVE_SEARCH_API_KEY is not configured.')
             url='https://api.search.brave.com/res/v1/web/search?'+urllib.parse.urlencode({'q':query,'count':5,'safesearch':'off'})

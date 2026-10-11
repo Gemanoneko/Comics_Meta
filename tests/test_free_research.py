@@ -18,7 +18,7 @@ class FreeResearchTests(unittest.TestCase):
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
         self.now=100000
         self.enterContext(patch.object(web.time,'time',return_value=self.now))
-        self.options={'provider':'brave','daily_request_limit':100}
+        self.options={'provider':'brave','daily_request_limit':100,'free_daily_request_limit':100}
         self.enterContext(patch.object(web,'config',side_effect=lambda:self.options))
         with app.db() as con:
             con.execute('CREATE TABLE IF NOT EXISTS web_state(id INTEGER PRIMARY KEY,blocked_until REAL)')
@@ -239,3 +239,77 @@ class FreeResearchTests(unittest.TestCase):
         with patch.object(research,'fetch',side_effect=ProviderDeferred('held','wikipedia',self.now+120)):
             with self.assertRaises(ProviderDeferred) as caught:research.resolve_leads(self.row,self.old)
         self.assertEqual(caught.exception.retry_at,self.now+120)
+
+    def test_free_trial_defaults_are_300_and_120_while_brave_limit_stays_100(self):
+        self.options.pop('free_daily_request_limit')
+        self.assertEqual(web.free_policy(),(300,120))
+        self.assertEqual(self.options['daily_request_limit'],100)
+        self.options.update(free_daily_request_limit=999,free_min_interval_seconds=1)
+        self.assertEqual(web.free_policy(),(300,120))
+
+    def test_free_300_boundary_preserves_legacy_ledger_and_exact_release(self):
+        self.options['free_daily_request_limit']=300
+        with app.db() as con:con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-1000,)]*300)
+        self.assertEqual(web.free_status(),{'status':'daily_budget_wait','retry_at':self.now-1000+86400})
+        with patch.object(web,'read') as read:
+            with self.assertRaises(web.SearchBlocked):web.search('Boundary',free_only=True)
+            read.assert_not_called()
+        with patch.object(web.time,'time',return_value=self.now-1000+86400),patch.object(web,'read',return_value='no results'):
+            self.assertEqual(web.search('Reset',free_only=True),[])
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],301)
+
+    def test_free_pacing_119_waits_120_reserves_without_sleep(self):
+        with app.db() as con:con.execute('INSERT INTO web_requests VALUES(?)',(self.now-119,))
+        self.assertEqual(web.free_status(),{'status':'pacing_wait','retry_at':self.now+1})
+        with patch.object(web,'read') as read,patch.object(web.time,'sleep') as sleep:
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Paced',free_only=True)
+            self.assertEqual(caught.exception.retry_at,self.now+1);read.assert_not_called();sleep.assert_not_called()
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
+        with patch.object(web.time,'time',return_value=self.now+1),patch.object(web,'read',return_value='no results'),patch.object(web.time,'sleep') as sleep:
+            self.assertEqual(web.search('Paced',free_only=True),[]);sleep.assert_not_called()
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],2)
+
+    def test_free_cached_query_ignores_pacing_and_does_not_charge(self):
+        with app.db() as con:
+            con.execute('INSERT INTO web_requests VALUES(?)',(self.now,))
+            con.execute('INSERT INTO cache VALUES(?,?,?)',('web-search:free:Cached',json.dumps([]),self.now))
+        with patch.object(web,'read') as read:
+            self.assertEqual(web.search('Cached',free_only=True),[]);read.assert_not_called()
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
+
+    def test_free_concurrent_reservations_allow_one_request_and_no_sliding_wait(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        barrier=Barrier(2)
+        def search(query):
+            barrier.wait()
+            try:return ('ok',web.search(query,free_only=True))
+            except web.SearchBlocked as exc:return ('wait',exc.retry_at)
+        with patch.object(web,'read',return_value='no results') as read:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                one=pool.submit(search,'Concurrent1');two=pool.submit(search,'Concurrent2');results=[one.result(timeout=5),two.result(timeout=5)]
+            self.assertEqual(sum(v[0]=='ok' for v in results),1);self.assertEqual(read.call_count,1)
+            self.assertIn(('wait',self.now+120),results)
+            with patch.object(web.time,'time',return_value=self.now+60):
+                with self.assertRaises(web.SearchBlocked) as caught:web.search('Afterrestart',free_only=True)
+            self.assertEqual(caught.exception.retry_at,self.now+120)
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
+
+    def test_brave_keeps_100_cap_and_three_second_spacing(self):
+        with app.db() as con:con.execute('UPDATE web_state SET blocked_until=0 WHERE id=1');con.execute('INSERT INTO web_requests VALUES(?)',(self.now-1,))
+        with patch.object(web,'key',return_value='fixture-key'),patch.object(web,'read',return_value='{"web":{"results":[]}}') as read,patch.object(web.time,'sleep') as sleep:
+            self.assertEqual(web.search('Vendor'),[]);sleep.assert_called_once_with(2);self.assertTrue(read.call_args.args[0].startswith('https://api.search.brave.com/'))
+        with app.db() as con:con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-1000,)]*98)
+        with patch.object(web,'read') as read:
+            with self.assertRaises(web.SearchBlocked):web.search('Vendorlimit')
+            read.assert_not_called()
+
+    def test_pacing_and_challenge_holds_do_not_disable_wiki_or_move_deadlines(self):
+        self.options['provider']='free'
+        with app.db() as con:con.execute('INSERT INTO web_requests VALUES(?)',(self.now,))
+        self.assertEqual(web.free_status()['retry_at'],self.now+7200)
+        prev=self.previous({'Wikipedia/wiki':{'result':'no_verified_match','next_at':self.now}})
+        self.assertTrue(scheduling.due(prev,[10,1],9,{'free_web':web.free_status(),'wikipedia':{'status':'available'}},now=self.now))
+        with patch.object(web,'read') as read:
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Held',free_only=True)
+            self.assertEqual(caught.exception.retry_at,self.now+7200);read.assert_not_called()
