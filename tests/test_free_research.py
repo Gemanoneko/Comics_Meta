@@ -20,6 +20,7 @@ class FreeResearchTests(unittest.TestCase):
         self.enterContext(patch.object(web.time,'time',return_value=self.now))
         self.options={'provider':'brave','daily_request_limit':100,'free_daily_request_limit':100}
         self.enterContext(patch.object(web,'config',side_effect=lambda:self.options))
+        self.enterContext(patch.object(web,'free_browser_search',side_effect=AssertionError('Unexpected browser request in isolated fixture')))
         with app.db() as con:
             con.execute('CREATE TABLE IF NOT EXISTS web_state(id INTEGER PRIMARY KEY,blocked_until REAL)')
             con.execute('CREATE TABLE IF NOT EXISTS web_requests(timestamp REAL)')
@@ -29,10 +30,10 @@ class FreeResearchTests(unittest.TestCase):
         self.result={'fields':{'Writer':'Verified fixture creator'},'sources':[{'url':'https://example.org/issue','text':'premise '*25}],'status':'web_issue_found'}
 
     def test_explicit_free_ignores_brave_hold_and_never_uses_paid_key(self):
-        with patch.object(web,'read',return_value='<a class="result__a" href="https://example.org/issue">Example #1</a>') as read,patch.object(web,'key') as key:
+        with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue','title':'Example #1'}]) as read,patch.object(web,'key') as key:
             self.assertEqual(web.free_status()['status'],'available')
             self.assertEqual(web.search('Example',free_only=True)[0]['url'],'https://example.org/issue')
-            self.assertTrue(read.call_args.args[0].startswith('https://html.duckduckgo.com/'))
+            read.assert_called_once_with('Example')
             key.assert_not_called()
         with app.db() as con:self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
 
@@ -63,7 +64,7 @@ class FreeResearchTests(unittest.TestCase):
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],100)
 
     def test_challenge_sets_free_hold_and_observation_does_not_extend_it(self):
-        with patch.object(web,'read',return_value='anomaly.js'):
+        with patch.object(web,'free_browser_search',side_effect=web.SearchBlocked('Free search requested human verification; no bypass attempted.')):
             with self.assertRaises(web.SearchBlocked) as caught:web.search('Example',free_only=True)
         self.assertEqual(caught.exception.retry_at,self.now+3600)
         with patch.object(web.time,'time',return_value=self.now+100),patch.object(web,'read') as read:
@@ -71,6 +72,14 @@ class FreeResearchTests(unittest.TestCase):
             self.assertEqual(again.exception.retry_at,self.now+3600)
             read.assert_not_called()
         with patch.object(web.time,'time',return_value=self.now+3600):self.assertEqual(web.free_status()['status'],'available')
+
+    def test_new_browser_failure_preserves_concurrently_saved_longer_hold(self):
+        def failed(query):
+            with app.db() as con:con.execute('INSERT OR REPLACE INTO web_state VALUES(2,?)',(self.now+7200,))
+            raise web.SearchBlocked('Fixture browser challenge')
+        with patch.object(web,'free_browser_search',side_effect=failed):
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Fixture',free_only=True)
+        self.assertEqual(caught.exception.retry_at,self.now+7200)
 
     def previous(self,attempts=None):
         return {'version':9,'signature':[10,1],'retry_at':self.now+86400,'source_schedule':attempts or {}}
@@ -254,7 +263,7 @@ class FreeResearchTests(unittest.TestCase):
         with patch.object(web,'read') as read:
             with self.assertRaises(web.SearchBlocked):web.search('Boundary',free_only=True)
             read.assert_not_called()
-        with patch.object(web.time,'time',return_value=self.now-1000+86400),patch.object(web,'read',return_value='no results'):
+        with patch.object(web.time,'time',return_value=self.now-1000+86400),patch.object(web,'free_browser_search',return_value=[]):
             self.assertEqual(web.search('Reset',free_only=True),[])
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],301)
 
@@ -265,7 +274,7 @@ class FreeResearchTests(unittest.TestCase):
             with self.assertRaises(web.SearchBlocked) as caught:web.search('Paced',free_only=True)
             self.assertEqual(caught.exception.retry_at,self.now+1);read.assert_not_called();sleep.assert_not_called()
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
-        with patch.object(web.time,'time',return_value=self.now+1),patch.object(web,'read',return_value='no results'),patch.object(web.time,'sleep') as sleep:
+        with patch.object(web.time,'time',return_value=self.now+1),patch.object(web,'free_browser_search',return_value=[]),patch.object(web.time,'sleep') as sleep:
             self.assertEqual(web.search('Paced',free_only=True),[]);sleep.assert_not_called()
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],2)
 
@@ -285,7 +294,7 @@ class FreeResearchTests(unittest.TestCase):
             barrier.wait()
             try:return ('ok',web.search(query,free_only=True))
             except web.SearchBlocked as exc:return ('wait',exc.retry_at)
-        with patch.object(web,'read',return_value='no results') as read:
+        with patch.object(web,'free_browser_search',return_value=[]) as read:
             with ThreadPoolExecutor(max_workers=2) as pool:
                 one=pool.submit(search,'Concurrent1');two=pool.submit(search,'Concurrent2');results=[one.result(timeout=5),two.result(timeout=5)]
             self.assertEqual(sum(v[0]=='ok' for v in results),1);self.assertEqual(read.call_count,1)

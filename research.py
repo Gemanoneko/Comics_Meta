@@ -277,7 +277,7 @@ def general_lookup(row,old,cover_hint=None):
     import web_search
     series,number=query_identity(row,old)
     publisher=publisher_hint(row,old,cover_hint)
-    query='"'+series+'" #'+number+' '+publisher+' '+str(old.get('Year') or row.get('year') or '')+' comic synopsis'
+    query=series+' #'+number+' comics'
     queries=[query]
     hint=(cover_hint or {}).get('search_query')
     if isinstance(hint,str) and hint.strip() and normalize(hint)!=normalize(query):queries.append(hint[:200]+' comic')

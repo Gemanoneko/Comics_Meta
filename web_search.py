@@ -16,6 +16,12 @@ from provider_wait import ProviderDeferred
 class SearchBlocked(ProviderDeferred):
     pass
 
+
+def free_browser_search(query):
+    import free_search_browser
+    try:return free_search_browser.search(query)
+    except free_search_browser.BrowserUnavailable as exc:raise SearchBlocked(str(exc)) from None
+
 def config():
     path=app.BASE/'config.json'
     return json.loads(path.read_text(encoding='utf-8')).get('web_search',{}) if path.exists() else {}
@@ -180,22 +186,14 @@ def search(query,free_only=False):
             payload=json.loads(read(url,{'X-Subscription-Token':token}))
             result=[{'url':r['url'],'title':r.get('title','')} for r in payload.get('web',{}).get('results',[])][:5]
         else:
-            raw=read('https://html.duckduckgo.com/html/?'+urllib.parse.urlencode({'q':query,'kp':'-2'}))
-            if any(marker in raw.lower() for marker in ('anomaly.js','bots use duckduckgo','verify you are human')):
-                raise SearchBlocked('Free search requested human verification; no bypass attempted.')
-            page=Page();page.feed(raw);result=[]
-            for item in page.links[:5]:
-                url=urllib.parse.urljoin('https://duckduckgo.com',item['url'])
-                redirect=urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get('uddg')
-                if redirect:url=redirect[0]
-                if urllib.parse.urlparse(url).scheme=='https':result.append(dict(item,url=url))
-            if not result and 'no results' not in raw.lower():
-                raise SearchBlocked('Free search did not return a usable result page.')
+            result=free_browser_search(query)
         with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
         return result
     except SearchBlocked as exc:
         until=time.time()+3600
-        with app.db() as con:con.execute('UPDATE web_state SET blocked_until=? WHERE id=?',(until,state_id))
+        with app.db() as con:
+            con.execute('UPDATE web_state SET blocked_until=MAX(blocked_until,?) WHERE id=?',(until,state_id))
+            until=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(state_id,)).fetchone()[0]
         raise SearchBlocked(str(exc),'free_web' if free_only else 'web',until) from None
 
 def source(url):

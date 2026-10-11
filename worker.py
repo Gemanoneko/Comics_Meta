@@ -69,6 +69,8 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return
+    import free_search_browser
+    free_search_browser.enable_worker_owner()
     # An interrupted write needs inspection, not an automatic replay.
     for ticket in QUEUE.glob('*.json'):
         item = json.loads(ticket.read_text(encoding='utf-8'))
@@ -83,6 +85,9 @@ def main():
     threading.Thread(target=heartbeat, daemon=True).start()
     next_discovery = 0
     while True:
+        if pause_control.requested():
+            import free_search_browser
+            free_search_browser.close()
         if pause_control.checkpoint('metadata'):
             time.sleep(1)
             next_discovery=0
@@ -153,4 +158,7 @@ if __name__ == '__main__':
         for plan in options.enqueue:
             print(enqueue(plan))
     else:
-        main()
+        try:main()
+        finally:
+            import free_search_browser
+            free_search_browser.close()
