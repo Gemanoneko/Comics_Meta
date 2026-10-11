@@ -5,7 +5,9 @@ import providers
 from provider_wait import ProviderDeferred
 
 KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library local index':'open_library',
-      'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics'}
+      'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics',
+      'General free web':'free_web'}
+FREE_SOURCES={'General free web','Wikipedia/wiki'}
 
 
 def useful(result,old):
@@ -22,7 +24,14 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
     if previous.get('retry_at',0)<=now:return True
-    if any(a.get('result')=='error' and a.get('next_at',0)<=now for a in previous.get('source_schedule',{}).values()):return True
+    attempts=previous.get('source_schedule',{})
+    if any(a.get('result')=='error' and a.get('next_at',0)<=now and
+           (name not in FREE_SOURCES or not blocked(statuses.get(KEYS.get(name,''),{}),now))
+           for name,a in attempts.items()):return True
+    # Only recorded free attempts gain independent eligibility; legacy records
+    # keep their existing comic retry, rather than a deployment-wide retry wave.
+    if any(name in FREE_SOURCES and a.get('next_at',0)<=now and
+           not blocked(statuses.get(KEYS.get(name,''),{}),now) for name,a in attempts.items()):return True
     return any(attempt.get('result')=='unavailable' and statuses.get(KEYS.get(name,''),{}).get('status') in ('available','offline_index_ready')
                and not blocked(statuses.get(KEYS.get(name,''),{}),now)
                for name,attempt in previous.get('source_schedule',{}).items())

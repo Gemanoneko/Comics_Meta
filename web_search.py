@@ -17,7 +17,8 @@ class SearchBlocked(ProviderDeferred):
     pass
 
 def config():
-    return json.loads((app.BASE/'config.json').read_text(encoding='utf-8')).get('web_search',{})
+    path=app.BASE/'config.json'
+    return json.loads(path.read_text(encoding='utf-8')).get('web_search',{}) if path.exists() else {}
 
 def key():
     value=os.environ.get('BRAVE_SEARCH_API_KEY','')
@@ -109,34 +110,55 @@ class Page(HTMLParser):
         if self.heading is not None:self.heading+=data
         if self.link:self.link['title']+=data
 
-def cached(query):
-    cache_key='web-search:'+config().get('provider','free')+':'+query
+def cached(query,free_only=False):
+    cache_key='web-search:'+('free' if free_only else config().get('provider','free'))+':'+query
     with app.db() as con:
         row=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
     return cache_key,json.loads(row['value']) if row else None
 
-def search(query):
+def free_state_id():
+    # Keep the installed free route's saved hold. A configured paid vendor's
+    # legacy hold remains separate from the explicitly requested free route.
+    return 1 if config().get('provider','free')!='brave' else 2
+
+
+def free_status(now=None):
+    now=time.time() if now is None else now
+    with app.db() as con:
+        exists={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        hold=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(),)).fetchone() if 'web_state' in exists else None
+        used=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone() if 'web_requests' in exists else (0,None)
+    retry=hold[0] if hold else 0
+    status='cooldown_wait' if retry>now else 'available'
+    if used[0]>=int(config().get('daily_request_limit',100)):
+        status='daily_budget_wait';retry=max(retry,used[1]+86400)
+    return {'status':status,'retry_at':retry if retry>now else 0}
+
+
+def search(query,free_only=False):
     query=re.sub(r'\s+',' ',query).strip()[:500]
     if not query:return []
-    cache_key,result=cached(query)
+    cache_key,result=cached(query,free_only)
     if result is not None:return result
     now=time.time()
+    state_id=free_state_id() if free_only else 1
     with app.db() as con:
         con.execute('CREATE TABLE IF NOT EXISTS web_requests(timestamp REAL)')
         con.execute('CREATE TABLE IF NOT EXISTS web_state(id INTEGER PRIMARY KEY,blocked_until REAL)')
-        con.execute('INSERT OR IGNORE INTO web_state VALUES(1,0)')
+        con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
         con.execute('BEGIN IMMEDIATE') if not con.in_transaction else None
-        if con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0]>now:
-            raise SearchBlocked('General web search is cooling down; cached sources remain available.')
-        count=con.execute('SELECT COUNT(*) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone()[0]
+        until=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(state_id,)).fetchone()[0]
+        if until>now:
+            raise SearchBlocked('General web search is cooling down; cached sources remain available.','free_web' if free_only else 'web',until)
+        count,first=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone()
         if count>=int(config().get('daily_request_limit',100)):
-            raise SearchBlocked('Daily web-search request cap reached.')
+            raise SearchBlocked('Daily web-search request cap reached.','free_web' if free_only else 'web',first+86400)
         previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0] or 0
         con.execute('INSERT INTO web_requests VALUES(?)',(now,))
     delay=max(0,3-(now-previous))
     if delay:time.sleep(delay)
     try:
-        if config().get('provider','free')=='brave':
+        if not free_only and config().get('provider','free')=='brave':
             token=key()
             if not token:raise SearchBlocked('BRAVE_SEARCH_API_KEY is not configured.')
             url='https://api.search.brave.com/res/v1/web/search?'+urllib.parse.urlencode({'q':query,'count':5,'safesearch':'off'})
@@ -156,9 +178,10 @@ def search(query):
                 raise SearchBlocked('Free search did not return a usable result page.')
         with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
         return result
-    except SearchBlocked:
-        with app.db() as con:con.execute('UPDATE web_state SET blocked_until=? WHERE id=1',(time.time()+3600,))
-        raise
+    except SearchBlocked as exc:
+        until=time.time()+3600
+        with app.db() as con:con.execute('UPDATE web_state SET blocked_until=? WHERE id=?',(until,state_id))
+        raise SearchBlocked(str(exc),'free_web' if free_only else 'web',until) from None
 
 def source(url):
     cache_key='web-source:'+url

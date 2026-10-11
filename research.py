@@ -213,10 +213,12 @@ def general_lookup(row,old,cover_hint=None):
     queries=[query]
     hint=(cover_hint or {}).get('search_query')
     if isinstance(hint,str) and hint.strip() and normalize(hint)!=normalize(query):queries.append(hint[:200]+' comic')
-    candidates=[];errors=[];sources=[]
+    candidates=[];errors=[];sources=[];deferred=None
     for query in queries[:2]:
-        try:hits=web_search.search(query)
+        try:hits=web_search.search(query,free_only=True)
         except ValueError as exc:
+            from provider_wait import ProviderDeferred
+            if isinstance(exc,ProviderDeferred):deferred=exc
             errors.append(str(exc));break
         candidates.extend(hits)
         for hit in hits[:3]:
@@ -229,6 +231,8 @@ def general_lookup(row,old,cover_hint=None):
             except ValueError as exc:errors.append(str(exc))
         if sources:break
     save_evidence(row['path'],{'web_candidates':candidates,'web_errors':errors,'web_queries':queries})
-    if not sources:return None
+    if not sources:
+        if deferred:raise deferred
+        return None
     return {'fields':{'Series':series,'Number':issue_number(number),'Publisher':publisher},
             'sources':sources,'identity':{'series':series,'number':number},'status':'web_issue_found'}

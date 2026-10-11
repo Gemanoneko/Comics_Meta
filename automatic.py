@@ -104,6 +104,30 @@ def load_state():
         raise ValueError('Research cache exceeds its size limit; repair required.')
     return json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'checked': {}}
 
+
+def free_fallback(row,old,hint,source_schedule,statuses,completed):
+    """Independent free attempts; a wiki series hit is still only a lead."""
+    import source_scheduling
+    wiki_found=False
+    for name in ('General free web','Wikipedia/wiki'):
+        if not source_scheduling.ready(name,source_schedule.get(name,{}),statuses,time.time()):continue
+        try:
+            if name=='General free web':
+                with research_runtime.stage('General web research'):result=research.general_lookup(row,old,hint)
+            else:
+                with research_runtime.stage('Wiki research'):candidates=research.wiki_candidates(row,old)
+                wiki_found=bool(candidates)
+                research.save_evidence(row['path'],{'wiki_candidates':candidates,'status':'needs_issue_verification'})
+                with research_runtime.stage('Saved lead verification'):
+                    result=research.resolve_leads(row,old,hint) if candidates else None
+            completed(name,result,None)
+            if source_scheduling.useful(result,old):return result,wiki_found
+        except Exception as exc:
+            import pause_control
+            if isinstance(exc,pause_control.PauseRequested):raise
+            completed(name,None,exc)
+    return None,wiki_found
+
 @research_runtime.timed("Research pass")
 def discover(root,coverage_only=False):
     root = Path(root).resolve()
@@ -227,29 +251,28 @@ def discover(root,coverage_only=False):
                     with research_runtime.stage('Saved lead verification'):
                         external=research.resolve_leads(row,old,hint)
                     batch.progress(phase='Automatic metadata lookup',detail='Searching the web for '+path.name)
-                    if not external:
-                        with research_runtime.stage('General web research'):
-                            external=research.general_lookup(row,old,hint)
                     if external:
                         research.save_evidence(path,external)
                         outcome='web_issue_found'
                 except Exception as exc:
                     lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
-            if not external:
-                try:
-                    with research_runtime.stage('Wiki research'):
-                        candidates = research.wiki_candidates(row,old)
-                    research.save_evidence(path,{'wiki_candidates':candidates,'status':'needs_issue_verification'})
-                    if candidates:
-                        with research_runtime.stage('Saved lead verification'):
-                            external=research.resolve_leads(row,old,hint)
-                        outcome = 'web_issue_found' if external else 'wiki_candidates_found'
-                        if external:research.save_evidence(path,external)
-                except Exception as exc:
-                    lookup_error = record_failure(lookup_error,provider_waits,'Wiki',exc)
+                if not external:
+                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed)
+                    if wiki_found:outcome='wiki_candidates_found'
+                    if external:
+                        research.save_evidence(path,external)
+                        outcome='web_issue_found'
             if not external:
                 import cover_tasks
                 cover_tasks.enqueue(row)
+        from html import unescape
+        issue_text=unescape(re.sub('<[^>]+>',' ',(issue or {}).get('description') or ''))
+        if issue and not external and not old.get('Summary') and not source_scheduling.useful({'sources':[{'text':issue_text}]},old):
+            # A verified API ID with no synopsis must not shadow free sources.
+            external,_=free_fallback(row,old,hint,source_schedule,source_statuses,completed)
+            if external:
+                research.save_evidence(path,external)
+                outcome='web_issue_found'
         if external:
             import cover_tasks
             cover_tasks.identified(row)

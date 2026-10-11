@@ -1,5 +1,9 @@
 # Automatic metadata sources
 
+General free web search and Wikipedia/wiki references have independent per-source retries. API, catalog and cover-search waits do not disable these fallbacks; a thin API issue without synopsis text can also use verified free evidence. Legacy research checkpoints keep their normal retry until their next due pass, rather than being reset on deployment. Search explicitly uses the existing free route, never a paid search vendor. Wikipedia discovery can continue while ordinary free search waits, but a series article remains a lead and cannot authorize issue metadata.
+
+The existing shared protective web-search allowance remains 100 requests per rolling day by default, including other configured web-search vendors. Free search does not inherit a paid vendor's cooldown, but it still respects that shared application allowance, its own saved cooldown, three-second search pacing and seven-day caches. Exact issue/publisher/year checks, cover checks on saved leads, synopsis review and archive verification are unchanged. Exhausted or challenged sites are not bypassed through a free result link.
+
 Metron, GCD and Google Books are connected to automatic discovery. Credentials remain in the configured `.env`; dashboards, request errors and cache keys exclude secrets.
 
 - Metron: exact series, issue number and cover year, unique result, local/remote cover agreement.
