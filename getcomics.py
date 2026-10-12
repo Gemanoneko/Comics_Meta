@@ -48,7 +48,7 @@ class Links(HTMLParser):
             self.links.append(self.current);self.current=None
 
 
-def lookup(row, old):
+def lookup(row, old, strict=False):
     import research, web_search, providers
     series, number=research.query_identity(row,old)
     if not series:return None
@@ -72,9 +72,10 @@ def lookup(row, old):
             if target not in candidates:candidates.append(target)
     if len(candidates)!=1:return None
     source=web_search.source(candidates[0])
-    verified=research.verify_web_source(row,old,source)
+    verified=research.verify_web_source(row,old,source,strict=strict)
     if verified:return verified
-    if not providers.is_book(row,old):return None
+    # During an identity conflict only the creator-and-cover route above counts.
+    if strict or not providers.is_book(row,old):return None
     # Book-only synopsis evidence: exact edition title, year and known publisher.
     publisher=old.get('Publisher','');year=str(old.get('Year') or row.get('year') or '')
     if not publisher or not year or not re.search(r'\b'+re.escape(year)+r'\b',source['identity_text']):return None

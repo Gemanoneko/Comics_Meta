@@ -116,6 +116,12 @@ class CreatorNameTests(unittest.TestCase):
         hint={'publisher':'DC','creators':['Marvel Comics','Spider-Man','Batman Year One','Dark Horse','The Amazing Team','Frank Miller']}
         self.assertEqual(research.creator_names(old,hint),[['frank','miller']])
 
+    def test_model_read_blurbs_and_places_are_not_creators(self):
+        # F11(b), v0.1.2 review round 2. Embedded credits are never filtered this way.
+        hint={'creators':['New York Times Bestseller','Eisner Award Winner','Eisner Award-Winning','Gotham City','Neil Gaiman']}
+        self.assertEqual(research.creator_names({},hint),[['neil','gaiman']])
+        self.assertEqual(research.creator_names({'Writer':'Jane City'}),[['jane','city']])
+
     def test_editor_credits_do_not_count(self):
         self.assertEqual(research.creator_names({'Editor':'Diana Schutz'}),[])
         self.assertEqual(research.creator_names({'Editor':'Diana Schutz','Writer':'Joe Casey'}),[['joe','casey']])

@@ -255,7 +255,10 @@ ROLE_LABEL=re.compile(r'^\s*(?:(?:'+'|'.join(sorted(ROLE_WORDS-{'by','and','with
 NOT_PERSON_WORDS={'comics','comic','comix','press','publishing','publications','publisher','entertainment','studio','studios','books',
                   'media','productions','presents','edition','issue','volume','vol','variant','cover','collection','special','annual',
                   'graphic','novel','series','league','universe','the','of','man','woman','men','women','girl','boy','inc','ltd','llc',
-                  'group','worldwide'}
+                  'group','worldwide',
+                  # Cover blurbs and places ("New York Times Bestseller", "Eisner Award Winner", "Gotham City").
+                  'bestseller','bestsellers','bestselling','award','awards','winner','winners','winning','nominee','nominated',
+                  'times','city'}
 FOLD=str.maketrans({'ø':'o','Ø':'O','ł':'l','Ł':'L','đ':'d','Đ':'D','æ':'ae','Æ':'Ae','œ':'oe','Œ':'Oe','ß':'ss','þ':'th','Þ':'Th','ı':'i'})
 # Canonical publisher names. A cover reader's partial or one-word publisher
 # ("Dark", "Image", "Boom") is only written when a distinctive phrase for the
@@ -460,7 +463,7 @@ def cover_agrees(row,source,errors=None):
         return False
 
 
-def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=None):
+def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=None,strict=False):
     """Reject broad series articles, wrong issues and discussion-only identity claims.
 
     A numbered comic always needs its exact issue number in the page title; an
@@ -470,6 +473,8 @@ def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=
     (hinted publisher named on the page) is unchanged. Any other publisher, or
     an unnumbered book, additionally needs a known creator named on the page and
     an agreeing cover. A search or cover match alone never authorizes a write.
+    `strict` (a ComicVine identity conflict stands) closes the hinted route, so
+    every source needs the named creator and the agreeing cover.
     """
     series,number=query_identity(row,old)
     if not series:return None
@@ -486,7 +491,7 @@ def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=
     year=str(old.get('Year') or row.get('year') or '')
     if year and not re.search(r'\b'+re.escape(year)+r'\b',body):return None
     publisher=publisher_hint(row,old,cover_hint)
-    hinted=bool(number) and bool(publisher) and normalize(publisher) in normalize(body)
+    hinted=not strict and bool(number) and bool(publisher) and normalize(publisher) in normalize(body)
     if hinted:
         scope='Exact issue, publisher and available year agree'
     else:
@@ -503,7 +508,7 @@ def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=
     return {'provider':'Verified web research','fields':fields,'sources':[evidence],'identity':{'series':series,'number':number},'status':'web_issue_found'}
 
 
-def resolve_leads(row,old,cover_hint=None):
+def resolve_leads(row,old,cover_hint=None,strict=False):
     """Follow relevant wiki references and saved web/reverse-image results automatically."""
     import web_search
     target=CACHE/('evidence-'+hashlib.sha256(row['path'].encode()).hexdigest()+'.json')
@@ -536,7 +541,7 @@ def resolve_leads(row,old,cover_hint=None):
         if len(seen)>8:break
         try:
             source=web_search.source(url)
-            verified=verify_web_source(row,old,source,cover_hint,require_cover=True,errors=errors)
+            verified=verify_web_source(row,old,source,cover_hint,require_cover=True,errors=errors,strict=strict)
             inspected.append({'url':url,'verified':bool(verified)})
             if verified:
                 save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped})
@@ -546,7 +551,7 @@ def resolve_leads(row,old,cover_hint=None):
     if deferred:raise deferred
     return None
 
-def general_lookup(row,old,cover_hint=None):
+def general_lookup(row,old,cover_hint=None,strict=False):
     import web_search
     series,number=query_identity(row,old)
     # An unnumbered book (one-shot, graphic novel, collection) has no '#'.
@@ -566,7 +571,7 @@ def general_lookup(row,old,cover_hint=None):
         for hit in hits[:3]:
             try:
                 source=web_search.source(hit['url'])
-                verified=verify_web_source(row,old,source,cover_hint,errors=errors)
+                verified=verify_web_source(row,old,source,cover_hint,errors=errors,strict=strict)
                 if not verified:continue
                 sources.extend(verified['sources']);fields=verified['fields']
                 break

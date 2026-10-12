@@ -116,7 +116,7 @@ def load_state():
     return json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'checked': {}}
 
 
-def free_fallback(row,old,hint,source_schedule,statuses,completed):
+def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False):
     """Independent free attempts; a wiki series hit is still only a lead."""
     import source_scheduling
     wiki_found=False
@@ -124,13 +124,13 @@ def free_fallback(row,old,hint,source_schedule,statuses,completed):
         if not source_scheduling.ready(name,source_schedule.get(name,{}),statuses,time.time()):continue
         try:
             if name=='General free web':
-                with research_runtime.stage('General web research'):result=research.general_lookup(row,old,hint)
+                with research_runtime.stage('General web research'):result=research.general_lookup(row,old,hint,strict=strict)
             else:
                 with research_runtime.stage('Wiki research'):candidates=research.wiki_candidates(row,old)
                 wiki_found=bool(candidates)
                 research.save_evidence(row['path'],{'wiki_candidates':candidates,'status':'needs_issue_verification'})
                 with research_runtime.stage('Saved lead verification'):
-                    result=research.resolve_leads(row,old,hint) if candidates else None
+                    result=research.resolve_leads(row,old,hint,strict=strict) if candidates else None
             completed(name,result,None)
             if source_scheduling.useful(result,old):return result,wiki_found
         except Exception as exc:
@@ -191,12 +191,17 @@ def discover(root,coverage_only=False):
         if external and external.get('provider')=='Metron' and external.get('metadata_version',0)<2:external=None
         reused_evidence=bool(external)
         issue=saved.get('verified_evidence',{}).get('issue') if external else None
+        if issue and match and str(issue.get('id'))!=match.group(1):issue=None  # Web now names another issue.
         issue_reused=bool(issue)
         if external and not source_scheduling.useful(external,old):
             external=None
             reused_evidence=False  # A thin cached match must not block richer sources.
         try:
-            if not external and not issue_reused:
+            # Saved evidence keeps only an issue that matched. When Web names a
+            # ComicVine issue and none was saved, ask again (the API cache keeps
+            # it 30 days) so a conflict found on an earlier pass still blocks
+            # field writes when that evidence is reused.
+            if not issue_reused and (not external or match):
                 with research_runtime.stage('ComicVine'):
                     issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
         except Exception as exc:
@@ -220,12 +225,13 @@ def discover(root,coverage_only=False):
                 source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
                 attempts.append({'provider':name,'result':source_schedule[name]['result']})
                 if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
+            # While a conflict stands, web-verified sources need a named creator and an agreeing cover.
             sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
                      ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
-                     ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog')),
-                     ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog')),
-                     ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog')),
-                     ('GetComics',getcomics.lookup)]
+                     ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog',strict=conflict)),
+                     ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog',strict=conflict)),
+                     ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog',strict=conflict)),
+                     ('GetComics',lambda row,old:getcomics.lookup(row,old,strict=conflict))]
             sources=source_scheduling.order(sources,row,old)
             ready=[]
             for name,lookup in sources:
@@ -267,7 +273,7 @@ def discover(root,coverage_only=False):
                     if hint:research.save_evidence(path,{'cover_identification':hint,'cover_signature':signature,'status':'search_hint_only'})
                     batch.progress(phase='Automatic metadata lookup',detail='Verifying saved web and wiki references for '+path.name)
                     with research_runtime.stage('Saved lead verification'):
-                        external=research.resolve_leads(row,old,hint)
+                        external=research.resolve_leads(row,old,hint,strict=conflict)
                     batch.progress(phase='Automatic metadata lookup',detail='Searching the web for '+path.name)
                     if external:
                         research.save_evidence(path,external)
@@ -275,7 +281,7 @@ def discover(root,coverage_only=False):
                 except Exception as exc:
                     lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
                 if not external:
-                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed)
+                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed,strict=conflict)
                     if wiki_found:outcome='wiki_candidates_found'
                     if external:
                         research.save_evidence(path,external)
@@ -378,7 +384,8 @@ def discover(root,coverage_only=False):
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
-        state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
+        # A Summary-only plan during a conflict still leaves the comic unresolved.
+        state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         discovery_state.save_one(path,state['checked'][str(path)])
         if outcome == 'queued':worker.enqueue(target)
         research_runtime.record_check(outcome)
