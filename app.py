@@ -288,6 +288,30 @@ def comicvine_event(status, **details):
     storage.save(DATA/'comicvine-status.json',dict({'status':status,'checked_at':time.time(),'retry_at':0},**details))
 
 
+class ComicVineNotFound(ValueError):
+    """ComicVine answered that the requested object does not exist (status 101,
+    "Object Not Found"), such as a dead or mistyped Web issue id. This is an
+    answer about one object, not an outage: no shared cooldown, and the answer
+    is cached for NOT_FOUND_SECONDS (F17)."""
+
+
+NOT_FOUND_SECONDS = 7 * 86400
+NOT_FOUND_PREFIX = 'comicvine-not-found:'
+
+
+def not_found_payload(error):
+    """The JSON body of an HTTP 404 that ComicVine marks "Object Not Found", else None.
+
+    Any other 404 (an HTML error page, a moved API) stays an outage."""
+    if error.code != 404:
+        return None
+    try:
+        payload = json.loads(error.read(1024 * 1024))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) and payload.get('status_code') == 101 else None
+
+
 def api(resource, **params):
     params['format'] = 'json'
     cache_key = resource + '?' + urllib.parse.urlencode(sorted(params.items()))
@@ -295,8 +319,12 @@ def api(resource, **params):
         with db() as con:
             cached = con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',
                                  (cache_key, time.time() - 30 * 86400)).fetchone()
+            missing = None if cached else con.execute('SELECT 1 FROM cache WHERE key=? AND fetched>?',
+                                                      (NOT_FOUND_PREFIX + cache_key, time.time() - NOT_FOUND_SECONDS)).fetchone()
         if cached:
             return json.loads(cached['value'])
+        if missing:
+            raise ComicVineNotFound(f'ComicVine reports that {resource} does not exist (Object Not Found).')
         # The cache needs no key: a missing key must not hide a cached answer,
         # such as an identity conflict (F16).
         key = api_key()
@@ -315,13 +343,18 @@ def api(resource, **params):
             with urllib.request.urlopen(request, timeout=45) as response:
                 payload = json.load(response)
         except urllib.error.HTTPError as exc:
-            if exc.code == 429:
-                cooldown()
-                comicvine_event('rate_limit_wait',http_status=429)
-                raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600) from None
-            cooldown(300)
-            comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code,retry_at=time.time()+300)
-            raise ProviderDeferred(f'Metadata service returned HTTP {exc.code}; try again later.','comicvine',time.time()+3600) from None
+            try:
+                payload = not_found_payload(exc)
+            finally:
+                exc.close()  # The error body is not needed beyond this point.
+            if payload is None:
+                if exc.code == 429:
+                    cooldown()
+                    comicvine_event('rate_limit_wait',http_status=429)
+                    raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600) from None
+                cooldown(300)
+                comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code,retry_at=time.time()+300)
+                raise ProviderDeferred(f'Metadata service returned HTTP {exc.code}; try again later.','comicvine',time.time()+3600) from None
         except (urllib.error.URLError,TimeoutError,OSError,json.JSONDecodeError):
             cooldown(300)
             comicvine_event('connection_error',retry_at=time.time()+300)
@@ -330,6 +363,14 @@ def api(resource, **params):
             cooldown()
             comicvine_event('rate_limit_wait')
             raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600)
+        if payload.get('status_code') == 101:
+            # ComicVine answered: this object does not exist. Remember the answer;
+            # other requests are unaffected (F17).
+            with db() as con:
+                con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)', (NOT_FOUND_PREFIX + cache_key,
+                            json.dumps({'status_code': 101, 'error': str(payload.get('error') or 'Object Not Found')[:200]}), time.time()))
+            comicvine_event('available')
+            raise ComicVineNotFound(f'ComicVine reports that {resource} does not exist (Object Not Found).')
         if payload.get('status_code') != 1:
             cooldown(300)
             comicvine_event('access_rejected',retry_at=time.time()+300)

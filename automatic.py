@@ -18,6 +18,7 @@ import storage
 import coverage_priority
 
 MATCHER_VERSION = 9
+HOLD_RETRY_SECONDS = 300  # Earliest retry of a comic held by a transient ComicVine pause.
 
 def normalized(value):
     return re.sub(r'[^a-z0-9]', '', str(value).lower())
@@ -196,6 +197,8 @@ def discover(root,coverage_only=False):
         if external and not source_scheduling.useful(external,old):
             external=None
             reused_evidence=False  # A thin cached match must not block richer sources.
+        dead_web = False  # ComicVine answered that the issue Web names does not exist.
+        comicvine_failure = None
         try:
             # Saved evidence keeps only an issue that matched. When Web names a
             # ComicVine issue and none was saved, ask again (the API cache keeps
@@ -204,10 +207,20 @@ def discover(root,coverage_only=False):
             if not issue_reused and (not external or match):
                 with research_runtime.stage('ComicVine'):
                     issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
+        except app.ComicVineNotFound:
+            # F17: a definitive answer, not an outage. The comic is searched like
+            # an unidentified one, with strict verification; nothing to retry soon.
+            issue = None
+            dead_web = bool(match)
         except Exception as exc:
             lookup_error = record_failure(lookup_error,provider_waits,'ComicVine',exc)
+            comicvine_failure = str(exc)
             issue = None
             batch.progress(phase='Automatic metadata lookup', detail='ComicVine lookup failed; trying publisher catalog for '+path.name)
+        if dead_web and reused_evidence:
+            # Evidence saved on an earlier pass may not have been verified strictly.
+            external = None
+            reused_evidence = False
         hint = None
         identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
         # A ComicVine issue that disagrees with the embedded series/number is
@@ -225,8 +238,10 @@ def discover(root,coverage_only=False):
             conflict = True
         else:
             saved_conflict = None
-        hold = bool(match) and not issue and not conflict
-        strict = conflict or hold
+        hold = bool(match) and not issue and not conflict and not dead_web
+        # A dead Web id is no known conflict: field writes may follow, but only
+        # from sources verified strictly.
+        strict = conflict or hold or dead_web
         found = None if conflict else issue
         if external:outcome='web_issue_found'
         if (not found or not old.get('Summary')) and not external:
@@ -265,7 +280,7 @@ def discover(root,coverage_only=False):
                     research.save_evidence(path,external)
                     outcome = 'publisher_issue_found'
                     fields = {k:v for k,v in external['fields'].items() if not old.get(k)}
-                    if fields and not strict:
+                    if fields and not (conflict or hold):  # Strict lookups return only the approved exact-cover list.
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
                         target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
@@ -326,6 +341,8 @@ def discover(root,coverage_only=False):
                 try:
                     with research_runtime.stage('ComicVine publisher'):
                         volume = app.api('volume/4050-' + str(issue['volume']['id'])) if not old.get('Publisher') else {}
+                except app.ComicVineNotFound:
+                    volume = {}  # An answer, not a failure: the issue's own fields stay usable.
                 except Exception as exc:
                     lookup_error = record_failure(lookup_error,provider_waits,'ComicVine publisher',exc)
                     volume = {}  # Keep verified issue fields and synopsis evidence usable.
@@ -400,8 +417,21 @@ def discover(root,coverage_only=False):
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
+        comicvine_wait = provider_waits.get('comicvine') or {}
+        if hold and comicvine_wait.get('retry_at',0) > 0:
+            # F17: a transient ComicVine pause (cooldown, budget, rate limit,
+            # outage) ends at a known time. Ask again then, not a day later
+            # behind the same trigger. A missing key has no such time.
+            retry = min(retry, max(comicvine_wait['retry_at'], time.time() + HOLD_RETRY_SECONDS))
         # A Summary-only plan during a conflict still leaves the comic unresolved.
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
+        if dead_web:
+            state['checked'][str(path)]['detail'] = ('Web names ComicVine issue '+match.group(1)+', which ComicVine reports does not exist; check the Web link. '
+                + ('A conflict saved on an earlier pass still blocks field writes.' if conflict else 'Other sources are searched with strict verification.'))
+        elif hold:
+            reason = comicvine_wait.get('reason') or comicvine_failure or 'ComicVine returned no issue.'
+            state['checked'][str(path)]['detail'] = ('Field writes held: Web names ComicVine issue '+match.group(1)+', which could not be checked this pass. '
+                + reason[:500] + ' Other sources are searched with strict verification.')
         if conflict and match:
             # The conflicting issue lets later passes keep the conflict without ComicVine.
             named = issue or saved_conflict
