@@ -206,18 +206,99 @@ def wiki_lead_rank(lead,series,number):
     return (not (issue and normalize(series) in normalize(path)),not specific)
 
 
+TITLE_SEPARATOR=r'(\s+(?:\||::|-|–|—|·)\s+)'
+BOOK_FORMAT=re.compile(r'\s+(?:tpb|hc|sc|gn|ogn|hardcover|softcover|paperback|trade paperback|graphic novel|one[- ]?shot|collected edition)\s*$',re.I)
+CREATOR_FIELDS=('Writer','Penciller','Inker','Colorist','Letterer','CoverArtist','Editor')
+ROLE_WORDS={'story','script','scripts','written','writer','words','art','artist','artists','pencil','pencils','penciller','inks','inker',
+            'colors','colours','colorist','colourist','letters','letterer','cover','covers','by','and','created','illustrated','illustrator','with','plot'}
+
+
+def words(value):
+    return re.findall(r'[^\W\d_]+',str(value or '').lower())
+
+
+def book_key(value):
+    """Normalized book title; a leading article is optional."""
+    return series_key(re.sub(r'^\s*the\s+','',str(value),flags=re.I))
+
+
+def title_matches(title,series):
+    """Exact title of an unnumbered book (one-shot, graphic novel, collection).
+
+    A page title or heading may carry site names, a year or a format word
+    (TPB, HC, one-shot); a numbered issue title never matches.
+    """
+    title=re.sub(r'^(?:GCD\s*::\s*Issue\s*::\s*)','',str(title)).strip()
+    expected=book_key(BOOK_FORMAT.sub('',str(series)).strip())
+    if not expected:return False
+    pieces=re.split(TITLE_SEPARATOR,title);parts=pieces[0::2];separators=pieces[1::2]
+    for start in range(len(parts)):
+        for stop in range(start+1,len(parts)+1):
+            part=parts[start]+''.join(separators[i]+parts[i+1] for i in range(start,stop-1))
+            if re.search(r'#\s*\d',part):continue
+            part=re.sub(r'\s*\([^)]*\b(?:19|20)\d{2}\b[^)]*\)\s*',' ',part).strip()
+            part=BOOK_FORMAT.sub('',part).strip()
+            if book_key(part)==expected:return True
+    return False
+
+
+def creator_names(old,cover_hint=None):
+    """Full creator names from embedded credits and visible cover credits."""
+    values=[old.get(key) for key in CREATOR_FIELDS]
+    hinted=(cover_hint or {}).get('creators')
+    if isinstance(hinted,str):hinted=[hinted]
+    if isinstance(hinted,list):values.extend(value for value in hinted if isinstance(value,str))
+    names=[]
+    for value in values:
+        for name in re.split(r'\s*(?:,|;|&|/|\band\b)\s*',str(value or ''),flags=re.I):
+            parts=words(name)
+            while parts and parts[0] in ROLE_WORDS:parts=parts[1:]
+            # A surname alone is too common to identify a book.
+            if len(parts)>=2 and sum(map(len,parts))>=5 and parts not in names:names.append(parts)
+    return names
+
+
+def named(phrase,text):
+    """Whole-word phrase match on letters only."""
+    return ' '+' '.join(phrase)+' ' in ' '+' '.join(words(text))+' '
+
+
+def confirmed_publisher(row,old,cover_hint,body):
+    """Any publisher, but only one the source page itself names."""
+    for value in (old.get('Publisher'),publisher_hint(row,old,cover_hint),(cover_hint or {}).get('publisher')):
+        if isinstance(value,str) and words(value) and named(words(value),body):return value.strip()
+    return ''
+
+
 def verify_web_source(row,old,source,cover_hint=None,require_cover=False):
-    """Reject broad series articles, wrong issues and discussion-only identity claims."""
+    """Reject broad series articles, wrong issues and discussion-only identity claims.
+
+    A numbered comic always needs its exact issue number in the page title; an
+    unnumbered book needs its exact title without one. The established route
+    (hinted publisher named on the page) is unchanged. Any other publisher, or
+    an unnumbered book, additionally needs a known creator named on the page and
+    an agreeing cover. A search or cover match alone never authorizes a write.
+    """
     series,number=query_identity(row,old)
-    publisher=publisher_hint(row,old,cover_hint)
+    if not series:return None
     host=urllib.parse.urlparse(source['url']).hostname or ''
     if host=='reddit.com' or host.endswith('.reddit.com'):return None
     titles=[source.get('title',''),*source.get('headings',[])]
-    if not any(product_matches(t,series,number) for t in titles):return None
+    if number:
+        if not any(product_matches(t,series,number) for t in titles):return None
+    elif not any(title_matches(t,series) for t in titles):return None
     body=source.get('identity_text') or source.get('text','')
-    if not publisher or normalize(publisher) not in normalize(body):return None
     year=str(old.get('Year') or row.get('year') or '')
     if year and not re.search(r'\b'+re.escape(year)+r'\b',body):return None
+    publisher=publisher_hint(row,old,cover_hint)
+    hinted=bool(number) and bool(publisher) and normalize(publisher) in normalize(body)
+    if hinted:
+        scope='Exact issue, publisher and available year agree'
+    else:
+        if not any(named(name,body) for name in creator_names(old,cover_hint)):return None
+        publisher=confirmed_publisher(row,old,cover_hint,body)
+        require_cover=True
+        scope=('Exact issue' if number else 'Exact title')+', named creator'+(', publisher' if publisher else '')+' and available year agree'
     if require_cover:
         import web_search,reverse_image,automatic
         image=source.get('image')
@@ -226,8 +307,11 @@ def verify_web_source(row,old,source,cover_hint=None,require_cover=False):
         remote=web_search.read(image,binary=True)
         local,_,_=reverse_image.cover(row['path'],0)
         if not automatic.covers_agree(local,remote):return None
-    evidence=dict(source,scope='Exact issue, publisher and available year agree'+('; cover agrees' if require_cover else '; edition-specific facts excluded'))
-    return {'provider':'Verified web research','fields':{'Series':series,'Number':issue_number(number),'Publisher':publisher},'sources':[evidence],'identity':{'series':series,'number':number},'status':'web_issue_found'}
+    evidence=dict(source,scope=scope+('; cover agrees' if require_cover else '; edition-specific facts excluded'))
+    fields={'Series':series}
+    if number:fields['Number']=issue_number(number)
+    if publisher:fields['Publisher']=publisher
+    return {'provider':'Verified web research','fields':fields,'sources':[evidence],'identity':{'series':series,'number':number},'status':'web_issue_found'}
 
 
 def resolve_leads(row,old,cover_hint=None):
@@ -276,12 +360,12 @@ def resolve_leads(row,old,cover_hint=None):
 def general_lookup(row,old,cover_hint=None):
     import web_search
     series,number=query_identity(row,old)
-    publisher=publisher_hint(row,old,cover_hint)
-    query=series+' #'+number+' comics'
+    # An unnumbered book (one-shot, graphic novel, collection) has no '#'.
+    query=series+(' #'+number if number else '')+' comics'
     # Ordinary browser engines share one budget and pacing gate, including Yandex.
     # Cover hints still participate in the unchanged issue/source verifier.
     queries=[query]
-    candidates=[];errors=[];sources=[];deferred=[];engines=[]
+    candidates=[];errors=[];sources=[];deferred=[];engines=[];fields={}
     for engine in web_search.FREE_ENGINES:
         engines.append(engine)
         try:hits=web_search.search(query,free_only=True,engine=engine)
@@ -295,7 +379,7 @@ def general_lookup(row,old,cover_hint=None):
                 source=web_search.source(hit['url'])
                 verified=verify_web_source(row,old,source,cover_hint)
                 if not verified:continue
-                sources.extend(verified['sources'])
+                sources.extend(verified['sources']);fields=verified['fields']
                 break
             except ValueError as exc:errors.append(str(exc))
         if sources:break
@@ -303,5 +387,5 @@ def general_lookup(row,old,cover_hint=None):
     if not sources:
         if deferred:raise min(deferred,key=lambda error:error.retry_at if error.retry_at>0 else float('inf'))
         return None
-    return {'fields':{'Series':series,'Number':issue_number(number),'Publisher':publisher},
-            'sources':sources,'identity':{'series':series,'number':number},'status':'web_issue_found'}
+    # Only fields the verifier confirmed; never an empty Number or Publisher.
+    return {'fields':fields,'sources':sources,'identity':{'series':series,'number':number},'status':'web_issue_found'}

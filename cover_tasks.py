@@ -4,6 +4,12 @@ import time
 import urllib.parse
 import app
 
+# A genuine empty search is retried after a day (empty results are not cached).
+# Leads that failed identity verification are searched again only after the
+# 30-day cover-search cache expires; an earlier repeat returns the same leads.
+RETRY_SECONDS=86400
+UNVERIFIED_RETRY_SECONDS=30*86400
+
 
 def table(con):
     con.execute('CREATE TABLE IF NOT EXISTS cover_tasks(path TEXT PRIMARY KEY, signature TEXT, state TEXT, updated REAL, detail TEXT)')
@@ -14,8 +20,14 @@ def enqueue(row):
     signature=json.dumps([row['size'],row['mtime']])
     with app.db() as con:
         table(con)
-        previous=con.execute('SELECT signature FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
-        if previous and previous[0]==signature:return
+        previous=con.execute('SELECT signature,state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
+        if previous and previous[0]==signature:
+            # Discovery only re-enqueues after every source, including the saved
+            # cover leads, failed to verify. Saved leads are never a final state.
+            if previous[1]=='leads_found':
+                con.execute("UPDATE cover_tasks SET state='leads_unverified',updated=?,detail=? WHERE path=? AND state='leads_found'",
+                            (time.time(),'Cover-search leads did not verify; another cover search is scheduled after the 30-day result cache expires.',row['path']))
+            return
         con.execute('INSERT OR REPLACE INTO cover_tasks VALUES(?,?,?,?,?)',(row['path'],signature,'pending',time.time(),'Browser reverse-image research queued; no metadata write authorized.'))
 
 
@@ -37,6 +49,7 @@ def record(row,leads):
     with app.db() as con:
         table(con)
         con.execute('INSERT OR IGNORE INTO cover_retries VALUES(?)',(str(Path(row['path']).parent),))
+    return len(safe)
 
 
 def claim(now=None):
@@ -44,7 +57,7 @@ def claim(now=None):
     with app.db() as con:
         table(con);con.execute('BEGIN IMMEDIATE')
         scope,args=app.scope_filter(app.live_root())
-        rows=con.execute("SELECT comics.*,cover_tasks.signature AS task_signature FROM comics JOIN cover_tasks USING(path) WHERE "+scope+" AND comics.status NOT IN ('absent','error','unsupported') AND (cover_tasks.state='pending' OR (cover_tasks.state='retry_wait' AND cover_tasks.updated<?)) ORDER BY cover_tasks.updated LIMIT 20",(*args,now-86400)).fetchall()
+        rows=con.execute("SELECT comics.*,cover_tasks.signature AS task_signature,cover_tasks.state AS task_state,cover_tasks.updated AS task_updated FROM comics JOIN cover_tasks USING(path) WHERE "+scope+" AND comics.status NOT IN ('absent','error','unsupported') AND (cover_tasks.state='pending' OR (cover_tasks.state='retry_wait' AND cover_tasks.updated<?) OR (cover_tasks.state='leads_unverified' AND cover_tasks.updated<?)) ORDER BY cover_tasks.updated LIMIT 20",(*args,now-RETRY_SECONDS,now-UNVERIFIED_RETRY_SECONDS)).fetchall()
         import discovery_state
         discovery_state.initialize(con)
         for row in rows:
@@ -66,13 +79,49 @@ def identified(row):
     """Cancel an outstanding search after another source verifies issue identity."""
     with app.db() as con:
         table(con)
-        con.execute("UPDATE cover_tasks SET state='not_needed',updated=?,detail='Identity verified through another source; reverse search is unnecessary.' WHERE path=? AND state IN ('pending','retry_wait','searching')",(time.time(),row['path']))
+        con.execute("UPDATE cover_tasks SET state='not_needed',updated=?,detail='Identity verified through another source; reverse search is unnecessary.' WHERE path=? AND state IN ('pending','retry_wait','searching','leads_unverified')",(time.time(),row['path']))
 
 
 def finish(row,state,detail):
     with app.db() as con:
         table(con)
         con.execute('UPDATE cover_tasks SET state=?,updated=?,detail=? WHERE path=?',(state,time.time(),detail[:1000],row['path']))
+
+
+def release(row,detail):
+    """Return a claimed task unsearched: same state, same queue position and wait.
+
+    A blocked provider (cooldown, daily cap, human check, fallback cap) is not
+    a search result, so it must neither reset a retry wait nor requeue at the back.
+    """
+    state=row.get('task_state') or 'pending'
+    if state not in ('pending','retry_wait','leads_unverified'):state='pending'
+    updated=row.get('task_updated')
+    if updated is None:updated=time.time()
+    with app.db() as con:
+        table(con)
+        con.execute("UPDATE cover_tasks SET state=?,updated=?,detail=? WHERE path=? AND state='searching'",(state,updated,detail[:1000],row['path']))
+
+
+def record_verified_page(task,leads):
+    """Save leads read from the results page Google loads after a solved check.
+
+    Only the task that hit the check receives them, and only while its archive
+    and queued search are unchanged. They remain unverified leads.
+    """
+    from pathlib import Path
+    try:
+        key=task['path'];signature=[int(task['size']),int(task['mtime'])]
+        if not isinstance(key,str) or not key:return 0
+        stat=Path(key).stat()
+    except (KeyError,TypeError,ValueError,OSError):return 0
+    if [stat.st_size,stat.st_mtime_ns]!=signature:return 0
+    with app.db() as con:
+        table(con)
+        current=con.execute('SELECT signature,state FROM cover_tasks WHERE path=?',(key,)).fetchone()
+    if not current or json.loads(current[0])!=signature or current[1] not in ('pending','retry_wait','leads_unverified'):return 0
+    try:return record({'path':key,'size':signature[0],'mtime':signature[1]},leads)
+    except ValueError:return 0
 
 
 def status():

@@ -515,7 +515,8 @@ class Handler(BaseHTTPRequestHandler):
                 import lens_verification,yandex_verification,pause_control
                 result=lens_verification.status()
                 import browser_search
-                result['cover']=browser_search.legacy_status()
+                # Challenge URLs and the comic that hit them stay worker-only.
+                result['cover']=browser_search.public(browser_search.legacy_status())
                 result['control']=pause_control.status()
                 result['yandex']=yandex_verification.status()
                 return self.respond(result)

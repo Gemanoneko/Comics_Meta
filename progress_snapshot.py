@@ -46,7 +46,7 @@ def collect(files):
     result['research']=discovery_state.counts(result['live_root'])
     result['control']=pause_control.status()
     result['cover_research']=cover_tasks.status()
-    result['browser_search']=browser_search.status()
+    result['browser_search']=browser_search.public(browser_search.status())
     result['providers']=providers.statuses()
     result['performance']=research_runtime.metrics()
     folder_state=files.read(app.DATA/'folders.json',None)
