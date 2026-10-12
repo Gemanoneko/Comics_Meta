@@ -278,7 +278,7 @@ def general_lookup(row,old,cover_hint=None):
     series,number=query_identity(row,old)
     publisher=publisher_hint(row,old,cover_hint)
     query=series+' #'+number+' comics'
-    # Two engine attempts replace the optional second cover-hint network query.
+    # Ordinary browser engines share one budget and pacing gate, including Yandex.
     # Cover hints still participate in the unchanged issue/source verifier.
     queries=[query]
     candidates=[];errors=[];sources=[];deferred=[];engines=[]

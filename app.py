@@ -509,7 +509,7 @@ class Handler(BaseHTTPRequestHandler):
                     totals = inventory_totals(counts)
                     totals['metadata_and_synopsis'] = metadata_present_count(con, root)
                     totals['needs_information'] = totals['total'] - totals['metadata_and_synopsis']
-                return self.respond({'job': JOB.copy(), 'counts': counts, 'totals': totals, 'roots': roots,
+                return self.respond({'version':getattr(self.server,'loaded_version',''), 'job': JOB.copy(), 'counts': counts, 'totals': totals, 'roots': roots,
                                      'online': bool(api_key())})
             if url.path == '/api/progress':
                 import pause_control
@@ -616,6 +616,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/browser-resume':
                 import browser_search
                 return self.respond(browser_search.request_verification())
+            if self.path == '/api/yandex-verification':
+                import yandex_verification
+                return self.respond(yandex_verification.request(body))
             if self.path == '/api/scan':
                 with LOCK:
                     if JOB['running']:
@@ -674,6 +677,16 @@ class Handler(BaseHTTPRequestHandler):
 
 class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False
+
+    def __init__(self,*args,**kwargs):
+        # Capture once for this running server; a disk update cannot relabel it.
+        try:
+            value=(BASE/'VERSION').read_text(encoding='utf-8').strip()
+            self.loaded_version=value if re.fullmatch(r'v?\d+\.\d+\.\d+',value) else ''
+        except (OSError,UnicodeError):self.loaded_version=''
+        super().__init__(*args,**kwargs)
+        import yandex_verification
+        yandex_verification.server_started()
 
     def server_bind(self):
         if os.name == 'nt':

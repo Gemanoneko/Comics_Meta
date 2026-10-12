@@ -7,12 +7,35 @@ import sys
 import threading
 import time
 import urllib.parse
+from contextlib import contextmanager
 from pathlib import Path
 import app
 
 
 class BrowserUnavailable(ValueError):
     pass
+
+
+class HumanVerification(BrowserUnavailable):
+    def __init__(self,url,query):
+        self.url=url;self.query=query
+        super().__init__('Yandex requires human verification.')
+
+
+class NavigationWait(BrowserUnavailable):
+    def __init__(self,retry_at):
+        self.retry_at=retry_at
+        super().__init__('Shared browser navigation pacing is active.')
+
+
+def navigate(page,url,engine,admitted=None):
+    import pause_control,web_search
+    if admitted:admitted()
+    if pause_control.requested():raise pause_control.PauseRequested()
+    retry=web_search.admit_navigation()
+    if retry:raise NavigationWait(retry)
+    if admitted:admitted()
+    page.goto(url,wait_until='domcontentloaded',timeout=45_000)
 
 
 _mutex = threading.Lock()
@@ -76,13 +99,18 @@ ENGINES={
     'ddg':{'base':'https://duckduckgo.com/','profile':'ddg-profile','selector':'li[data-layout="organic"] article[data-testid="result"] h2 a[data-testid="result-title-a"]','empty_selector':'[data-testid="no-results"]',
            'hosts':('duckduckgo.com','www.duckduckgo.com','links.duckduckgo.com','improving.duckduckgo.com','external-content.duckduckgo.com')},
     'bing':{'base':'https://www.bing.com/search','profile':'bing-profile','selector':'ol#b_results > li.b_algo h2 a','empty_selector':'ol#b_results > li.b_no',
-            'hosts':('bing.com','www.bing.com','r.bing.com','th.bing.com','ts1.mm.bing.net','ts2.mm.bing.net','ts3.mm.bing.net','ts4.mm.bing.net')}
+            'hosts':('bing.com','www.bing.com','r.bing.com','th.bing.com','ts1.mm.bing.net','ts2.mm.bing.net','ts3.mm.bing.net','ts4.mm.bing.net')},
+    'yandex':{'base':'https://yandex.com/search/','profile':'yandex-profile','parameter':'text',
+              'selector':'li.serp-item h2 a, div.serp-item h2 a', 'empty_selector':':not(*)',
+              'exclude_selector':'.serp-item_ad, [data-fast-name="direct"], [data-ad]',
+              'hosts':('yandex.com','www.yandex.com','ya.ru','yandex.ru','www.yandex.ru','yastatic.net',
+                       'avatars.mds.yandex.net','smartcaptcha.yandexcloud.net','smartcaptcha.cloud.yandex.ru')}
 }
 
 
 # Readiness and extraction share one DOM observation: an attached hidden card
 # is not a rendered result. Bound inspection before returning five safe links.
-RESULTS_READY = r'''({selector, emptySelector, query}) => {
+RESULTS_READY = r'''({selector, emptySelector, query, inputSelector='input[name="q"], textarea[name="q"]', excludeSelector=''}) => {
     const clean = value => value.replace(/\s+/g, ' ').trim();
     const visible = element => {
         const rect = element.getBoundingClientRect();
@@ -107,11 +135,11 @@ RESULTS_READY = r'''({selector, emptySelector, query}) => {
         }
         return clean(parts.join(' '));
     };
-    const inputs = [...document.querySelectorAll('input[name="q"], textarea[name="q"]')];
+    const inputs = [...document.querySelectorAll(inputSelector)];
     const shown = inputs.filter(visible);
     if (!shown.length || !shown.every(input => clean(input.value) === clean(query))) return false;
     const nodes = [...document.querySelectorAll(selector)].slice(0, 100);
-    const items = nodes.filter(visible).map(a => ({url: a.href, title: renderedText(a)}))
+    const items = nodes.filter(a => visible(a) && (!excludeSelector || !a.closest(excludeSelector))).map(a => ({url: a.href, title: renderedText(a)}))
         .filter(item => item.title).slice(0, 10);
     if (items.length) return {items};
     // An explicit rendered empty-state is distinct from hidden/unready cards.
@@ -122,28 +150,58 @@ RESULTS_READY = r'''({selector, emptySelector, query}) => {
 }'''
 
 
+YANDEX_ORIGINS=('yandex.com','www.yandex.com','ya.ru','yandex.ru','www.yandex.ru')
+
+
+def yandex_url(url):
+    try:
+        value=urllib.parse.urlparse(url)
+        return (len(url)<=8192 and value.scheme=='https' and value.hostname in YANDEX_ORIGINS
+                and not value.username and not value.password and value.port in (None,443)
+                and not any(ord(c)<=32 or ord(c)==127 for c in url)
+                and (value.path.rstrip('/')=='/search' or value.path.startswith('/showcaptcha')))
+    except ValueError:return False
+
+
+def correct_query(page,query,engine):
+    url=urllib.parse.urlparse(page.url)
+    expected=urllib.parse.urlparse(ENGINES[engine]['base'])
+    hosts=YANDEX_ORIGINS if engine=='yandex' else ENGINES[engine]['hosts'][:2]
+    return (url.scheme=='https' and url.hostname in hosts and not url.username and not url.password
+            and url.port in (None,443) and url.path==expected.path
+            and urllib.parse.parse_qs(url.query).get(ENGINES[engine].get('parameter','q'))==[query])
+
+
+def result_arguments(query,engine):
+    options=ENGINES[engine]
+    parameter=options.get('parameter','q')
+    return {'selector':options['selector'],'emptySelector':options['empty_selector'],'query':query,
+            'inputSelector':f'input[name="{parameter}"], textarea[name="{parameter}"]',
+            'excludeSelector':options.get('exclude_selector','')}
+
+
+def challenge_error(page,query,engine):
+    if engine=='yandex' and yandex_url(page.url):return HumanVerification(page.url,query)
+    return BrowserUnavailable('Free search requested human verification; no bypass attempted.')
+
+
 def rendered_results(page,query,engine):
-    def correct_query():
-        url=urllib.parse.urlparse(page.url)
-        expected=urllib.parse.urlparse(ENGINES[engine]['base'])
-        return (url.scheme=='https' and url.hostname in ENGINES[engine]['hosts'][:2]
-                and url.path==expected.path and urllib.parse.parse_qs(url.query).get('q')==[query])
-    if not correct_query():
+    if not correct_query(page,query,engine):
         raise BrowserUnavailable('Regular free search returned a different page or query; no results accepted.')
     handle=None
     try:
-        handle=page.wait_for_function(RESULTS_READY,arg={'selector':ENGINES[engine]['selector'],'emptySelector':ENGINES[engine]['empty_selector'],'query':query},timeout=15_000)
+        handle=page.wait_for_function(RESULTS_READY,arg=result_arguments(query,engine),timeout=15_000)
         result=handle.json_value()
     except Exception:
         if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
-            raise BrowserUnavailable('Free search requested human verification; no bypass attempted.') from None
+            raise challenge_error(page,query,engine) from None
         raise BrowserUnavailable('Regular free search did not render usable visible titles for the requested query.') from None
     finally:
         if handle:handle.dispose()
-    if not correct_query():
+    if not correct_query(page,query,engine):
         raise BrowserUnavailable('Regular free search changed its page or query; no results accepted.')
     if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
-        raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
+        raise challenge_error(page,query,engine)
     links=normalize_links(result['items'],engine)
     if result['items'] and not links:
         raise BrowserUnavailable('Regular free search rendered no usable public result links.')
@@ -152,6 +210,9 @@ def rendered_results(page,query,engine):
 
 def challenge(url,text,engine='ddg'):
     parsed=urllib.parse.urlparse(url)
+    if engine=='yandex':
+        return yandex_url(url) and (parsed.path.startswith('/showcaptcha') or any(marker in text.lower() for marker in
+            ('are you not a robot','are you not robot','requests sent from your device are automated','confirm that you are not a robot')))
     if engine=='bing':
         return any(part in parsed.path.lower() for part in ('/captcha','/challenge','/sorry')) or any(marker in text.lower() for marker in
                 ('verify you are human','unusual traffic from your','verify that you are not a robot','enter the characters you see'))
@@ -181,7 +242,7 @@ def normalize_links(items,engine='ddg'):
                 if redirect:url=redirect[0];parsed=urllib.parse.urlparse(url)
             host=(parsed.hostname or '').lower().rstrip('.')
             if len(url)>4096 or any(ord(c)<=32 or ord(c)==127 for c in url) or parsed.scheme!='https' or not host or parsed.username or parsed.password or parsed.port not in (None,443):continue
-            if host in ('duckduckgo.com','bing.com') or host.endswith(('.duckduckgo.com','.bing.com','.bing.net')):continue
+            if host in ('duckduckgo.com','bing.com','yandex.com','yandex.ru','ya.ru','yastatic.net') or host.endswith(('.duckduckgo.com','.bing.com','.bing.net','.yandex.com','.yandex.ru','.ya.ru','.yastatic.net')):continue
             if host=='localhost' or host.endswith(('.localhost','.local','.internal')):continue
             try:
                 if not ipaddress.ip_address(host).is_global:continue
@@ -207,8 +268,10 @@ def checked_profile(engine='ddg'):
     return profile
 
 
-def search(query,engine='ddg'):
+@contextmanager
+def browser_session(engine,visible=False,admitted=None):
     if engine not in ENGINES:raise BrowserUnavailable('Unsupported free search engine.')
+    if admitted:admitted()
     if not _mutex.acquire(blocking=False):raise BrowserUnavailable('Dedicated search browser is already owned.')
     lock=None;runtime=None;context=None;locked=False;owned=False
     try:
@@ -226,19 +289,21 @@ def search(query,engine='ddg'):
         import pause_control
         if pause_control.requested():raise pause_control.PauseRequested()
         runtime=sync_playwright().start()
-        context=runtime.chromium.launch_persistent_context(str(profile),channel='msedge',headless=True,
+        if admitted:admitted()
+        context=runtime.chromium.launch_persistent_context(str(profile),channel='msedge',headless=not visible,
             locale='en-US',accept_downloads=False,args=['--disk-cache-size=67108864','--media-cache-size=16777216'])
         # Search rendering must not become unbudgeted publisher navigation or a download.
-        context.route('**/*',lambda route:route.continue_() if urllib.parse.urlparse(route.request.url).hostname in ENGINES[engine]['hosts'] else route.abort())
+        def route_request(route):
+            url=urllib.parse.urlparse(route.request.url)
+            allowed=url.scheme=='https' and url.hostname in ENGINES[engine]['hosts'] and not url.username and not url.password and url.port in (None,443)
+            if engine=='yandex' and route.request.is_navigation_request() and route.request.frame.parent_frame is None:
+                allowed=allowed and yandex_url(route.request.url)
+            route.continue_() if allowed else route.abort()
+        context.route('**/*',route_request)
         page=context.pages[0] if context.pages else context.new_page()
+        if engine=='yandex':context.on('page',lambda other:other.close() if other!=page else None)
         page.set_default_timeout(15_000)
-        params={'q':query}
-        if engine=='ddg':params['ia']='web'
-        page.goto(ENGINES[engine]['base']+'?'+urllib.parse.urlencode(params),wait_until='domcontentloaded',timeout=45_000)
-        if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
-            raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
-        if pause_control.requested():raise pause_control.PauseRequested()
-        return rendered_results(page,query,engine)
+        yield page
     except BrowserUnavailable:raise
     except Exception as exc:
         import pause_control
@@ -272,6 +337,44 @@ def search(query,engine='ddg'):
                         _retained.append((lock,runtime,context))
                         raise BrowserUnavailable('Browser profile release failed; ownership remains held.') from None
                 _mutex.release()
+
+
+def search(query,engine='ddg'):
+    import pause_control
+    with browser_session(engine) as page:
+        params={ENGINES[engine].get('parameter','q'):query}
+        if engine=='ddg':params['ia']='web'
+        navigate(page,ENGINES[engine]['base']+'?'+urllib.parse.urlencode(params),engine)
+        if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
+            raise challenge_error(page,query,engine)
+        if pause_control.requested():raise pause_control.PauseRequested()
+        return rendered_results(page,query,engine)
+
+
+def verify_yandex(url,query,on_open,admitted):
+    """Owner-thread observation only; user alone interacts with the challenge."""
+    import pause_control
+    if not yandex_url(url) or not isinstance(query,str) or not query or len(query)>500:
+        raise BrowserUnavailable('Yandex verification request is invalid.')
+    admitted()
+    with browser_session('yandex',visible=True,admitted=admitted) as page:
+        admitted()
+        navigate(page,url,'yandex',admitted)
+        admitted()
+        on_open()
+        deadline=time.monotonic()+300
+        while time.monotonic()<deadline:
+            admitted()
+            if pause_control.requested():raise pause_control.PauseRequested()
+            if page.is_closed():return False
+            if not yandex_url(page.url):return False
+            if correct_query(page,query,'yandex'):
+                text=page.locator('body').inner_text(timeout=1000)
+                if not challenge(page.url,text,'yandex'):
+                    result=page.evaluate(RESULTS_READY,result_arguments(query,'yandex'))
+                    if result and normalize_links(result['items'],'yandex'):return True
+            page.wait_for_timeout(500)
+    return False
 
 
 def close():

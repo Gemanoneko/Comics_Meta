@@ -71,6 +71,8 @@ def main():
             return
     import free_search_browser
     free_search_browser.enable_worker_owner()
+    import yandex_verification
+    yandex_verification.initialize()
     # An interrupted write needs inspection, not an automatic replay.
     for ticket in QUEUE.glob('*.json'):
         item = json.loads(ticket.read_text(encoding='utf-8'))
@@ -88,11 +90,13 @@ def main():
         if pause_control.requested():
             import free_search_browser
             free_search_browser.close()
+            yandex_verification.cancel()
         if pause_control.checkpoint('metadata'):
             time.sleep(1)
             next_discovery=0
             continue
         try:
+            if yandex_verification.service():continue
             import maintenance
             try:maintenance.run()
             except Exception:pass  # Cleanup failures must not stop metadata processing.

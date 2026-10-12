@@ -22,6 +22,14 @@ class SearchBlocked(ProviderDeferred):
 def free_browser_search(query,engine='ddg'):
     import free_search_browser
     try:return free_search_browser.search(query,engine)
+    except free_search_browser.NavigationWait as exc:
+        error=SearchBlocked('Free searches are paced; cached sources remain available.','free_web',exc.retry_at,engine)
+        error.pacing=True
+        raise error from None
+    except free_search_browser.HumanVerification as exc:
+        import yandex_verification
+        yandex_verification.required(exc.url,exc.query)
+        raise SearchBlocked('Yandex needs human verification.','free_web',0,'yandex') from None
     except free_search_browser.BrowserUnavailable as exc:raise SearchBlocked(str(exc)) from None
 
 def config():
@@ -119,13 +127,13 @@ class Page(HTMLParser):
         if self.link:self.link['title']+=data
 
 def cached(query,free_only=False,engine=None):
-    cache_key='web-search:'+('bing' if engine=='bing' else 'free' if free_only or engine=='ddg' else config().get('provider','free'))+':'+query
+    cache_key='web-search:'+(engine if engine in ('bing','yandex') else 'free' if free_only or engine=='ddg' else config().get('provider','free'))+':'+query
     with app.db() as con:
         row=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
     result=json.loads(row['value']) if row else None
     # Old Bing captures included attached hidden cards with blank titles. Leave
     # those records intact; any replacement must pass ordinary holds/budgets.
-    if engine=='bing' and result is not None and not usable_bing_results(result):result=None
+    if engine in ('bing','yandex') and result is not None and not usable_bing_results(result):result=None
     return cache_key,result
 
 
@@ -133,10 +141,11 @@ def usable_bing_results(result):
     return isinstance(result,list) and all(isinstance(item,dict) and isinstance(item.get('title'),str)
         and item['title'].strip() and isinstance(item.get('url'),str) and item['url'].startswith('https://') for item in result)
 
-FREE_ENGINES=('ddg','bing')
+FREE_ENGINES=('ddg','bing','yandex')
 
 
 def free_state_id(engine='ddg'):
+    if engine=='yandex':return 4
     if engine=='bing':return 3
     # Keep the installed free route's saved hold. A configured paid vendor's
     # legacy hold remains separate from the explicitly requested free route.
@@ -149,6 +158,23 @@ def free_policy():
     return min(300,max(1,int(options.get('free_daily_request_limit',300)))),max(120,int(options.get('free_min_interval_seconds',120)))
 
 
+def navigation_retry(con,now):
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='web_navigation_state'").fetchone():return 0
+    row=con.execute('SELECT last_navigation FROM web_navigation_state WHERE id=1').fetchone()
+    retry=row[0]+free_policy()[1] if row else 0
+    return retry if retry>now else 0
+
+
+def admit_navigation():
+    """Fence actual browser goto starts; reservation usage remains untouched."""
+    with app.db() as con:
+        con.execute('CREATE TABLE IF NOT EXISTS web_navigation_state(id INTEGER PRIMARY KEY,last_navigation REAL)')
+        con.execute('BEGIN IMMEDIATE');now=time.time();retry=navigation_retry(con,now)
+        if retry:return retry
+        con.execute('INSERT OR REPLACE INTO web_navigation_state VALUES(1,?)',(now,))
+    return 0
+
+
 def free_engine_status(engine,now=None):
     if engine not in FREE_ENGINES:raise ValueError('Unsupported free search engine.')
     now=time.time() if now is None else now
@@ -158,19 +184,28 @@ def free_engine_status(engine,now=None):
         hold=con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(engine),)).fetchone() if 'web_state' in exists else None
         used=con.execute('SELECT COUNT(*),MIN(timestamp) FROM web_requests WHERE timestamp>?',(now-86400,)).fetchone() if 'web_requests' in exists else (0,None)
         previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0] if 'web_requests' in exists else None
+        navigation_at=navigation_retry(con,now)
     retry=hold[0] if hold else 0
     status='cooldown_wait' if retry>now else 'available'
+    if navigation_at>max(now,retry):status='pacing_wait';retry=navigation_at
     if previous is not None and previous+interval>max(now,retry):
         status='pacing_wait';retry=previous+interval
     if used[0]>=limit:
         status='daily_budget_wait';retry=max(retry,used[1]+86400)
-    return {'status':status,'retry_at':retry if retry>now else 0}
+    result={'status':status,'retry_at':retry if retry>now else 0}
+    if engine=='yandex':
+        import yandex_verification
+        verification=yandex_verification.status()
+        result['verification']=verification
+        if verification['human_verification']:result['status']='human_verification'
+    return result
 
 
 def free_status(now=None):
     now=time.time() if now is None else now
     engines={engine:free_engine_status(engine,now) for engine in FREE_ENGINES}
-    result=dict(min(engines.values(),key=lambda state:state['retry_at']))
+    result=dict(min(engines.values(),key=lambda state:(state['status']=='human_verification',state['retry_at'])))
+    result.pop('verification',None)
     result['engines']=engines
     return result
 
@@ -203,11 +238,16 @@ def search(query,free_only=False,engine=None):
             for choice in eligible:con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(free_state_id(choice),))
             now=time.time()
             waits={choice:con.execute('SELECT blocked_until FROM web_state WHERE id=?',(free_state_id(choice),)).fetchone()[0] for choice in eligible}
+            if 'yandex' in eligible:
+                import yandex_verification
+                if yandex_verification.read(con).get('human_verification'):
+                    eligible.remove('yandex')
+                    if not eligible:raise SearchBlocked('Yandex needs human verification.','free_web',0,'yandex')
             selected=next((choice for choice in eligible if waits[choice]<=now),None)
             if selected is None:
                 selected=min(eligible,key=waits.get)
                 raise SearchBlocked('Free search engines are cooling down; cached sources remain available.','free_web',waits[selected],selected)
-            engine=selected;state_id=free_state_id(engine);cache_key='web-search:'+('bing' if engine=='bing' else 'free')+':'+query
+            engine=selected;state_id=free_state_id(engine);cache_key='web-search:'+(engine if engine in ('bing','yandex') else 'free')+':'+query
         else:
             state_id=1;con.execute('INSERT OR IGNORE INTO web_state VALUES(?,0)',(state_id,))
         now=time.time()  # Recheck after acquiring the shared reservation lock.
@@ -218,6 +258,8 @@ def search(query,free_only=False,engine=None):
         if count>=limit:
             raise SearchBlocked('Daily web-search request cap reached.','free_web' if is_free else 'web',first+86400,engine)
         previous=con.execute('SELECT MAX(timestamp) FROM web_requests').fetchone()[0]
+        if is_free and navigation_retry(con,now):
+            raise SearchBlocked('Free searches are paced; cached sources remain available.','free_web',navigation_retry(con,now),engine)
         if is_free and previous is not None and previous+interval>now:
             raise SearchBlocked('Free searches are paced; cached sources remain available.','free_web',previous+interval,engine)
         con.execute('INSERT INTO web_requests VALUES(?)',(now,))
@@ -231,13 +273,23 @@ def search(query,free_only=False,engine=None):
             payload=json.loads(read(url,{'X-Subscription-Token':token}))
             result=[{'url':r['url'],'title':r.get('title','')} for r in payload.get('web',{}).get('results',[])][:5]
         else:
+            if engine=='yandex':
+                import yandex_verification
+                yandex_verification.search_phase('searching')
             result=free_browser_search(query,engine)
-            if engine=='bing' and not usable_bing_results(result):
-                raise SearchBlocked('Regular Bing search returned unusable result titles; no results cached.')
+            if engine in ('bing','yandex') and not usable_bing_results(result):
+                raise SearchBlocked('Regular search returned unusable result titles; no results cached.')
             result=[dict(item,engine=engine) for item in result]
         with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
+        if engine=='yandex':yandex_verification.search_phase('idle')
         return result
     except SearchBlocked as exc:
+        if getattr(exc,'pacing',False):raise
+        if engine=='yandex':
+            import yandex_verification
+            if yandex_verification.status()['human_verification']:
+                raise SearchBlocked('Yandex needs human verification.','free_web',0,'yandex') from None
+            yandex_verification.search_phase('unavailable')
         until=time.time()+3600
         with app.db() as con:
             con.execute('UPDATE web_state SET blocked_until=MAX(blocked_until,?) WHERE id=?',(until,state_id))

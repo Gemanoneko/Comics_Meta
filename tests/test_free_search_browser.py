@@ -13,6 +13,7 @@ class RegularSearchTests(unittest.TestCase):
         self.enterContext(patch.object(browser,'own_descendants'))
         self.enterContext(patch.object(browser,'_query_job',return_value=1))
         self.enterContext(patch('msvcrt.locking'))
+        self.enterContext(patch.object(web,'admit_navigation',return_value=0))
         self.page=Mock();self.page.url='https://duckduckgo.com/?q=fixture'
         self.body=Mock();self.body.inner_text.return_value='Ordinary results'
         self.links=Mock();self.links.evaluate_all.return_value=[{'url':'https://www.darkhorse.com/comics/15-681/star-wars-the-clone-wars-3/','title':'Star Wars: The Clone Wars #3'}]

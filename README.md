@@ -20,6 +20,10 @@ python app.py
 
 The dashboard opens at http://127.0.0.1:8765. Keep the service running. Local configuration, credentials, comics, generated plans and runtime state are excluded from Git.
 
+The header version comes from the running server, captured once from `VERSION` at startup. Editing the checkout cannot relabel an older running process. A backend without version reporting shows **Version unavailable**. This lightweight Python tool uses `VERSION` and `CHANGELOG.md`; Sully owns milestone version changes, commits and pushes. There is no installer/build step. Run offline Python checks with `python -m unittest discover -s tests`; actual DOM fixtures require the separately owned headless test harness and make no public requests.
+
+Ordinary free research can fall back from DuckDuckGo to Bing and Yandex using the same comic query. They share the300/rolling24hour cap and minimum120second navigation spacing. Yandex human verification has its own dashboard action beside Lens. Click once when requested, wait for any displayed budget/pacing deadline, and complete verification in the dedicated window. The app closes that window after observing success; later searches use the same dedicated profile. Pause or service restart cancels pending visible-window intent, so Resume cannot unexpectedly open it. Search links remain leads and never bypass exact comic/source verification. See `SOURCE_CONNECTORS.md` for provider and live-validation limits.
+
 On Windows, double-click `run.cmd` for the persistent launcher. It registers an on-demand task named `ComicsMeta-Local-8765` under your current Windows account and starts the server independently of the launching terminal or client. You can close the launcher window. Windows retries a failed task up to three times, one minute apart. There is no automatic sign-in/startup trigger; start it again after reboot. The saved pause setting remains in effect. Server logs retain one bounded tail from the previous run, and `data/server-exit.json` records observed server exit codes. Pause processing and wait for Paused before stopping the task in Windows Task Scheduler.
 
 ## Local model

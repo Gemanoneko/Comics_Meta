@@ -3,21 +3,103 @@
 <title>Comic Metadata</title>
 <style>
 :root{color-scheme:dark;font-family:Segoe UI,system-ui,sans-serif;background:#12151c;color:#e7eaf1}*{box-sizing:border-box}body{margin:0 auto;max-width:1450px;padding:32px}h1{font-size:30px;margin:0}h2{font-size:20px}p{color:#aab4c6;line-height:1.6}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}.badge{background:#24364c;padding:8px 14px;border-radius:24px;color:#bcd8f9}.panel{background:#1b202b;border:1px solid #303848;border-radius:14px;padding:22px;margin-bottom:20px}.flex{display:flex;gap:12px;align-items:center;flex-wrap:wrap}input,select,button{font:inherit;padding:10px 14px;border-radius:8px;border:1px solid #3c465a;background:#242c3b;color:#eef2fb}input{flex:1;min-width:180px}button{cursor:pointer;background:#385ea1}button:hover{background:#4776c6}button:disabled{opacity:.5;cursor:wait}table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #303848;padding:12px 9px}th{font-size:12px;text-transform:uppercase;color:#9dacc2}small{color:#9dacc2}.live-counters{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0}.live-counter{background:#242c3b;border-radius:10px;padding:12px 16px}.live-counter strong{display:block;font-size:25px}.warning-filter{background:#594817;color:#ffdf76;border-color:#bd9735}.warning-filter:hover{background:#705b21}.file-actions{white-space:nowrap}.file-actions button{padding:6px 9px;font-size:14px}.file-actions button+button{margin-left:6px}.file{max-width:550px;overflow-wrap:anywhere}.message{white-space:pre-wrap;padding:12px;color:#ffd697}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:16px}.card{border:1px solid #38445a;padding:12px;border-radius:10px}.card img{height:200px;width:100%;object-fit:contain}.card button{width:100%;margin-top:10px}dialog{width:min(1000px,95vw);max-height:90vh;border:1px solid #485771;border-radius:16px;background:#1b202b;color:#e7eaf1;padding:24px}dialog::backdrop{background:#000a}#localCover{max-height:310px;max-width:230px;object-fit:contain}.preview{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;background:#12151c;padding:16px;border-radius:10px}.grow{flex:1;min-width:250px}.count{font-size:24px;margin-right:24px}#error{position:sticky;top:8px;background:#402b29;display:none;border-radius:8px;padding:14px;z-index:2}@media(max-width:700px){body{padding:15px}table{font-size:13px}td:nth-child(3),th:nth-child(3){display:none}}
+#yandexVerification{min-height:40px;max-width:100%;white-space:normal;background:#385ea1;color:#eef2fb}#yandexVerification:hover{background:#385ea1;box-shadow:inset 0 0 0 1px #bcd8f9}#yandexVerification:focus-visible{outline:2px solid #bcd8f9;outline-offset:2px}#yandexStatus{margin-bottom:8px;overflow-wrap:anywhere}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}header{flex-wrap:wrap;gap:16px}header>div{min-width:0;max-width:100%}.header-controls{display:flex;flex-direction:column;align-items:flex-end;gap:8px}.header-controls p{margin:0;overflow-wrap:anywhere}#appVersion{font-size:14px;font-weight:400;line-height:1.5;cursor:default;max-width:100%;overflow-wrap:anywhere}@media(max-width:700px){.header-controls{align-items:flex-start;flex-basis:100%}}
 </style>
-<header><div><h1>Comic Metadata</h1><p>Your collection, with better information.</p></div><div><button id="pauseControl">Pause &amp; release GPU</button><p id="controlStatus" aria-live="polite"></p></div></header>
+<header><div><h1>Comic Metadata</h1><p>Your collection, with better information.</p></div><div class="header-controls"><span id="appVersion" class="badge" title="Version reported by the running local server." aria-describedby="versionHelp">Version loading…</span><span id="versionHelp" class="sr-only">Version reported by the running local server.</span><button id="pauseControl">Pause &amp; release GPU</button><p id="controlStatus" aria-live="polite"></p></div></header>
 <div id="error" role="alert"></div>
-<section class="panel"><h2>Live enrichment progress</h2><div class="live-counters" aria-live="polite"><div class="live-counter"><strong id="comicCounter">Checking…</strong>Updated by this app</div><div class="live-counter"><strong id="presentCounter">Checking…</strong>Metadata and synopsis present</div><div class="live-counter"><strong id="missingCounter">Checking…</strong>Missing metadata or synopsis</div><div class="live-counter"><strong id="folderCounter">Checking…</strong>Comic folders scanned</div></div><small>Updated is write history and overlaps the other counters. Present means fields exist, not that every field is complete or verified. Folder totals cover discovered comic folders; repeat scans do not reset these counters.</small><p id="queueStatus" aria-live="polite">Checking worker…</p><div id="queueAttention"></div><div id="liveProgress" aria-live="polite">Loading status…</div><p id="liveDetail"></p><p id="researchStatus"></p><p id="performanceStatus"></p><p id="throughputStatus"></p><details><summary>Stage timing</summary><small>Timing starts with this update. Source times can overlap; totals are work time, not elapsed time.</small><table><thead><tr><th>Stage</th><th>Calls</th><th>Average seconds</th><th>Total minutes</th></tr></thead><tbody id="timingRows"></tbody></table></details><p id="providerStatus" aria-live="polite"></p><p id="browserStatus" aria-live="polite"></p><button id="browserResume" hidden>Open browser verification</button><details><summary>Previous write batches</summary><div id="completedBatches"></div></details><small id="updatedAt"></small></section>
+<section class="panel"><h2>Live enrichment progress</h2><div class="live-counters" aria-live="polite"><div class="live-counter"><strong id="comicCounter">Checking…</strong>Updated by this app</div><div class="live-counter"><strong id="presentCounter">Checking…</strong>Metadata and synopsis present</div><div class="live-counter"><strong id="missingCounter">Checking…</strong>Missing metadata or synopsis</div><div class="live-counter"><strong id="folderCounter">Checking…</strong>Comic folders scanned</div></div><small>Updated is write history and overlaps the other counters. Present means fields exist, not that every field is complete or verified. Folder totals cover discovered comic folders; repeat scans do not reset these counters.</small><p id="queueStatus" aria-live="polite">Checking worker…</p><div id="queueAttention"></div><div id="liveProgress" aria-live="polite">Loading status…</div><p id="liveDetail"></p><p id="researchStatus"></p><p id="performanceStatus"></p><p id="throughputStatus"></p><details><summary>Stage timing</summary><small>Timing starts with this update. Source times can overlap; totals are work time, not elapsed time.</small><table><thead><tr><th>Stage</th><th>Calls</th><th>Average seconds</th><th>Total minutes</th></tr></thead><tbody id="timingRows"></tbody></table></details><p id="providerStatus" aria-live="polite"></p><p id="browserStatus" aria-live="polite"></p><button id="browserResume" hidden>Open browser verification</button><div id="yandexRow" hidden><p id="yandexStatus" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p><button id="yandexVerification" aria-describedby="yandexHelp" title="Open the dedicated Yandex window to complete its verification." hidden>Open Yandex verification</button><span id="yandexHelp" class="sr-only">Open the dedicated Yandex window to complete its verification.</span></div><details><summary>Previous write batches</summary><div id="completedBatches"></div></details><small id="updatedAt"></small></section>
 <section class="panel"><h2>Live library</h2><p id="roots"></p><p>Processing and checks for new comics run automatically. You only need to act when a specific request appears above.</p><div id="counts" class="flex"></div><details><summary>Manual scan controls</summary><p>A manual scan updates the inventory; it does not prove metadata is complete.</p><div class="flex"><input id="root" placeholder="Folder to scan" aria-label="Library folder"><button id="scan">Scan folder</button><button id="rescan">Rescan live library</button></div><p id="progress"></p><p id="provider"></p></details></section>
 <section class="panel"><div class="flex"><input id="query" placeholder="Find a filename or series" aria-label="Search collection"><select id="status" aria-label="Metadata status"><option value="">All files</option value="missing">No embedded metadata</option><option value="metadata_complete">Existing metadata · Synopsis present</option><option value="needs_synopsis">Metadata present · Synopsis missing</option><option value="synopsis_only">Synopsis present · Other metadata missing</option><option value="tagged">Tagged by this app</option><option value="error">Needs attention</option><option value="corrupted">Corrupted · Needs reacquiring</option><option value="unsupported">Other archive formats</option><option value="absent">No longer found</option></select><button id="filter">Search</button><button id="corruptedCount" class="warning-filter" hidden></button><button id="conversionCount" class="warning-filter" hidden></button></div><p id="total"></p><table><thead><tr><th>Comic</th><th>Issue / year</th><th>Archive metadata / synopsis</th><th></th></tr></thead><tbody id="rows"></tbody></table><div class="flex" style="margin-top:18px"><button id="previous">Previous</button><button id="next">Next</button></div></section>
 <dialog id="review"><div class="flex"><h2 class="grow" id="reviewTitle">Comic details</h2><button id="close">Close</button></div><div class="flex"><img id="localCover" alt="First image in your archive"><div class="grow"><p id="localPath"></p><div id="existing" class="preview"></div></div></div><p>This is an optional manual lookup. The automatic worker does not require you to review every comic.</p><div class="flex"><input id="series" aria-label="Series search"><input id="number" style="max-width:130px;flex:0" placeholder="Issue" aria-label="Issue number"><button id="lookup">Find series</button></div><p id="lookupMessage" aria-live="polite"></p><div id="candidates" class="cards"></div><div id="fields" class="preview" hidden></div><p id="applyHint" hidden>Only empty fields will be filled. A recovery backup is kept until the update is verified, then deleted. Writing can take time for large comics.</p><button id="apply" hidden>Approve issue and write metadata</button></dialog>
 <script>
+/* Engine-specific status only. No challenge URL or profile crosses this UI. */
+window.YandexControl = (() => {
+  const row = document.getElementById('yandexRow');
+  const status = document.getElementById('yandexStatus');
+  const button = document.getElementById('yandexVerification');
+  const help = document.getElementById('yandexHelp');
+  const phases = new Set(['idle','searching','required','queued','opening','open','verified','failed','unavailable','pausing','paused']);
+  let submitting = false, last = null, focusAfterVerification = false;
+  document.addEventListener('focusin', event => {
+    if (![button, status, document.body].includes(event.target)) focusAfterVerification = false;
+  });
+  const set = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  function deadline(epoch) {
+    const date = new Date(epoch * 1000);
+    return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString() : date.toLocaleString();
+  }
+  function paint(text, label = '', disabled = false) {
+    row.hidden = false;
+    set(status, 'Yandex web search: ' + text);
+    if (!label && (document.activeElement === button || (focusAfterVerification && document.activeElement === document.body))) {
+      status.focus({preventScroll: true});
+      focusAfterVerification = false;
+    }
+    button.hidden = !label;
+    button.disabled = disabled;
+    set(button, label);
+    const tooltip = label === 'Yandex window open' ? 'Complete verification in the Yandex window.' :
+      disabled ? 'Yandex verification has been requested. No further clicks are needed.' :
+      'Open the dedicated Yandex window to complete its verification.';
+    button.title = tooltip;
+    set(help, tooltip);
+  }
+  function unavailable() {
+    if (!last && row.hidden) return;
+    paint('Status unavailable. Waiting for the local service.', button.hidden ? '' : button.textContent, true);
+  }
+  function render(state, control = {}) {
+    if (!state || state.engine !== 'yandex' || !phases.has(state.phase)) {
+      if (last) unavailable();
+      return;
+    }
+    last = state;
+    if (control.requested || state.phase === 'paused' || state.phase === 'pausing') {
+      paint(control.phase === 'pausing' || state.phase === 'pausing' ? 'Pausing; closing the Yandex window safely.' : 'Paused. Resume processing to continue.');
+      return;
+    }
+    if (!state.alive) { unavailable(); return; }
+    const later = Number.isFinite(state.retry_at) && state.retry_at > Date.now() / 1000;
+    if (submitting || state.phase === 'queued') {
+      paint(submitting ? 'Verification queued. No further clicks needed.' : later ?
+        'Verification queued until ' + deadline(state.retry_at) + '.' : 'Verification queued until the current operation finishes.',
+        'Yandex verification queued', true);
+    } else if (state.phase === 'opening') paint('Opening the Yandex verification window.', 'Opening Yandex verification…', true);
+    else if (state.phase === 'open') paint('Complete Yandex verification in the browser window.', 'Yandex window open', true);
+    else if (state.human_verification) paint(state.phase === 'failed' ? (state.failure === 'open' ?
+      'The Yandex verification window could not open. Try again.' : 'Yandex verification did not finish. Open a new window when ready.') :
+      'Yandex needs your verification. Other processing continues.', state.phase === 'failed' ? 'Retry Yandex verification' : 'Open Yandex verification');
+    else if (state.phase === 'verified') paint(later ? 'Verification complete. Next search after ' + deadline(state.retry_at) + '.' : 'Verification complete. Automatic searches will continue.');
+    else if (state.phase === 'searching') paint('Searching.');
+    else if (state.availability === 'daily_budget_wait' && later) paint('Web search budget reached. Next search after ' + deadline(state.retry_at) + '.');
+    else if (state.availability === 'pacing_wait' && later) paint('Next search after ' + deadline(state.retry_at) + '.');
+    else if ((state.phase === 'unavailable' || state.availability === 'cooldown_wait') && later) paint('Yandex search unavailable. Retry after ' + deadline(state.retry_at) + '.');
+    else paint(state.phase === 'searching' ? 'Searching.' : 'Ready.');
+  }
+  function connect(request, refresh) {
+    button.onclick = async () => {
+      if (submitting || button.disabled || !last?.human_verification || !last.alive) return;
+      focusAfterVerification = document.activeElement === button;
+      submitting = true;
+      render(last);
+      try {
+        await request('yandex-verification', {engine: 'yandex'});
+        submitting = false;
+        await refresh();
+      } catch (_) { submitting = false; unavailable(); }
+    };
+  }
+  return {render, unavailable, connect};
+})();
+
 let offset=0,total=0,selected=null,issue=null,lastRows=null;
 const $=id=>document.getElementById(id);
 function error(e){$('error').textContent=e.message||String(e);$('error').style.display='block'}
 async function request(path,body){const response=await fetch('/api/'+path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||'Request failed');$('error').style.display='none';return data}
 function node(tag,text){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e}
-async function state(){try{const s=await request('state');$('roots').textContent=s.roots.length?s.roots.join(' · '):'No live folder configured.';$('progress').textContent='Manual scanner: '+s.job.message+' · '+s.job.visited+' checked · '+s.job.changed+' new or changed';$('scan').disabled=$('rescan').disabled=s.job.running;$('provider').textContent=s.online?'ComicVine configured. Lookups are cached and paced.':'ComicVine is not configured.';const totals=s.totals||{};$('comicCounter').textContent=(totals.updated||0).toLocaleString();$('presentCounter').textContent=(totals.metadata_and_synopsis||0).toLocaleString()+' / '+(totals.total||0).toLocaleString();$('missingCounter').textContent=(totals.needs_information||0).toLocaleString();for(const [id,key,label,status] of [['corruptedCount','corrupted','Corrupted','corrupted'],['conversionCount','conversion','Needs conversion','unsupported']]){const b=$(id),n=totals[key]||0;b.hidden=n===0;b.textContent=label+' · '+n.toLocaleString();b.onclick=()=>{$('status').value=status;offset=0;load()}}
-const count=Object.entries(s.counts).filter(([k])=>k!=='absent').reduce((n,[k,v])=>n+v,0);$('counts').replaceChildren(node('span',count+' live comics in the inventory'));if(wasRunning&&!s.job.running)await load();wasRunning=s.job.running}catch(e){error(e)}}
+function renderVersion(value){const badge=$('appVersion');const valid=typeof value==='string'&&/^v?[0-9]+[.][0-9]+[.][0-9]+$/.test(value);const version=valid?value.replace(/^v/,''):'';const text=valid?'v'+version:'Version unavailable';if(badge.textContent!==text)badge.textContent=text;badge.setAttribute('aria-label',valid?'App version '+version:text)}
+async function state(){try{const s=await request('state');renderVersion(s.version);$('roots').textContent=s.roots.length?s.roots.join(' · '):'No live folder configured.';$('progress').textContent='Manual scanner: '+s.job.message+' · '+s.job.visited+' checked · '+s.job.changed+' new or changed';$('scan').disabled=$('rescan').disabled=s.job.running;$('provider').textContent=s.online?'ComicVine configured. Lookups are cached and paced.':'ComicVine is not configured.';const totals=s.totals||{};$('comicCounter').textContent=(totals.updated||0).toLocaleString();$('presentCounter').textContent=(totals.metadata_and_synopsis||0).toLocaleString()+' / '+(totals.total||0).toLocaleString();$('missingCounter').textContent=(totals.needs_information||0).toLocaleString();for(const [id,key,label,status] of [['corruptedCount','corrupted','Corrupted','corrupted'],['conversionCount','conversion','Needs conversion','unsupported']]){const b=$(id),n=totals[key]||0;b.hidden=n===0;b.textContent=label+' · '+n.toLocaleString();b.onclick=()=>{$('status').value=status;offset=0;load()}}
+const count=Object.entries(s.counts).filter(([k])=>k!=='absent').reduce((n,[k,v])=>n+v,0);$('counts').replaceChildren(node('span',count+' live comics in the inventory'));if(wasRunning&&!s.job.running)await load();wasRunning=s.job.running}catch(e){renderVersion(null);error(e)}}
 let wasRunning=false,lastMetadataRevision=null;
 function showProviders(providers){
 const labels={comicvine:'ComicVine',metron:'Metron',gcd:'GCD',google_books:'Google Books',open_library:'Open Library',getcomics:'GetComics',darkhorse_catalog:'Dark Horse',image_catalog:'Image Comics',previews_catalog:'PREVIEWSworld'};
@@ -33,6 +115,7 @@ const throughput=perf.throughput;
 $('throughputStatus').textContent=throughput?'Last '+Math.max(1,Math.round(throughput.window_seconds/60))+' measured minutes: '+throughput.checks+' research checks · '+throughput.updated_comics+' comics updated ('+throughput.writes+' verified writes). Includes paused time; short samples are provisional.':'Throughput measurement starts with the next completed comic check.';
 $('timingRows').replaceChildren(...stages.filter(s=>!['Verified evidence reused','Synopsis accepted','Synopsis rejected'].includes(s.stage)).map(s=>{const tr=node('tr');tr.append(node('td',s.stage),node('td',s.calls),node('td',(s.seconds/Math.max(1,s.calls)).toFixed(1)),node('td',(s.seconds/60).toFixed(1)));return tr}));
 processingControl=p.control||{};
+YandexControl.render(p.providers?.free_web?.engines?.yandex?.verification,processingControl);
 $('pauseControl').textContent=processingControl.requested?'Resume processing':'Pause & release GPU';
 $('controlStatus').textContent=processingControl.phase==='pausing'?'Pausing — finishing the current operation. Progress is saved.':processingControl.requested?(processingControl.gpu_released?'Paused — Gemma released from GPU. Progress saved.':processingControl.error||'Workers paused — releasing Gemma from GPU…'):'Processing enabled';
 if(lastMetadataRevision!==p.timestamp){lastMetadataRevision=p.timestamp;await load()}
@@ -56,9 +139,10 @@ const unresolved=(r.wiki_candidates_found||0)+(r.needs_identity_lookup||0)+(r.id
 $('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' folders checked this pass'+(f.inventory_pending?' · discovering folders ('+(f.directories_visited||0)+' directories visited)':'')+' · '+unresolved+' comics still need research · '+(p.cover_research?.pending||0)+' browser cover searches queued. A checked folder is not a completeness guarantee.';
 $('completedBatches').replaceChildren(...(p.completed||[]).map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));
 $('updatedAt').textContent=p.timestamp?'Last activity: '+new Date(p.timestamp).toLocaleString():'';
-}catch(e){$('queueStatus').textContent='Cannot reach the local service';$('liveProgress').textContent='Status unavailable';}}
+}catch(e){YandexControl.unavailable();$('queueStatus').textContent='Cannot reach the local service';$('liveProgress').textContent='Status unavailable';}}
 browserResume.onclick=async()=>{browserResume.disabled=true;browserResume.textContent='Opening verification…';try{await request('browser-resume',{});await progress()}catch(e){browserResume.disabled=false;browserResume.textContent='Open browser verification';error(e)}};
 let processingControl={};
+YandexControl.connect(request,progress);
 $('pauseControl').onclick=async()=>{const button=$('pauseControl');button.disabled=true;try{await request(processingControl.requested?'resume':'pause',{});await progress()}catch(e){error(e)}finally{button.disabled=false}};
 async function load(){try{
 const d=await request('comics?q='+encodeURIComponent($('query').value)+'&status='+encodeURIComponent($('status').value)+'&offset='+offset);total=d.total;
