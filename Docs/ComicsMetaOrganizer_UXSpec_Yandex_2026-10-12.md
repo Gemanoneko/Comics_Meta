@@ -22,6 +22,7 @@ The backend supplies authoritative engine-specific state. The UI never treats a 
 |---|---|---|
 | Ready / idle | `Ready.` | Hidden. |
 | Normal search in flight | `Searching.` | Hidden. |
+| Ordinary shared pacing wait, with no search or verification currently in flight | `Next search after {local date/time}.` | Hidden. The authoritative future deadline applies even when the lifecycle phase is idle. |
 | Human verification required | `Yandex needs your verification. Other processing continues.` | `Open Yandex verification`, enabled. |
 | Click submitted / queued | `Verification queued. No further clicks needed.` | `Yandex verification queued`, disabled immediately, before awaiting the response. |
 | Queued behind a current operation | `Verification queued until the current operation finishes.` | Same queued button, disabled. |
@@ -34,12 +35,14 @@ The backend supplies authoritative engine-specific state. The UI never treats a 
 | Shared budget wait | `Web search budget reached. Next search after {local date/time}.` | Hidden unless a previously submitted verification is still queued, in which case show the queued state. |
 | Verification failed / timed out / user closed the window before completion | `Yandex verification did not finish. Open a new window when ready.` | `Retry Yandex verification`, enabled while a genuine challenge is still pending. |
 | Could not open the window | `The Yandex verification window could not open. Try again.` | `Retry Yandex verification`, enabled when the request is no longer pending. |
-| Ordinary search failure / cooldown | `Yandex search unavailable. Retry after {local date/time}.` | Hidden. An unavailable browser or missing result cards must not be mislabeled human verification. |
+| Ordinary search failure / cooldown, including an idle phase with a saved engine hold | `Yandex search unavailable. Retry after {local date/time}.` | Hidden. An unavailable browser or missing result cards must not be mislabeled human verification. |
 | Global pause requested | `Pausing; closing the Yandex window safely.` | Hidden. |
 | Globally paused | `Paused. Resume processing to continue.` | Hidden. |
 | Local status unavailable | `Status unavailable. Waiting for the local service.` | Disable any visible action; do not launch from a stale state. |
 
 Do not show technical exception text, challenge URLs, queries, local paths, profile paths, credentials, or raw internal state names in these strings. A verified state is shown once through the ordinary status paragraph, then yields to the next truthful engine state.
+
+2026-10-12 review amendment: lifecycle `idle` does not override an authoritative future pacing/cooldown deadline. Show the corresponding wait above; reserve `Ready.` for an engine with no applicable wait. Keep ordinary pacing copy separate from `Verification complete. Next search after {local date/time}.`, which requires confirmed verification success.
 
 ## User action and interruption rules
 
