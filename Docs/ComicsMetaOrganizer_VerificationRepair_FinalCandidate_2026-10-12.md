@@ -6,7 +6,7 @@ Ender, 2026-10-12. Final verification complete; independent Futaba QA, Senua rev
 
 - Baseline HEAD: `e197f97bc77adb5154fed8bbe364bea9212a0957`; candidate VERSION: `0.1.1`; working source dirty as expected.
 - Evidence root: `data/verification-click-evidence-2026-10-12/`.
-- Immutable snapshot: `scratch/verification-click-2026-10-12/candidate-final-v2/`.
+- Immutable snapshot: `scratch/verification-click-2026-10-12/candidate-final-v2/`. That folder was removed by the 14:33 shared cleanup (`data/verification-click-evidence-2026-10-12/SHARED_CLEANUP_RECEIPT.md`). Its content is preserved in `data/verification-click-evidence-2026-10-12/shared-qa-reconstruction-2026-10-12.zip` as entries `scratch/candidate-final-v2/…`, mapped in `data/verification-click-evidence-2026-10-12/shared-qa-reconstruction-index.json`.
 - Complete source manifest: `candidate-final-v2-manifest.json`, SHA256 `9ed37fff47dda418d539e85736605059e2d1a2a308e8064d5e68abe7b110a80d`.
 - Exact 14-file patch: `final-v2.patch`, SHA256 `794c647ec7317bd5fc52152264cd8cdb075cc12afec2b300abacd59d1a1ec3d1`.
 - Final identity and receipt index: `final-v2-identity.json`, SHA256 `38af62ae4926ed0895277908a8b19e535140bc55974781636c79931e698abbd5`.
