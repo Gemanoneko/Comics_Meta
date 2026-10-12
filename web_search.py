@@ -65,7 +65,9 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         if name:publisher_catalogs.reserve(name)
         return super().redirect_request(req,fp,code,msg,headers,newurl)
 
-def read(url,headers=None,binary=False):
+def read(url,headers=None,binary=False,mark_failures=True):
+    """Bounded public read. mark_failures=False (a candidate's cover image)
+    still obeys provider pacing, but a failed image never blocks a provider."""
     validate_url(url)
     import getcomics
     limited=getcomics.is_host(url)
@@ -94,6 +96,7 @@ def read(url,headers=None,binary=False):
     except ProviderDeferred:
         raise
     except Exception as exc:
+        if not mark_failures:raise ValueError('Candidate image unavailable.') from None
         if limited:getcomics.mark('access_blocked',True)
         if catalog:
             publisher_catalogs.mark(catalog,'unavailable')

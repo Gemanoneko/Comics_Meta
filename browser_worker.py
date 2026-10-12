@@ -30,6 +30,71 @@ def locked():
     return handle
 
 
+# Dashboard text while a search is held (Judy's string review, 2026-10-12).
+# A human check shows the cooldown text too: solving it clears the check, not
+# the one-hour hold, and the dashboard's verification control names the check.
+HELD_COOLING_DOWN='Google Lens is cooling down. Queued covers keep their place; searching resumes automatically.'
+HELD_DAILY_LIMIT='Daily Google Lens search limit reached. Queued covers keep their place; searching resumes when the limit resets.'
+FALLBACK_FAILED='SerpApi request failed; check account availability.'
+# Explicit search outcomes. A search that never ran is a Held value, not a result.
+SEARCHED='searched'  # Ran; its result, even an empty one, counts.
+FAILED='failed'      # Started and broke; the usual one-day wait applies.
+SEARCHABLE=('searching','pending','retry_wait','leads_unverified')
+
+
+class Held:
+    """A search that never ran: the task keeps its state, queue place and wait."""
+    def __init__(self,reason,dashboard,until):
+        self.reason=reason;self.dashboard=dashboard;self.until=until
+
+
+def next_utc_day(now):
+    """Start of the next UTC day, when the daily search count resets."""
+    return (int(now//86400)+1)*86400
+
+
+def lens_attempt(row,browser,data,options):
+    """One Google Lens search: (SEARCHED, leads), (FAILED, None) or (Held, None)."""
+    state=search.status()
+    retry_at=state.get('browser_retry_at',0)
+    if retry_at>time.time():
+        # Observing an existing cooldown is not another failed request.
+        reason='Google Lens needs human verification.' if state.get('human_verification') else 'Google Lens is cooling down.'
+        return Held(reason,HELD_COOLING_DOWN,retry_at),None
+    try:
+        try:search.reserve('browser',int(options.get('daily_request_limit',100)),datetime.now(timezone.utc).strftime('%Y-%m-%d'))
+        except ValueError:
+            # The daily cap is not a browser failure: no cooldown, no error text.
+            return Held('Daily Google Lens search limit reached.',HELD_DAILY_LIMIT,next_utc_day(time.time())),None
+        leads=browser.search(data)
+    except pause_control.PauseRequested:raise
+    except search.HumanVerification as exc:
+        until=time.time()+3600
+        # The comic whose search hit the check receives the results page
+        # Google loads once the check is solved. Never exposed by the API.
+        search.status(human_verification=True,verification_state='required',verification_url=exc.url,
+                      verification_task={'path':row['path'],'size':row['size'],'mtime':row['mtime']},browser_retry_at=until)
+        return Held('Google Lens asked for human verification.',HELD_COOLING_DOWN,until),None
+    except Exception:
+        # Only a new failure starts the usual wait.
+        search.status(browser_retry_at=time.time()+3600,browser_error='Browser search could not finish; retrying after a cooldown.')
+        return FAILED,None
+    search.status(human_verification=False,verification_url='',verification_task={},browser_retry_at=0,browser_error='')
+    return SEARCHED,leads
+
+
+def fallback_attempt(data,options):
+    """Optional SerpApi search: (SEARCHED, leads), or (reason, None) when it could not run."""
+    try:leads=search.serpapi_search(data,options)
+    except ValueError as exc:
+        search.status(fallback_detail=str(exc));return str(exc),None
+    except Exception:
+        # A local failure (locked database, unreadable key file) is not a search either.
+        search.status(fallback_detail=FALLBACK_FAILED);return FALLBACK_FAILED,None
+    search.status(fallback_detail='')
+    return SEARCHED,leads
+
+
 def process(row,browser,options):
     if pause_control.requested():
         cover_tasks.finish(row,'pending','Paused; search remains queued.');return
@@ -46,50 +111,18 @@ def process(row,browser,options):
     if task and task[0]=='not_needed':return
     search.status(state='searching',current=path.name,detail='Searching the cover; candidate links will be verified before any metadata write.')
     data=search.cover_bytes(path);key,leads=search.cached(data)
-    provider='cache'
-    # A search that never ran is not an empty result. These reasons keep the
-    # task in place (same queue position and retry wait) until the hold ends.
-    blocked=None;fallback_blocked=None;searched=False;failed=False
+    provider='cache';lens=None;fallback=None
     if leads is None:
-        state=search.status()
         provider='browser'
-        retry_at=state.get('browser_retry_at',0)
-        if retry_at>time.time():
-            # Observing an existing cooldown is not another failed request.
-            blocked=('Google Lens needs human verification.' if state.get('human_verification')
-                     else 'Google Lens is cooling down.')
-        else:
-            try:
-                try:search.reserve('browser',int(options.get('daily_request_limit',100)),datetime.now(timezone.utc).strftime('%Y-%m-%d'))
-                except ValueError:
-                    blocked='Daily Google Lens search limit reached.'
-                    raise
-                leads=browser.search(data);searched=True
-                search.status(human_verification=False,verification_url='',verification_task={},browser_retry_at=0,browser_error='')
-            except pause_control.PauseRequested:
-                cover_tasks.finish(row,'pending','Paused; search remains queued.');return
-            except search.HumanVerification as exc:
-                blocked='Google Lens asked for human verification.'
-                # The comic whose search hit the check receives the results page
-                # Google loads once the check is solved. Never exposed by the API.
-                search.status(human_verification=True,verification_state='required',verification_url=exc.url,
-                              verification_task={'path':row['path'],'size':row['size'],'mtime':row['mtime']},browser_retry_at=time.time()+3600)
-                leads=None
-            except Exception:
-                # Only a new failure starts the usual wait.
-                if not blocked:failed=True
-                search.status(browser_retry_at=time.time()+3600,browser_error='Browser search could not finish; retrying after a cooldown.')
-                leads=None
+        try:lens,leads=lens_attempt(row,browser,data,options)
+        except pause_control.PauseRequested:
+            cover_tasks.finish(row,'pending','Paused; search remains queued.');return
         if not leads and options.get('serpapi_fallback'):
             if pause_control.requested():
                 cover_tasks.finish(row,'pending','Paused; search remains queued.');return
             provider='serpapi'
-            try:
-                leads=search.serpapi_search(data,options);searched=True
-                search.status(fallback_detail='')
-            except ValueError as exc:
-                fallback_blocked=str(exc)
-                search.status(fallback_detail=str(exc))
+            fallback,found=fallback_attempt(data,options)
+            if fallback==SEARCHED:leads=found
         if leads:search.save_cache(key,leads)
     # Archive bytes may have changed while the browser was running.
     stat=path.stat()
@@ -99,19 +132,21 @@ def process(row,browser,options):
         task=con.execute('SELECT state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
     if task and task[0]=='not_needed':return
     if leads:
-        cover_tasks.record(row,leads)
+        # The state check and the write share one transaction: a source that
+        # verified identity meanwhile is never overwritten.
+        if not cover_tasks.record(row,leads,states=SEARCHABLE):return
         search.status(state='candidates_saved',provider=provider,detail=str(len(leads))+' candidate links saved for automatic identity verification.')
-    elif searched:
+    elif SEARCHED in (lens,fallback):
         cover_tasks.finish(row,'retry_wait','No usable cover-search candidates; retry after one day.')
         search.status(state='waiting',detail='No usable candidates for this cover. Continuing with other comics.')
-    elif failed or not blocked:
+    elif not isinstance(lens,Held):
         cover_tasks.finish(row,'retry_wait','Cover search could not finish; retry after one day.')
         search.status(state='waiting',detail='Cover search could not finish. Continuing with other comics.')
     else:
-        fallback=' SerpApi fallback unavailable: '+fallback_blocked if fallback_blocked else ''
-        cover_tasks.release(row,blocked+fallback+' Not searched; kept in its queue place until this clears.')
-        search.status(state='waiting',detail=blocked+' Queued covers keep their place; searching resumes when this clears.')
-        return max(search.status().get('browser_retry_at',0),time.time())
+        unavailable=' SerpApi fallback unavailable: '+fallback if fallback else ''
+        cover_tasks.release(row,lens.reason+unavailable+' Not searched; kept in its queue place until this clears.')
+        search.status(state='waiting',detail=lens.dashboard)
+        return max(lens.until,time.time())
 
 
 def wait_for_work(seconds):

@@ -129,6 +129,12 @@ def result_leads(page):
     return normalize_links(page.locator('a[href]').evaluate_all(RESULT_LINKS))
 
 
+# A post-solve redirect settles within seconds. Errors that keep coming for
+# longer than this are a broken page, reported with their error class.
+TRANSIENT_ERROR_LIMIT=30
+TRANSIENT_ERROR_SECONDS=60
+
+
 def transient_page_error(page,exc):
     """A page read interrupted by navigation, not a failed verification.
 
@@ -239,13 +245,18 @@ class LensBrowser:
         admitted();observation('observe')
         self.verified_leads=[]
         deadline=time.monotonic()+600
+        errors=0;first_error=None
         while time.monotonic()<deadline:
             admitted();self.page.wait_for_timeout(500);admitted()
             try:done=verification_complete(self.page)
             except Exception as exc:
                 # The post-solve redirect can interrupt a probe; keep observing.
                 if not transient_page_error(self.page,exc):raise
+                errors+=1
+                if first_error is None:first_error=time.monotonic()
+                if errors>=TRANSIENT_ERROR_LIMIT or time.monotonic()-first_error>=TRANSIENT_ERROR_SECONDS:raise
                 continue
+            errors=0;first_error=None
             if done:
                 # Keep the browser the user just verified, including its session.
                 self.verified_leads=self.verified_page_leads(admitted)
@@ -270,6 +281,12 @@ class LensBrowser:
                 import pause_control
                 if isinstance(exc,pause_control.PauseRequested):raise
                 if not transient_page_error(self.page,exc) or time.monotonic()>=deadline:return []
+                time.sleep(.5)  # Let the redirect settle instead of re-reading at once.
+
+    def alive(self):
+        """The browser window is still open; the user may have closed it."""
+        try:return self.context is not None and getattr(self,'page',None) is not None and not self.page.is_closed()
+        except Exception:return False
 
     def minimize(self):
         """Keep the verified browser session intact while hiding its window."""

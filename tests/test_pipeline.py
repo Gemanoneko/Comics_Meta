@@ -3,12 +3,19 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import app
 import scheduler
 import web_search
 import research
 from test_worker import scratch_directory
 
 class PipelineTests(unittest.TestCase):
+    def setUp(self):
+        # Catalog and evidence go to isolated folders, never the checkout's data/.
+        root=Path(self.enterContext(scratch_directory()))
+        self.enterContext(patch.object(app,'DATA',root/'data'))
+        self.enterContext(patch.object(research,'CACHE',root/'research'))
+
     def test_large_inventory_can_process_before_traversal_finishes_and_resume(self):
         with scratch_directory() as d:
             root=Path(d)

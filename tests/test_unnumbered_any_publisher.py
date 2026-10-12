@@ -30,11 +30,15 @@ MILKMAN_PAGE={
 
 class UnnumberedAnyPublisherTests(unittest.TestCase):
     def setUp(self):
+        # Evidence writes take the catalog lock; keep it out of the checkout's data/.
+        self.enterContext(patch.object(app,'DATA',Path(self.enterContext(scratch_directory()))/'data'))
         self.row={'path':'Dark Horse/The Milkman Murders (2012).cbz','series':'The Milkman Murders','number':'','year':'2012'}
         self.old={'Writer':'Joe Casey','Penciller':'Steve Parkhouse'}
         self.read=self.enterContext(patch.object(web_search,'read',return_value=b'remote cover'))
         self.enterContext(patch('reverse_image.cover',return_value=(b'local cover','','')))
         self.agree=self.enterContext(patch('automatic.covers_agree',return_value=True))
+        # The page names a hardcover; the local archive is book-length, not a single issue.
+        self.pages=self.enterContext(patch.object(research,'archive_pages',return_value=120))
 
     def verify(self,row=None,old=None,page=None,hint=None,require_cover=True):
         return research.verify_web_source(row or self.row,self.old if old is None else old,page or MILKMAN_PAGE,hint,require_cover=require_cover)
@@ -76,7 +80,12 @@ class UnnumberedAnyPublisherTests(unittest.TestCase):
         for title in ('The Milkman Murders #1','Milkman','The Milkman Murders Returns','Milkman Murders Vol. 2'):
             page=dict(MILKMAN_PAGE,title=title,headings=[])
             self.assertIsNone(self.verify(page=page),title)
-        self.assertIsNotNone(self.verify(page=dict(MILKMAN_PAGE,title='Example Catalog - The Milkman Murders (2012)',headings=[])))
+        # A page with no book format: the title still matches, but only a file
+        # that says it is a book (here "HC" in its name) takes the book route.
+        plain=dict(MILKMAN_PAGE,title='Example Catalog - The Milkman Murders (2012)',headings=[])
+        self.assertTrue(research.title_matches(plain['title'],'The Milkman Murders'))
+        self.assertIsNone(self.verify(page=plain))
+        self.assertIsNotNone(self.verify(row=dict(self.row,path='Dark Horse/The Milkman Murders HC (2012).cbz'),page=plain))
 
     def test_year_must_still_agree(self):
         self.assertIsNone(self.verify(page=dict(MILKMAN_PAGE,identity_text=MILKMAN_PAGE['identity_text'].replace('2012','2004'))))
@@ -123,7 +132,10 @@ class MilkmanDiscoveryTests(unittest.TestCase):
         self.enterContext(patch.object(app,'live_root',return_value=str(self.root)))
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
         self.folder=self.root/'Dark Horse';self.folder.mkdir()
-        self.path=self.folder/'The Milkman Murders (2012).cbz';self.path.write_bytes(b'isolated fixture')
+        self.path=self.folder/'The Milkman Murders (2012).cbz'
+        import zipfile
+        with zipfile.ZipFile(self.path,'w') as archive:  # A book-length archive (placeholder pages).
+            for page in range(60):archive.writestr('%03d.jpg'%page,b'isolated fixture page')
         stat=self.path.stat();self.signature=[stat.st_size,stat.st_mtime_ns]
         import discovery_state
         with app.db() as con:

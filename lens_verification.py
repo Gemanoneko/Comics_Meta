@@ -161,7 +161,11 @@ def service(browser,options):
         if browser is None:browser=search.LensBrowser(options)
         success=browser.human_session(retained.get('verification_url',''),admitted,observation)
         admitted()
-        if success:window='minimized' if browser.minimize() else 'open'
+        if success and browser.alive():window='minimized' if browser.minimize() else 'open'
+        elif success:
+            # Closed after the check was solved: the solved session stays in the
+            # profile, and the next search starts a new browser from it.
+            browser.close();window='closed'
     except pause_control.PauseRequested:success=False;failure='interrupted'
     except BaseException as exc:
         success=False;error_class=type(exc).__name__;failure='load' if stage=='load' else 'unfinished' if opened else 'open'

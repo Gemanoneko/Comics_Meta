@@ -399,8 +399,8 @@ class FreeResearchTests(unittest.TestCase):
         def search(query,free_only=False,engine=None):
             queries.append((query,engine));return [{'url':wrong['url'] if engine=='ddg' else exact['url']}]
         actual=research.verify_web_source
-        def verify(row,old,source,cover_hint=None):
-            covers.append(cover_hint);return actual(row,old,source,cover_hint)
+        def verify(row,old,source,cover_hint=None,**options):
+            covers.append(cover_hint);return actual(row,old,source,cover_hint,**options)
         hint={'search_query':'Keep this hint for matching; do not submit another query'}
         with patch.object(web,'search',side_effect=search),patch.object(web,'source',side_effect=lambda url:wrong if url==wrong['url'] else exact),patch.object(research,'verify_web_source',side_effect=verify):
             self.assertIsNotNone(research.general_lookup(self.row,self.old,hint))

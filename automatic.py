@@ -38,6 +38,16 @@ def unique_volume(candidates, series, publisher):
                and publisher and normalized((v.get('publisher') or {}).get('name')) == normalized(publisher)]
     return matches[0] if len(matches) == 1 else None
 
+def detailed(grey):
+    """At least 5% of a 32x48 thumbnail differs clearly from its dominant tone.
+
+    Near-blank covers (a flat field with a small mark) agree with any other
+    near-blank cover, so they can never verify a match.
+    """
+    middle=sorted(grey)[len(grey)//2]
+    return sum(abs(v-middle)>32 for v in grey)>=.05*len(grey)
+
+
 def covers_agree(local, remote):
     from PIL import Image, ImageChops, ImageStat, ImageOps
     with Image.open(io.BytesIO(local)) as a, Image.open(io.BytesIO(remote)) as b:
@@ -45,6 +55,7 @@ def covers_agree(local, remote):
             return False
         grey_a=list(a.convert('L').resize((32,48)).tobytes())
         grey_b=list(b.convert('L').resize((32,48)).tobytes())
+        if not detailed(grey_a) or not detailed(grey_b):return False
         a = ImageOps.autocontrast(a.convert('RGB').resize((96, 144)))
         b = ImageOps.autocontrast(b.convert('RGB').resize((96, 144)))
         if sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3 < 12:return True
@@ -193,8 +204,15 @@ def discover(root,coverage_only=False):
             issue = None
             batch.progress(phase='Automatic metadata lookup', detail='ComicVine lookup failed; trying publisher catalog for '+path.name)
         hint = None
+        identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
+        # A ComicVine issue that disagrees with the embedded series/number is
+        # not an identity: every other source is still searched, as for an
+        # unidentified comic. Writes keep their own verification; the conflict
+        # outcome below still blocks metadata-field plans as before.
+        conflict = bool(issue) and not identity_matches(identity, issue)
+        found = None if conflict else issue
         if external:outcome='web_issue_found'
-        if (not issue or not old.get('Summary')) and not external:
+        if (not found or not old.get('Summary')) and not external:
             import providers, open_library, getcomics, publisher_catalogs, metron
             attempts=[]
             def completed(name,result,exc):
@@ -220,7 +238,7 @@ def discover(root,coverage_only=False):
                 research.save_evidence(path,external)
                 outcome='web_issue_found'
             research.save_evidence(path,{'provider_attempts':attempts})
-        if not issue:
+        if not found:
             try:
                 with research_runtime.stage('Publisher research'):
                     publisher = research.publisher_lookup(row, old) if not external else None
@@ -229,7 +247,7 @@ def discover(root,coverage_only=False):
                     research.save_evidence(path,external)
                     outcome = 'publisher_issue_found'
                     fields = {k:v for k,v in external['fields'].items() if not old.get(k)}
-                    if fields:
+                    if fields and not conflict:
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
                         target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
@@ -266,8 +284,8 @@ def discover(root,coverage_only=False):
                 import cover_tasks
                 cover_tasks.enqueue(row)
         from html import unescape
-        issue_text=unescape(re.sub('<[^>]+>',' ',(issue or {}).get('description') or ''))
-        if issue and not external and not old.get('Summary') and not source_scheduling.useful({'sources':[{'text':issue_text}]},old):
+        issue_text=unescape(re.sub('<[^>]+>',' ',(found or {}).get('description') or ''))
+        if found and not external and not old.get('Summary') and not source_scheduling.useful({'sources':[{'text':issue_text}]},old):
             # A verified API ID with no synopsis must not shadow free sources.
             external,_=free_fallback(row,old,hint,source_schedule,source_statuses,completed)
             if external:

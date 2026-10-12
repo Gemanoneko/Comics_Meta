@@ -31,23 +31,40 @@ def enqueue(row):
         con.execute('INSERT OR REPLACE INTO cover_tasks VALUES(?,?,?,?,?)',(row['path'],signature,'pending',time.time(),'Browser reverse-image research queued; no metadata write authorized.'))
 
 
-def record(row,leads):
-    import research,storage
+def record(row,leads,states=None,merge=False):
+    """Save search leads as unverified evidence and mark the task leads_found.
+
+    With states, the task's current state and archive signature are checked in
+    the same transaction as the write, so a task another source resolved in the
+    meantime is never overwritten (returns 0). merge keeps earlier leads saved
+    for the same archive instead of replacing them.
+    """
+    import research
+    from pathlib import Path
     safe=[]
     for lead in leads[:10]:
         url=lead.get('url','');p=urllib.parse.urlparse(url)
         if p.scheme!='https' or not p.hostname or p.username or p.password:continue
         safe.append({'url':url,'title':str(lead.get('title',''))[:300]})
     if not safe:raise ValueError('At least one public HTTPS candidate is required.')
-    research.save_evidence(row['path'],{'reverse_image_matches':safe,'reverse_image_status':'candidate_needs_verification','reverse_image_signature':[row['size'],row['mtime']]})
+    signature=[row['size'],row['mtime']]
     with app.db() as con:
-        table(con)
-        con.execute('INSERT OR REPLACE INTO cover_tasks VALUES(?,?,?,?,?)',(row['path'],json.dumps([row['size'],row['mtime']]),'leads_found',time.time(),'Search candidates saved; automatic identity verification pending.'))
-    # Discovery owns folders.json. The separate browser process requests a retry
-    # through SQLite rather than racing a whole-file scheduler update.
-    from pathlib import Path
-    with app.db() as con:
-        table(con)
+        table(con);con.execute('BEGIN IMMEDIATE')
+        if states is not None:
+            current=con.execute('SELECT signature,state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
+            if not current or json.loads(current[0])!=signature or current[1] not in states:return 0
+        matches=safe
+        if merge:
+            previous=research.read_evidence(row['path'])
+            if previous.get('reverse_image_signature')==signature:
+                seen={lead['url'] for lead in safe}
+                matches=safe+[lead for lead in previous.get('reverse_image_matches') or [] if isinstance(lead,dict) and lead.get('url') not in seen]
+                matches=matches[:10]
+        # Evidence and task are written under one lock (save_evidence's lock).
+        research.merge_evidence(row['path'],{'reverse_image_matches':matches,'reverse_image_status':'candidate_needs_verification','reverse_image_signature':signature})
+        con.execute('INSERT OR REPLACE INTO cover_tasks VALUES(?,?,?,?,?)',(row['path'],json.dumps(signature),'leads_found',time.time(),'Search candidates saved; automatic identity verification pending.'))
+        # Discovery owns folders.json. The separate browser process requests a retry
+        # through SQLite rather than racing a whole-file scheduler update.
         con.execute('INSERT OR IGNORE INTO cover_retries VALUES(?)',(str(Path(row['path']).parent),))
     return len(safe)
 
@@ -116,11 +133,10 @@ def record_verified_page(task,leads):
         stat=Path(key).stat()
     except (KeyError,TypeError,ValueError,OSError):return 0
     if [stat.st_size,stat.st_mtime_ns]!=signature:return 0
-    with app.db() as con:
-        table(con)
-        current=con.execute('SELECT signature,state FROM cover_tasks WHERE path=?',(key,)).fetchone()
-    if not current or json.loads(current[0])!=signature or current[1] not in ('pending','retry_wait','leads_unverified'):return 0
-    try:return record({'path':key,'size':signature[0],'mtime':signature[1]},leads)
+    # Checked and written in one transaction; earlier leads for this archive
+    # are kept, so a late or stale results page never replaces them.
+    try:return record({'path':key,'size':signature[0],'mtime':signature[1]},leads,
+                      states=('pending','retry_wait','leads_unverified'),merge=True)
     except ValueError:return 0
 
 

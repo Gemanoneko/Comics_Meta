@@ -83,7 +83,10 @@ class LensSkipTests(unittest.TestCase):
         hold=worker.process(self.claim_first(),self.browser,self.options)
         self.browser.search.assert_not_called()
         self.assert_kept_in_place('Daily Google Lens search limit reached.')
-        self.assertGreater(hold,self.now+3000)  # Re-checked after the existing one-hour hold.
+        # Held until the next UTC day, when the count resets; no Lens cooldown.
+        self.assertEqual(hold%86400,0)
+        self.assertTrue(self.now<hold<=self.now+86400)
+        self.assertEqual(browser_search.legacy_status().get('browser_retry_at',0),0)
 
     def test_google_robot_check_skip_keeps_queue_position_and_remembers_task(self):
         self.browser.search.side_effect=browser_search.HumanVerification('https://www.google.com/sorry/index?continue=fixture')

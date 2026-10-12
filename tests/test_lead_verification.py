@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import app
 import research,web_search
 import io
 from test_worker import scratch_directory
@@ -9,6 +10,8 @@ from test_worker import scratch_directory
 
 class LeadVerificationTests(unittest.TestCase):
     def setUp(self):
+        # Evidence writes take the catalog lock; keep it out of the checkout's data/.
+        self.enterContext(patch.object(app,'DATA',Path(self.enterContext(scratch_directory()))/'data'))
         self.row={'path':'Lady Death & Shi (Avatar)/comic.cbz','series':'Lady Death & Shi','number':'1','year':'2007'}
         self.source={'url':'https://example.org/issue','title':'Lady Death / Shi (2007) #1 - Details','text':'Story premise','identity_text':'Avatar Press 2007','image':'https://example.org/cover.jpg'}
 
