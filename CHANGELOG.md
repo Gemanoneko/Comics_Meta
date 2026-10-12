@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- In progress for `0.1.1`: serialize dashboard polling and bound progress-response history while preserving stored history, so slow progress requests do not overlap.
+- In progress: acknowledge Google Lens verification requests promptly with durable request states, and name Google Lens explicitly in verification labels.
+- Implementation, QA and deployment are pending. The specific native cause of the reported verification-window failure remains unproven; this entry does not claim the issue is fixed or the running service updated.
+
 ## [v0.1.0] - 2026-10-12
 
 ### Added
