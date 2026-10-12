@@ -83,7 +83,10 @@ class IdentityConflictSearchTests(unittest.TestCase):
         enqueue.assert_not_called()  # No metadata-field plan while ComicVine disagrees.
 
     def test_positive_control_the_same_lead_is_written_without_a_conflict(self):
-        enqueue,record,task=self.discover(leads=self.VERIFIED,issue={})  # ComicVine returned nothing.
+        with app.db() as con:  # No ComicVine issue in Web, so nothing to conflict with.
+            con.execute('UPDATE comics SET metadata=? WHERE path=?',
+                        (json.dumps({k:v for k,v in self.old.items() if k!='Web'}),str(self.path)))
+        enqueue,record,task=self.discover(leads=self.VERIFIED,issue={})
         self.assertEqual(record['outcome'],'queued')
         entry=json.loads(enqueue.call_args.args[0].read_text(encoding='utf-8'))['entries'][0]
         self.assertEqual(entry['fields']['Publisher'],'Example Press')

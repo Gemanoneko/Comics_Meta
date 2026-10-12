@@ -141,7 +141,14 @@ class ConflictSummaryDiscoveryTests(unittest.TestCase):
         self.assertEqual(self.leads.call_count,2)  # Saved leads, then wiki leads.
         self.assertEqual(self.strict_flags(),{True})
 
+    def without_web(self):
+        """No ComicVine issue in Web, so nothing to conflict with."""
+        with app.db() as con:
+            con.execute('UPDATE comics SET metadata=? WHERE path=?',
+                        (json.dumps({k:v for k,v in self.old.items() if k!='Web'}),str(self.path)))
+
     def test_positive_control_routes_are_not_strict_without_a_conflict(self):
+        self.without_web()
         self.discover(issue={})
         self.assertEqual(self.strict_flags(),{False})
 
@@ -151,6 +158,7 @@ class ConflictSummaryDiscoveryTests(unittest.TestCase):
         self.assertEqual(outcome,'identity_conflict')        # Before: 'queued', hidden from the unresolved count.
 
     def test_positive_control_the_same_source_is_queued_without_a_conflict(self):
+        self.without_web()
         outcome,fields=self.discover(issue={},web_result=self.WEB_RESULT)
         self.assertEqual(outcome,'queued')
         self.assertEqual(fields['Publisher'],'Example Press')

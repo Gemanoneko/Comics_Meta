@@ -289,9 +289,6 @@ def comicvine_event(status, **details):
 
 
 def api(resource, **params):
-    key = api_key()
-    if not key:
-        raise ProviderDeferred('Set COMICVINE_API_KEY before starting the app to enable online lookup.','comicvine')
     params['format'] = 'json'
     cache_key = resource + '?' + urllib.parse.urlencode(sorted(params.items()))
     with API_LOCK:
@@ -300,6 +297,11 @@ def api(resource, **params):
                                  (cache_key, time.time() - 30 * 86400)).fetchone()
         if cached:
             return json.loads(cached['value'])
+        # The cache needs no key: a missing key must not hide a cached answer,
+        # such as an identity conflict (F16).
+        key = api_key()
+        if not key:
+            raise ProviderDeferred('Set COMICVINE_API_KEY before starting the app to enable online lookup.','comicvine')
         # Shared SQLite reservations survive restarts and coordinate app processes.
         delay = reserve_request()
         while delay:

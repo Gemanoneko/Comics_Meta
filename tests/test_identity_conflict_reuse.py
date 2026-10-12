@@ -98,13 +98,23 @@ class IdentityConflictReuseTests(unittest.TestCase):
         self.assertEqual(issue_calls,['issue/4000-123'])  # Re-checked; served from the 30-day API cache in production.
 
     def test_positive_control_reused_evidence_still_writes_without_a_conflict(self):
-        # ComicVine returned nothing: no conflict, so the reused lead may still fill empty fields.
+        # No ComicVine issue in Web: no conflict, so the reused lead may still fill empty fields.
+        with app.db() as con:
+            con.execute('UPDATE comics SET metadata=? WHERE path=?',
+                        (json.dumps({k:v for k,v in self.old.items() if k!='Web'}),str(self.path)))
         outcome,fields,_,_=self.discover(leads=VERIFIED,issues={})
         self.assertEqual(outcome,'queued')
         outcome,fields,_,lead_lookups=self.discover(leads=None,issues={})
         self.assertEqual(lead_lookups,0)
         self.assertEqual(outcome,'queued')
         self.assertEqual(fields['Publisher'],'Example Press')
+
+    def test_empty_comicvine_answer_for_the_web_issue_holds_field_writes(self):
+        # F16: an answer that names no issue cannot confirm the identity Web names.
+        outcome,fields,issue_calls,_=self.discover(leads=VERIFIED,issues={})
+        self.assertEqual(issue_calls,['issue/4000-123'])
+        self.assertIsNone(fields)  # Before: queued {'Publisher': 'Example Press'}.
+        self.assertEqual(outcome,'needs_identity_lookup')
 
     def test_saved_matching_issue_is_reused_without_asking_comicvine_again(self):
         issues={'issue/4000-123':MATCHING}

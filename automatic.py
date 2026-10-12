@@ -215,6 +215,18 @@ def discover(root,coverage_only=False):
         # unidentified comic. Writes keep their own verification; the conflict
         # outcome below still blocks metadata-field plans as before.
         conflict = bool(issue) and not identity_matches(identity, issue)
+        # F16: when Web names a ComicVine issue that could not be checked this
+        # pass (outage, cooldown, budget, missing key, empty answer), the comic
+        # is not unidentified. A conflict saved on an earlier pass still stands;
+        # otherwise every field write is held until ComicVine answers.
+        saved_conflict = previous.get('conflict_issue') if match and not issue else None
+        if (isinstance(saved_conflict, dict) and str(saved_conflict.get('id')) == match.group(1)
+                and not identity_matches(identity, saved_conflict)):
+            conflict = True
+        else:
+            saved_conflict = None
+        hold = bool(match) and not issue and not conflict
+        strict = conflict or hold
         found = None if conflict else issue
         if external:outcome='web_issue_found'
         if (not found or not old.get('Summary')) and not external:
@@ -225,13 +237,13 @@ def discover(root,coverage_only=False):
                 source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
                 attempts.append({'provider':name,'result':source_schedule[name]['result']})
                 if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
-            # While a conflict stands, web-verified sources need a named creator and an agreeing cover.
+            # While a conflict stands or is unchecked, web-verified sources need a named creator and an agreeing cover.
             sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
                      ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
-                     ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog',strict=conflict)),
-                     ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog',strict=conflict)),
-                     ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog',strict=conflict)),
-                     ('GetComics',lambda row,old:getcomics.lookup(row,old,strict=conflict))]
+                     ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog',strict=strict)),
+                     ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog',strict=strict)),
+                     ('PREVIEWSworld',lambda row,old:publisher_catalogs.lookup(row,old,'previews_catalog',strict=strict)),
+                     ('GetComics',lambda row,old:getcomics.lookup(row,old,strict=strict))]
             sources=source_scheduling.order(sources,row,old)
             ready=[]
             for name,lookup in sources:
@@ -247,13 +259,13 @@ def discover(root,coverage_only=False):
         if not found:
             try:
                 with research_runtime.stage('Publisher research'):
-                    publisher = research.publisher_lookup(row, old) if not external else None
+                    publisher = research.publisher_lookup(row, old, strict=strict) if not external else None
                 if publisher:
                     external = publisher
                     research.save_evidence(path,external)
                     outcome = 'publisher_issue_found'
                     fields = {k:v for k,v in external['fields'].items() if not old.get(k)}
-                    if fields and not conflict:
+                    if fields and not strict:
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
                         target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
@@ -273,7 +285,7 @@ def discover(root,coverage_only=False):
                     if hint:research.save_evidence(path,{'cover_identification':hint,'cover_signature':signature,'status':'search_hint_only'})
                     batch.progress(phase='Automatic metadata lookup',detail='Verifying saved web and wiki references for '+path.name)
                     with research_runtime.stage('Saved lead verification'):
-                        external=research.resolve_leads(row,old,hint,strict=conflict)
+                        external=research.resolve_leads(row,old,hint,strict=strict)
                     batch.progress(phase='Automatic metadata lookup',detail='Searching the web for '+path.name)
                     if external:
                         research.save_evidence(path,external)
@@ -281,7 +293,7 @@ def discover(root,coverage_only=False):
                 except Exception as exc:
                     lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
                 if not external:
-                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed,strict=conflict)
+                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed,strict=strict)
                     if wiki_found:outcome='wiki_candidates_found'
                     if external:
                         research.save_evidence(path,external)
@@ -332,6 +344,10 @@ def discover(root,coverage_only=False):
                 retry = time.time() + 30 * 86400
             else:
                 outcome = 'identity_conflict'
+        elif conflict:
+            outcome = 'identity_conflict'  # Saved on an earlier pass; ComicVine cannot answer now.
+        elif hold and outcome in ('web_issue_found','publisher_issue_found'):
+            outcome = 'needs_identity_lookup'  # Evidence is kept; its fields wait for the ComicVine check.
         if external and not reused_evidence:
             research_runtime.remember(path,row,old,external,MATCHER_VERSION,issue=issue if not issue_reused and issue and identity_matches(old if match else dict(Series=old.get('Series') or row['series'],Number=old.get('Number') or row['number']),issue) else None)
         if external and outcome == 'web_issue_found':
@@ -342,7 +358,7 @@ def discover(root,coverage_only=False):
                 target=app.BASE/'batches'/str(time.time_ns())/'plan.json';target.parent.mkdir(parents=True)
                 target.write_text(json.dumps({'folder':str(path.parent),'method':'Verified issue-wide web fields.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
                 outcome='queued'
-        if not old.get('Summary'):
+        if not old.get('Summary') and not hold:  # A held pass writes no field, Summary included.
             import local_model
             if local_model.available():
                 batch.progress(phase='Automatic metadata lookup', detail='Reviewing internet-sourced synopsis: '+path.name)
@@ -386,6 +402,10 @@ def discover(root,coverage_only=False):
         retry = retry_time(retry,lookup_error,time.time())
         # A Summary-only plan during a conflict still leaves the comic unresolved.
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
+        if conflict and match:
+            # The conflicting issue lets later passes keep the conflict without ComicVine.
+            named = issue or saved_conflict
+            state['checked'][str(path)]['conflict_issue'] = {'id':match.group(1),'volume':{'name':(named.get('volume') or {}).get('name')},'issue_number':named.get('issue_number')}
         discovery_state.save_one(path,state['checked'][str(path)])
         if outcome == 'queued':worker.enqueue(target)
         research_runtime.record_check(outcome)

@@ -119,7 +119,10 @@ def publisher_hint(row,old,cover_hint=None):
     if '(avatar)' in path or '!avatar press' in path:return 'Avatar Press'
     return ''  # A folder hint must still agree with the external source.
 
-def publisher_lookup(row, old):
+def publisher_lookup(row, old, strict=False):
+    """`strict` (a ComicVine identity conflict stands or is unchecked) closes the
+    Coffin Comics shop route: it matches an exact title only, with no creator or
+    cover check."""
     approved=app.DATA/'verified-sources.json'
     if approved.exists():
         import reverse_image
@@ -128,7 +131,7 @@ def publisher_lookup(row, old):
         for record in json.loads(approved.read_text(encoding='utf-8')):
             if record.get('cover_sha256')==cover_hash:
                 return record['result']
-    if normalize(old.get('Publisher')) != 'coffincomics':
+    if strict or normalize(old.get('Publisher')) != 'coffincomics':
         return None
     series, number = query_identity(row, old)
     if not series or not number:
