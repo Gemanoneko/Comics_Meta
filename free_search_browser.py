@@ -73,11 +73,81 @@ def own_descendants():
 
 
 ENGINES={
-    'ddg':{'base':'https://duckduckgo.com/','profile':'ddg-profile','selector':'li[data-layout="organic"] article[data-testid="result"] h2 a[data-testid="result-title-a"]',
+    'ddg':{'base':'https://duckduckgo.com/','profile':'ddg-profile','selector':'li[data-layout="organic"] article[data-testid="result"] h2 a[data-testid="result-title-a"]','empty_selector':'[data-testid="no-results"]',
            'hosts':('duckduckgo.com','www.duckduckgo.com','links.duckduckgo.com','improving.duckduckgo.com','external-content.duckduckgo.com')},
-    'bing':{'base':'https://www.bing.com/search','profile':'bing-profile','selector':'ol#b_results > li.b_algo h2 a',
+    'bing':{'base':'https://www.bing.com/search','profile':'bing-profile','selector':'ol#b_results > li.b_algo h2 a','empty_selector':'ol#b_results > li.b_no',
             'hosts':('bing.com','www.bing.com','r.bing.com','th.bing.com','ts1.mm.bing.net','ts2.mm.bing.net','ts3.mm.bing.net','ts4.mm.bing.net')}
 }
+
+
+# Readiness and extraction share one DOM observation: an attached hidden card
+# is not a rendered result. Bound inspection before returning five safe links.
+RESULTS_READY = r'''({selector, emptySelector, query}) => {
+    const clean = value => value.replace(/\s+/g, ' ').trim();
+    const visible = element => {
+        const rect = element.getBoundingClientRect();
+        if (!rect.width || !rect.height) return false;
+        for (let node = element; node; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' ||
+                style.visibility === 'collapse' || Number(style.opacity) === 0 ||
+                node.hidden || node.getAttribute('aria-hidden') === 'true') return false;
+        }
+        return true;
+    };
+    const renderedText = element => {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const parts = [];
+        for (let node = walker.nextNode(), inspected = 0; node && inspected < 100; node = walker.nextNode(), inspected++) {
+            if (!node.textContent.trim() || !visible(node.parentElement)) continue;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const rect = range.getBoundingClientRect();
+            if (rect.width && rect.height) parts.push(node.textContent);
+        }
+        return clean(parts.join(' '));
+    };
+    const inputs = [...document.querySelectorAll('input[name="q"], textarea[name="q"]')];
+    const shown = inputs.filter(visible);
+    if (!shown.length || !shown.every(input => clean(input.value) === clean(query))) return false;
+    const nodes = [...document.querySelectorAll(selector)].slice(0, 100);
+    const items = nodes.filter(visible).map(a => ({url: a.href, title: renderedText(a)}))
+        .filter(item => item.title).slice(0, 10);
+    if (items.length) return {items};
+    // An explicit rendered empty-state is distinct from hidden/unready cards.
+    const empty = [...document.querySelectorAll(emptySelector)].filter(visible);
+    if (!nodes.length && empty.some(node => /\b(?:no results (?:found|for)|there are no results for)\b/i.test(renderedText(node))))
+        return {items: []};
+    return false;
+}'''
+
+
+def rendered_results(page,query,engine):
+    def correct_query():
+        url=urllib.parse.urlparse(page.url)
+        expected=urllib.parse.urlparse(ENGINES[engine]['base'])
+        return (url.scheme=='https' and url.hostname in ENGINES[engine]['hosts'][:2]
+                and url.path==expected.path and urllib.parse.parse_qs(url.query).get('q')==[query])
+    if not correct_query():
+        raise BrowserUnavailable('Regular free search returned a different page or query; no results accepted.')
+    handle=None
+    try:
+        handle=page.wait_for_function(RESULTS_READY,arg={'selector':ENGINES[engine]['selector'],'emptySelector':ENGINES[engine]['empty_selector'],'query':query},timeout=15_000)
+        result=handle.json_value()
+    except Exception:
+        if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
+            raise BrowserUnavailable('Free search requested human verification; no bypass attempted.') from None
+        raise BrowserUnavailable('Regular free search did not render usable visible titles for the requested query.') from None
+    finally:
+        if handle:handle.dispose()
+    if not correct_query():
+        raise BrowserUnavailable('Regular free search changed its page or query; no results accepted.')
+    if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
+        raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
+    links=normalize_links(result['items'],engine)
+    if result['items'] and not links:
+        raise BrowserUnavailable('Regular free search rendered no usable public result links.')
+    return links
 
 
 def challenge(url,text,engine='ddg'):
@@ -94,6 +164,8 @@ def normalize_links(items,engine='ddg'):
     result=[];seen=set()
     for item in items:
         try:
+            title=item.get('title','').strip()
+            if not title:continue
             url=urllib.parse.urljoin(ENGINES[engine]['base'],item.get('url',''))
             if len(url)>8192:continue
             parsed=urllib.parse.urlparse(url)
@@ -117,7 +189,7 @@ def normalize_links(items,engine='ddg'):
                 if re.fullmatch(r'[0-9.]+',host):continue
         except (ValueError,UnicodeError):continue
         if url in seen:continue
-        seen.add(url);result.append({'url':url,'title':item.get('title','').strip()[:500]})
+        seen.add(url);result.append({'url':url,'title':title[:500]})
         if len(result)==5:break
     return result
 
@@ -166,16 +238,7 @@ def search(query,engine='ddg'):
         if challenge(page.url,page.locator('body').inner_text(timeout=10_000),engine):
             raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
         if pause_control.requested():raise pause_control.PauseRequested()
-        # Only regular organic result titles: no sponsored/navigation/footer links.
-        locator=page.locator(ENGINES[engine]['selector'])
-        try:locator.first.wait_for(state='attached',timeout=15_000)
-        except Exception:
-            text=page.locator('body').inner_text(timeout=10_000)
-            if challenge(page.url,text,engine):raise BrowserUnavailable('Free search requested human verification; no bypass attempted.')
-            if 'no results' in text.lower():return []
-            raise BrowserUnavailable('Regular free search did not return a usable result page.') from None
-        items=locator.evaluate_all('nodes => nodes.slice(0, 10).map(a => ({url: a.href, title: a.innerText}))')
-        return normalize_links(items,engine)
+        return rendered_results(page,query,engine)
     except BrowserUnavailable:raise
     except Exception as exc:
         import pause_control

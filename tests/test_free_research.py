@@ -325,7 +325,7 @@ class FreeResearchTests(unittest.TestCase):
 
     def test_bing_eligible_while_ddg_held_separate_cache_and_hold(self):
         self.options['provider']='free'
-        with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue'}]) as browser:
+        with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue','title':'Fixture #1'}]) as browser:
             result=web.search('Fixture',free_only=True)
             browser.assert_called_once_with('Fixture','bing')
             self.assertEqual(result[0]['engine'],'bing')
@@ -333,6 +333,52 @@ class FreeResearchTests(unittest.TestCase):
             self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
             self.assertIsNotNone(con.execute('SELECT 1 FROM cache WHERE key=?',('web-search:bing:Fixture',)).fetchone())
             self.assertIsNone(con.execute('SELECT 1 FROM cache WHERE key=?',('web-search:free:Fixture',)).fetchone())
+
+    def test_invalid_bing_cache_is_retained_while_budget_and_holds_still_block(self):
+        self.options['provider']='free'
+        raw=json.dumps([{'url':'https://www.lidl.com/','title':'','engine':'bing'}])
+        key='web-search:bing:Fixture'
+        with app.db() as con:
+            con.execute('INSERT INTO cache VALUES(?,?,?)',(key,raw,self.now))
+            con.execute('INSERT INTO web_state VALUES(3,?)',(self.now+8000,))
+            con.executemany('INSERT INTO web_requests VALUES(?)',[(self.now-100,)]*100)
+        with self.assertRaises(web.SearchBlocked) as caught:web.search('Fixture',True,engine='bing')
+        self.assertEqual(caught.exception.retry_at,self.now+8000)
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT value FROM cache WHERE key=?',(key,)).fetchone()[0],raw)
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],100)
+            self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
+
+    def test_invalid_bing_cache_replacement_requires_normal_pacing_and_reservation(self):
+        key='web-search:bing:Fixture'
+        with app.db() as con:
+            con.execute('INSERT INTO cache VALUES(?,?,?)',(key,json.dumps([{'url':'https://example.org/hidden','title':' '}]),self.now))
+            con.execute('INSERT INTO web_requests VALUES(?)',(self.now-119,))
+        with self.assertRaises(web.SearchBlocked) as caught:web.search('Fixture',True,engine='bing')
+        self.assertEqual(caught.exception.retry_at,self.now+1)
+        valid=[{'url':'https://example.org/issue','title':'Fixture #1'}]
+        with patch.object(web.time,'time',return_value=self.now+1),patch.object(web,'free_browser_search',return_value=valid) as browser:
+            self.assertEqual(web.search('Fixture',True,engine='bing')[0]['title'],'Fixture #1')
+            browser.assert_called_once_with('Fixture','bing')
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],2)
+
+    def test_valid_bing_cache_and_explicit_empty_cache_stay_usable_during_holds(self):
+        for query,value in [('Valid',[{'url':'https://example.org/issue','title':'Fixture #1','engine':'bing'}]),('Empty',[])]:
+            with app.db() as con:
+                con.execute('INSERT OR REPLACE INTO web_state VALUES(3,?)',(self.now+8000,))
+                con.execute('INSERT INTO cache VALUES(?,?,?)',('web-search:bing:'+query,json.dumps(value),self.now))
+            self.assertEqual(web.search(query,True,engine='bing'),value)
+        with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],0)
+
+    def test_invalid_new_bing_results_do_not_poison_cache_or_claim_a_challenge(self):
+        with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/hidden','title':''}]):
+            with self.assertRaises(web.SearchBlocked) as caught:web.search('Fixture',True,engine='bing')
+        self.assertNotIn('human verification',str(caught.exception))
+        self.assertEqual(caught.exception.retry_at,self.now+3600)
+        with app.db() as con:
+            self.assertIsNone(con.execute('SELECT * FROM cache WHERE key=?',('web-search:bing:Fixture',)).fetchone())
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM web_requests').fetchone()[0],1)
+            self.assertEqual(con.execute('SELECT blocked_until FROM web_state WHERE id=1').fetchone()[0],self.now+7200)
 
     def test_empty_ddg_then_bing_is_next_paced_turn_not_second_request_now(self):
         with patch.object(web,'free_browser_search',return_value=[]) as browser:

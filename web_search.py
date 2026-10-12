@@ -122,7 +122,16 @@ def cached(query,free_only=False,engine=None):
     cache_key='web-search:'+('bing' if engine=='bing' else 'free' if free_only or engine=='ddg' else config().get('provider','free'))+':'+query
     with app.db() as con:
         row=con.execute('SELECT value FROM cache WHERE key=? AND fetched>?',(cache_key,time.time()-7*86400)).fetchone()
-    return cache_key,json.loads(row['value']) if row else None
+    result=json.loads(row['value']) if row else None
+    # Old Bing captures included attached hidden cards with blank titles. Leave
+    # those records intact; any replacement must pass ordinary holds/budgets.
+    if engine=='bing' and result is not None and not usable_bing_results(result):result=None
+    return cache_key,result
+
+
+def usable_bing_results(result):
+    return isinstance(result,list) and all(isinstance(item,dict) and isinstance(item.get('title'),str)
+        and item['title'].strip() and isinstance(item.get('url'),str) and item['url'].startswith('https://') for item in result)
 
 FREE_ENGINES=('ddg','bing')
 
@@ -223,6 +232,8 @@ def search(query,free_only=False,engine=None):
             result=[{'url':r['url'],'title':r.get('title','')} for r in payload.get('web',{}).get('results',[])][:5]
         else:
             result=free_browser_search(query,engine)
+            if engine=='bing' and not usable_bing_results(result):
+                raise SearchBlocked('Regular Bing search returned unusable result titles; no results cached.')
             result=[dict(item,engine=engine) for item in result]
         with app.db() as con:con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)',(cache_key,json.dumps(result),time.time()))
         return result

@@ -17,6 +17,8 @@ class RegularSearchTests(unittest.TestCase):
         self.body=Mock();self.body.inner_text.return_value='Ordinary results'
         self.links=Mock();self.links.evaluate_all.return_value=[{'url':'https://www.darkhorse.com/comics/15-681/star-wars-the-clone-wars-3/','title':'Star Wars: The Clone Wars #3'}]
         self.page.locator.side_effect=lambda selector:self.body if selector=='body' else self.links
+        self.page.goto.side_effect=lambda url,**kwargs:setattr(self.page,'url',url)
+        self.page.wait_for_function.return_value.json_value.side_effect=lambda:{'items':self.links.evaluate_all.return_value}
         self.context=Mock();self.context.pages=[self.page]
         self.runtime=Mock();self.runtime.chromium.launch_persistent_context.return_value=self.context
         self.enterContext(patch('playwright.sync_api.sync_playwright',return_value=Mock(start=Mock(return_value=self.runtime))))
@@ -27,14 +29,14 @@ class RegularSearchTests(unittest.TestCase):
         self.assertEqual(result[0]['title'],'Star Wars: The Clone Wars #3')
         self.assertIn('q=Star+Wars+-+The+Clone+Wars+%233+comics',self.page.goto.call_args.args[0])
         self.assertEqual(self.runtime.chromium.launch_persistent_context.call_args.args[0],str(self.root/'ddg-profile'))
-        self.assertIn('result-title-a',self.page.locator.call_args.args[0])
-        self.assertIn('li[data-layout="organic"] article',self.page.locator.call_args.args[0])
+        self.assertIn('result-title-a',self.page.wait_for_function.call_args.kwargs['arg']['selector'])
+        self.assertIn('li[data-layout="organic"] article',self.page.wait_for_function.call_args.kwargs['arg']['selector'])
         self.context.close.assert_called_once();self.runtime.stop.assert_called_once();browser.close()
 
     def test_links_bound_dedup_redirect_and_no_navigation_credentials(self):
         items=[{'url':'https://duckduckgo.com/settings'}, {'url':'https://user:secret@example.org/a'},
                {'url':'https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2F1','title':'One'},
-               {'url':'https://example.org/1'}]+[{'url':'https://example.org/'+str(n)} for n in range(2,20)]
+               {'url':'https://example.org/1','title':'Duplicate'}]+[{'url':'https://example.org/'+str(n),'title':'Issue '+str(n)} for n in range(2,20)]
         self.assertEqual([x['url'] for x in browser.normalize_links(items)],[f'https://example.org/{n}' for n in range(1,6)])
 
     def test_actual_challenge_closes_context_and_does_not_solve(self):
@@ -44,11 +46,38 @@ class RegularSearchTests(unittest.TestCase):
         browser.close()
 
     def test_no_results_only_when_explicit_otherwise_unknown_page_fails(self):
-        self.links.first.wait_for.side_effect=TimeoutError()
+        self.links.evaluate_all.return_value=[]
         self.body.inner_text.return_value='No results found'
         self.assertEqual(browser.search('Fixture'),[])
+        self.page.wait_for_function.side_effect=TimeoutError()
         self.body.inner_text.return_value='Unknown page'
-        with self.assertRaisesRegex(browser.BrowserUnavailable,'usable result'):browser.search('Fixture')
+        with self.assertRaisesRegex(browser.BrowserUnavailable,'usable visible titles'):browser.search('Fixture')
+
+    def test_wrong_query_page_fails_before_accepting_links(self):
+        self.page.goto.side_effect=lambda url,**kwargs:setattr(self.page,'url','https://www.bing.com/search?q=unrelated')
+        with self.assertRaisesRegex(browser.BrowserUnavailable,'different page or query'):browser.search('Fixture','bing')
+        self.page.wait_for_function.assert_not_called()
+        self.context.close.assert_called_once();self.runtime.stop.assert_called_once()
+
+    def test_query_changed_after_render_is_rejected(self):
+        def changed():
+            self.page.url='https://www.bing.com/search?q=other'
+            return {'items':self.links.evaluate_all.return_value}
+        self.page.wait_for_function.return_value.json_value.side_effect=changed
+        with self.assertRaisesRegex(browser.BrowserUnavailable,'changed its page or query'):browser.search('Fixture','bing')
+        self.page.wait_for_function.return_value.dispose.assert_called_once()
+
+    def test_blank_titles_rejected_without_claiming_human_challenge(self):
+        self.links.evaluate_all.return_value=[{'url':'https://example.org/wrong','title':'  '}]
+        with self.assertRaises(browser.BrowserUnavailable) as caught:browser.search('Fixture','bing')
+        self.assertIn('no usable public result links',str(caught.exception))
+        self.assertNotIn('human verification',str(caught.exception))
+        self.context.close.assert_called_once();self.runtime.stop.assert_called_once()
+
+    def test_late_challenge_after_readiness_wait_is_not_cached_as_empty(self):
+        self.page.wait_for_function.side_effect=TimeoutError()
+        self.body.inner_text.side_effect=['Ordinary results','Verify that you are not a robot']
+        with self.assertRaisesRegex(browser.BrowserUnavailable,'human verification'):browser.search('Fixture','bing')
 
     def test_profile_busy_does_not_launch_browser(self):
         import msvcrt
@@ -140,14 +169,14 @@ class RegularSearchTests(unittest.TestCase):
         self.assertEqual(result[0]['url'],'https://www.darkhorse.com/comics/15-681/star-wars-the-clone-wars-3/')
         self.assertEqual(result[1]['url'],'https://starwars.fandom.com/wiki/Star_Wars:_The_Clone_Wars_(comic_series)')
         self.assertEqual(self.runtime.chromium.launch_persistent_context.call_args.args[0],str(self.root/'bing-profile'))
-        self.assertEqual(self.page.locator.call_args.args[0],'ol#b_results > li.b_algo h2 a')
+        self.assertEqual(self.page.wait_for_function.call_args.kwargs['arg']['selector'],'ol#b_results > li.b_algo h2 a')
         self.assertTrue(self.page.goto.call_args.args[0].startswith('https://www.bing.com/search?q='))
 
     def test_bing_redirect_rejects_malformed_nonpublic_credentials_and_engine_links(self):
         import base64
         targets=['http://example.org/','javascript:alert(1)','https://127.0.0.1/','https://[::1]/','https://10.0.0.1/','https://localhost/','https://localhost./','https://service.local/','https://127.1/','https://user:secret@example.org/','https://example.org:444/','https://www.bing.com/search?q=x','https://bing.com./search?q=x','https://example.org/\nheader']
-        items=[{'url':'https://www.bing.com/ck/a?u=a1'+base64.urlsafe_b64encode(t.encode()).decode().rstrip('=')} for t in targets]
-        items += [{'url':'https://www.bing.com/ck/a?u=a1$$$'},{'url':'https://www.bing.com/ck/a?u=a1////'},{'url':'https://www.bing.com/ck/a?u=a1_w'},{'url':'https://www.bing.com/ck/a?u=a1YQ&u=a1Yg'}]
+        items=[{'url':'https://www.bing.com/ck/a?u=a1'+base64.urlsafe_b64encode(t.encode()).decode().rstrip('='),'title':'Untrusted target'} for t in targets]
+        items += [{'url':url,'title':'Invalid redirect'} for url in ('https://www.bing.com/ck/a?u=a1$$$','https://www.bing.com/ck/a?u=a1////','https://www.bing.com/ck/a?u=a1_w','https://www.bing.com/ck/a?u=a1YQ&u=a1Yg')]
         self.assertEqual(browser.normalize_links(items,'bing'),[])
 
     def test_bing_actual_challenge_does_not_touch_ddg_profile(self):
