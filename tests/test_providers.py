@@ -39,7 +39,7 @@ class ProviderTests(unittest.TestCase):
             with zipfile.ZipFile(comic,'w') as archive:
                 archive.writestr('01.jpg',b'original cover bytes')
                 archive.writestr('02.jpg',b'original story page bytes')
-            with patch.object(app,'BASE',base),patch.object(app,'DATA',data):
+            with patch.object(app,'BASE',base),patch.object(app,'STATE_ROOT',base),patch.object(app,'DATA',data):
                 app.scan([str(folder)])
                 summary='Garlic faces an unfamiliar challenge when a vampire moves into the nearby castle.'
                 plan=base/'plan.json'

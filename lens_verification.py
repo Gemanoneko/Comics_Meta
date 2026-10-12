@@ -139,7 +139,7 @@ def service(browser,options):
     request_id=state['request_id'];stage='launch';opened=False
     def admitted():
         with app.db() as con:current=read(con);is_paused,generation=control(con)
-        if (is_paused or generation!=state['generation'] or current.get('owner')!=_owner
+        if (is_paused or pause_control.stop_requested() or generation!=state['generation'] or current.get('owner')!=_owner
                 or current.get('request_id')!=request_id or current.get('phase') not in {'opening','open'}):
             raise pause_control.PauseRequested()
     def observation(value):

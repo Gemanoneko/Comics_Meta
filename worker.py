@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sys
 import time
 import threading
 from pathlib import Path
@@ -69,6 +70,13 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return
+    pause_control.begin_run()
+    import library_lock
+    try:
+        library_lock.claim_configured('metadata worker')
+    except library_lock.LibraryBusy as exc:
+        print(exc, file=sys.stderr, flush=True)
+        return  # Another copy owns the library; the supervisor retries later.
     import free_search_browser
     free_search_browser.enable_worker_owner()
     import yandex_verification
@@ -87,6 +95,12 @@ def main():
     threading.Thread(target=heartbeat, daemon=True).start()
     next_discovery = 0
     while True:
+        if pause_control.stop_requested():
+            # Quit: every step ends at a safe point, so leave between steps.
+            import free_search_browser
+            free_search_browser.close()
+            yandex_verification.cancel()
+            return
         if pause_control.requested():
             import free_search_browser
             free_search_browser.close()
@@ -109,9 +123,7 @@ def main():
             continue
         if not ran:
             if pause_control.requested():continue
-            config_path = app.BASE / 'config.json'
-            config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
-            automatic = config.get('automatic', {})
+            automatic = app.load_config().get('automatic', {})
             if automatic.get('enabled') and time.time() >= next_discovery:
                 next_discovery = time.time() + 600
                 try:

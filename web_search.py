@@ -9,7 +9,6 @@ import time
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
-from pathlib import Path
 import app
 from provider_wait import ProviderDeferred
 
@@ -33,14 +32,12 @@ def free_browser_search(query,engine='ddg'):
     except free_search_browser.BrowserUnavailable as exc:raise SearchBlocked(str(exc)) from None
 
 def config():
-    path=app.BASE/'config.json'
-    return json.loads(path.read_text(encoding='utf-8')).get('web_search',{}) if path.exists() else {}
+    return app.load_config().get('web_search',{})
 
 def key():
     value=os.environ.get('BRAVE_SEARCH_API_KEY','')
     if value:return value.strip()
-    settings=json.loads((app.BASE/'config.json').read_text(encoding='utf-8'))
-    for path in [app.BASE/'.env',Path(settings.get('env_file',app.BASE/'.env'))]:
+    for path in app.env_files():
         if path.exists():
             for line in path.read_text(encoding='utf-8-sig').splitlines():
                 if line.strip().startswith('BRAVE_SEARCH_API_KEY='):

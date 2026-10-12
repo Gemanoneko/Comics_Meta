@@ -23,7 +23,7 @@ class SupervisorTests(unittest.TestCase):
         child.poll.return_value = None
         launch = Mock(return_value=child)
         stop = StopAfter(3)
-        supervisor.supervise(Path('project'), stop, launch)
+        supervisor.supervise(Path('project'), stop, launch, baseline=lambda: 0)
         self.assertEqual(launch.call_count, 1)
         child.terminate.assert_not_called()
         self.assertEqual(stop.waits, [30, 30, 30])
@@ -32,12 +32,12 @@ class SupervisorTests(unittest.TestCase):
         child = Mock()
         child.poll.return_value = 1
         launch = Mock(return_value=child)
-        supervisor.supervise(Path('project'), StopAfter(3), launch)
+        supervisor.supervise(Path('project'), StopAfter(3), launch, baseline=lambda: 0)
         self.assertEqual(launch.call_count, 3)
 
     def test_launch_failure_retries_without_spinning(self):
         launch = Mock(side_effect=[OSError('unavailable'), Mock()])
         stop = StopAfter(2)
-        supervisor.supervise(Path('project'), stop, launch)
+        supervisor.supervise(Path('project'), stop, launch, baseline=lambda: 0)
         self.assertEqual(launch.call_count, 2)
         self.assertEqual(stop.waits, [30, 30])

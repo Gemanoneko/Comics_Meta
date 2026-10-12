@@ -15,6 +15,7 @@ class FreeResearchTests(unittest.TestCase):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',self.root/'data'))
         self.enterContext(patch.object(app,'BASE',self.root))
+        self.enterContext(patch.object(app,'STATE_ROOT',self.root))
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
         self.now=100000
         self.enterContext(patch.object(web.time,'time',return_value=self.now))

@@ -5,6 +5,7 @@ import shutil
 import time
 from pathlib import Path
 import app
+import library_lock
 import storage
 
 def remove_tree(path,root):
@@ -50,7 +51,7 @@ def run(force=False):
     for path in app.DATA.rglob('*.tmp'):
         if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(app.DATA.resolve()) and now-path.stat().st_mtime>86400:
             size=path.stat().st_size;path.unlink();freed+=size
-    test_runs=app.BASE/'work'/'test-runs'
+    test_runs=app.STATE_ROOT/'work'/'test-runs'
     for path in test_runs.glob('*'):
         if path.is_dir() and re.fullmatch(r'[0-9a-f-]{36}',path.name) and now-path.stat().st_mtime>86400:
             freed+=remove_tree(path,test_runs)
@@ -64,6 +65,8 @@ def run(force=False):
                 if not source.is_file():continue  # May be the only surviving recovery copy.
                 stat=source.stat()
                 if [stat.st_size,stat.st_mtime_ns]!=json.loads(row['signature']):continue
+                try:library_lock.require(source)
+                except library_lock.LibraryBusy:continue  # Another copy owns this library.
                 freed+=remove_tree(stage,source.parent)
                 con.execute('DELETE FROM conversion_staging WHERE path=?',(row['path'],))
     if expired:

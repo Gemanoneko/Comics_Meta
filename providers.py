@@ -10,7 +10,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from html import unescape
-from pathlib import Path
 import app
 import storage
 from provider_wait import ProviderDeferred
@@ -21,8 +20,7 @@ BUDGETS={'gcd':1000,'google_books':500}
 
 def setting(name):
     if os.environ.get(name):return os.environ[name].strip()
-    config=json.loads((app.BASE/'config.json').read_text(encoding='utf-8'))
-    for path in [app.BASE/'.env',app.BASE.parents[1]/'.env',Path(config.get('env_file',app.BASE/'.env'))]:
+    for path in app.env_files():
         if path.is_file():
             for line in path.read_text(encoding='utf-8-sig').splitlines():
                 key,sep,value=line.strip().removeprefix('export ').partition('=')

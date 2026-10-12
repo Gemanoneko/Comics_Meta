@@ -4,13 +4,15 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import app_paths
 
 BASE = Path(__file__).resolve().parent
+STATE_ROOT = app_paths.state_root()
 
 
 def main():
-    data = BASE / 'data'
-    data.mkdir(exist_ok=True)
+    data = STATE_ROOT / 'data'
+    data.mkdir(parents=True, exist_ok=True)
     # Keep one bounded tail from the prior run, never an unbounded log archive.
     for name in ('server-output.log', 'server-error.log'):
         path = data / name

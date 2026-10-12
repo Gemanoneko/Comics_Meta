@@ -13,7 +13,7 @@ class ServerHostTests(unittest.TestCase):
             data = base / 'data'
             data.mkdir()
             (data / 'server-error.log').write_bytes(b'x' * 400000)
-            with patch.object(server_host, 'BASE', base), patch.object(server_host.subprocess, 'Popen') as launch:
+            with patch.object(server_host, 'BASE', base), patch.object(server_host, 'STATE_ROOT', base), patch.object(server_host.subprocess, 'Popen') as launch:
                 launch.return_value.wait.return_value = 7
                 self.assertEqual(server_host.main(), 7)
             self.assertEqual(json.loads((data / 'server-exit.json').read_text())['exit_code'], 7)
@@ -22,6 +22,6 @@ class ServerHostTests(unittest.TestCase):
 
     def test_normal_shutdown_does_not_report_failure(self):
         with scratch_directory() as folder:
-            with patch.object(server_host, 'BASE', Path(folder)), patch.object(server_host.subprocess, 'Popen') as launch:
+            with patch.object(server_host, 'BASE', Path(folder)), patch.object(server_host, 'STATE_ROOT', Path(folder)), patch.object(server_host.subprocess, 'Popen') as launch:
                 launch.return_value.wait.return_value = 0
                 self.assertEqual(server_host.main(), 0)

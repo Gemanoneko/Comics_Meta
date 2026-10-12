@@ -13,9 +13,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
 
 
+def scratch_parent():
+    """Throwaway test folders; COMICS_META_TEST_SCRATCH moves them out of the checkout."""
+    return Path(os.environ.get('COMICS_META_TEST_SCRATCH') or Path(__file__).resolve().parents[1] / 'work' / 'test-runs')
+
+
 class LibraryTests(unittest.TestCase):
     def setUp(self):
-        scratch = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        scratch = scratch_parent()
         scratch.mkdir(parents=True, exist_ok=True)
         self.temp_path = scratch / str(uuid.uuid4())
         self.root = self.temp_path / 'comics'
@@ -25,7 +30,7 @@ class LibraryTests(unittest.TestCase):
 
     def tearDown(self):
         app.DATA = self.previous_data
-        intended = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        intended = scratch_parent()
         assert self.temp_path.resolve().parent == intended.resolve()
         shutil.rmtree(self.temp_path)
 
@@ -89,7 +94,7 @@ class LibraryTests(unittest.TestCase):
         summary='A visitor arrives.\r\n\r\nA strange bargain awaits.\rLast line & more.'
         plan=self.temp_path/'batch'/'plan.json';plan.parent.mkdir()
         plan.write_text(json.dumps({'folder':str(self.root),'entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':{'Summary':{'before':'','after':summary}},'fields':{'Summary':summary}}]}))
-        with patch.object(app,'BASE',self.temp_path),patch.object(pause_control,'requested',return_value=False):
+        with patch.object(app,'BASE',self.temp_path),patch.object(app,'STATE_ROOT',self.temp_path),patch.object(pause_control,'requested',return_value=False):
             batch.apply(plan,remove_verified_backups=True)
         self.assertEqual(app.read_metadata(path)[0]['Summary'],summary)
         results=json.loads((plan.parent/'results.json').read_text())

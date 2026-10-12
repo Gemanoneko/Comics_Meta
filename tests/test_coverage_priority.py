@@ -16,7 +16,9 @@ import worker
 
 class CoveragePriorityTests(unittest.TestCase):
     def setUp(self):
-        container = Path(os.environ.get('COMICS_TEST_SCRATCH', app.BASE / 'scratch' / 'coverage-priority-2026-10-10'))
+        moved = os.environ.get('COMICS_META_TEST_SCRATCH')
+        container = Path(os.environ.get('COMICS_TEST_SCRATCH') or (Path(moved) / 'coverage-priority' if moved else
+                         app.BASE / 'scratch' / 'coverage-priority-2026-10-10'))
         self.fixture = container / ('fixture-' + uuid.uuid4().hex)
         self.fixture.mkdir(parents=True)
         self.root = self.fixture / 'library'

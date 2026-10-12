@@ -9,7 +9,7 @@ from test_worker import scratch_directory
 
 class MaintenanceTests(unittest.TestCase):
     def test_expired_caches_removed_but_evidence_and_fresh_temps_retained(self):
-        with scratch_directory() as root,patch.object(app,'DATA',Path(root)/'data'),patch.object(app,'BASE',Path(root)):
+        with scratch_directory() as root,patch.object(app,'DATA',Path(root)/'data'),patch.object(app,'BASE',Path(root)),patch.object(app,'STATE_ROOT',Path(root)):
             with app.db() as con:
                 con.execute('INSERT INTO cache VALUES(?,?,?)',('old','{}',0))
                 con.execute('INSERT INTO cache VALUES(?,?,?)',('recent','{}',time.time()))

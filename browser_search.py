@@ -12,7 +12,6 @@ import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from PIL import Image
 import app
 import reverse_image
@@ -29,17 +28,13 @@ class HumanVerification(Exception):
 
 
 def settings():
-    path=app.BASE/'config.json'
-    config=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
-    return config.get('browser_search',{})
+    return app.load_config().get('browser_search',{})
 
 
 def api_key():
     value=os.environ.get('SERPAPI_API_KEY','').strip()
     if value:return value
-    config_path=app.BASE/'config.json'
-    config=json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
-    for path in (app.BASE/'.env',Path(config.get('env_file') or app.BASE/'.env')):
+    for path in app.env_files():
         if not path.is_file():continue
         for line in path.read_text(encoding='utf-8-sig').splitlines():
             name,sep,value=line.partition('=')

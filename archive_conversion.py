@@ -9,6 +9,7 @@ import uuid
 import zipfile
 from pathlib import Path,PurePosixPath
 import app
+import library_lock
 import pause_control
 
 SEVEN_ZIP=Path('C:/Program Files/7-Zip/7z.exe')
@@ -73,6 +74,7 @@ def convert(path):
     if source.suffix.lower()=='.cbz' and zipfile.is_zipfile(source):return None
     if not SEVEN_ZIP.is_file():raise ValueError('7-Zip is required for conversion.')
     if pause_control.requested():raise pause_control.PauseRequested()
+    library_lock.require(path)  # Raises before staging if another copy owns the library.
     original_signature=signature(source)
     final=source.with_suffix('.cbz')
     same=final==source
@@ -142,7 +144,7 @@ def one(folder):
             result=convert(row['path'])
             if result is None:continue
             retry=0
-        except pause_control.PauseRequested:raise
+        except (pause_control.PauseRequested,library_lock.LibraryBusy):raise
         except Exception as exc:
             result={'error':str(exc),'original_removed':False};retry=time.time()+86400
         with app.db() as con:

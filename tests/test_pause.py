@@ -53,7 +53,7 @@ class PauseTests(unittest.TestCase):
         plan.write_text(json.dumps({'folder':str(self.root),'entries':[
             {'path':str(p),'action':'write','sha256':batch.digest(p),'changes':{'Title':{'before':'','after':'Verified title'}},'fields':{'Title':'Verified title'}} for p in paths]}))
         (self.temp_path/'data').mkdir()
-        with patch.object(app,'BASE',self.temp_path):
+        with patch.object(app,'BASE',self.temp_path),patch.object(app,'STATE_ROOT',self.temp_path):
             with patch.object(pause_control,'requested',side_effect=[False,True]):
                 with self.assertRaises(pause_control.PauseRequested):batch.apply(plan,True)
             first_signature=paths[0].stat().st_mtime_ns

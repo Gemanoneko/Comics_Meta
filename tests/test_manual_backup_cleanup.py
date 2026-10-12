@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 import shutil
 import sys
 import unittest
@@ -16,7 +17,9 @@ import app
 
 class ManualBackupCleanupTests(unittest.TestCase):
     def setUp(self):
-        self.scratch = Path(__file__).resolve().parents[1] / 'scratch' / 'manual-backup-cleanup-2026-10-10'
+        moved = os.environ.get('COMICS_META_TEST_SCRATCH')
+        self.scratch = (Path(moved) / 'manual-backup-cleanup' if moved else
+                        Path(__file__).resolve().parents[1] / 'scratch' / 'manual-backup-cleanup-2026-10-10')
         self.root = self.scratch / str(uuid.uuid4())
         self.root.mkdir(parents=True)
         self.data_patch = patch.object(app, 'DATA', self.root / 'data')

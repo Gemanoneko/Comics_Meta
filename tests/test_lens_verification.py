@@ -80,6 +80,16 @@ class LensTests(unittest.TestCase):
         self.assertIsNone(lens.service(self.browser,{}));self.browser.close.assert_called_once()
         self.assertEqual(lens.status()['failure'],'interrupted');self.assertEqual(lens.status()['window'],'closed')
 
+    def test_quit_while_window_is_open_closes_it_and_keeps_the_challenge(self):
+        def quit_while_open(url,admitted,observation):
+            admitted();observation('load');pause_control.request_stop();admitted()
+            self.fail('Quit was not noticed')
+        with patch.object(pause_control,'_stop_baseline',pause_control.stop_generation()):
+            lens.request();self.browser.human_session.side_effect=quit_while_open
+            self.assertIsNone(lens.service(self.browser,{}));self.browser.close.assert_called_once()
+        self.assertEqual(lens.status()['failure'],'interrupted');self.assertEqual(lens.status()['window'],'closed')
+        self.assertTrue(search.legacy_status()['human_verification'])  # Still pending after the next launch.
+
     def test_pause_after_human_success_before_minimize_closes(self):
         def success_then_cancel(*args):self.success(*args);self.pause_resume();return True
         lens.request();self.browser.human_session.side_effect=success_then_cancel

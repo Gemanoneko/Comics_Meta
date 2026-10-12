@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sys
 import threading
 import time
 from datetime import datetime,timezone
@@ -106,6 +107,12 @@ def verification_request(browser,options):
 def main(once=False):
     handle=locked()
     if not handle:return
+    pause_control.begin_run()
+    import library_lock
+    try:library_lock.claim_configured('cover-search worker')
+    except library_lock.LibraryBusy as exc:
+        print(exc,file=sys.stderr,flush=True)
+        handle.close();return  # Another copy owns the library; the supervisor retries later.
     import lens_browser_owner
     lens_browser_owner.enable()
     lens_verification.initialize()
@@ -125,6 +132,12 @@ def main(once=False):
     search.status(verification_state='required' if state.get('human_verification') else 'verified',verification_window='closed')
     try:
         while True:
+            if pause_control.stop_requested():
+                # Quit: close the browser and leave; nothing is saved as paused.
+                if browser:
+                    browser.close();browser=None
+                lens_verification.paused()
+                return
             if pause_control.requested():
                 if browser:
                     browser.close();browser=None

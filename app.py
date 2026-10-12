@@ -20,19 +20,36 @@ import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from provider_wait import ProviderDeferred
+import app_paths
 
-BASE = Path(__file__).resolve().parent
-DATA = BASE / 'data'
+BASE = Path(__file__).resolve().parent  # Code: modules, static/, VERSION.
+STATE_ROOT = app_paths.state_root()  # State: config.json, .env, data/, batches/, work/.
+DATA = STATE_ROOT / 'data'
 BIBLIOGRAPHIC_FIELDS=('Series','Title','Number','Count','Volume','Year','Month','Day','Writer','Penciller','Inker','Colorist','Letterer','CoverArtist','Editor','Publisher','Imprint','Genre','Tags','Characters','Teams','Locations','StoryArc','SeriesGroup','LanguageISO','Format','AgeRating','ISBN','GTIN')
 JOB = {'running': False, 'visited': 0, 'changed': 0, 'errors': 0, 'message': 'Ready'}
 LOCK = threading.Lock()
 API_LOCK = threading.Lock()
 
 
+def load_config():
+    path = STATE_ROOT / 'config.json'
+    return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+
+
+def env_files(config=None):
+    """Secret files in lookup order: the state root's .env, then config env_file.
+
+    A relative env_file is read from the state root, not the current folder."""
+    config = load_config() if config is None else config
+    paths = [STATE_ROOT / '.env']
+    if config.get('env_file'):
+        configured = Path(config['env_file'])
+        paths.append(configured if configured.is_absolute() else STATE_ROOT / configured)
+    return paths
+
+
 def live_root():
-    config_path = BASE / 'config.json'
-    config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
-    automatic = config.get('automatic', {})
+    automatic = load_config().get('automatic', {})
     return automatic.get('library_root') or automatic.get('root') or ''
 
 
@@ -46,12 +63,7 @@ def api_key():
     value = os.environ.get('COMICVINE_API_KEY', '').strip()
     if value:
         return value
-    config_path = BASE / 'config.json'
-    config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
-    paths = [BASE / '.env', BASE.parents[1] / '.env']
-    if config.get('env_file'):
-        paths.append(Path(config['env_file']))
-    for path in paths:
+    for path in env_files():
         if not path.is_file():
             continue
         raw = path.read_text(encoding='utf-8-sig').strip()
@@ -86,7 +98,7 @@ class Connection(sqlite3.Connection):
 
 
 def db():
-    DATA.mkdir(exist_ok=True)
+    DATA.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DATA / 'catalog.sqlite', timeout=30, factory=Connection)
     try:
         con.row_factory = sqlite3.Row
@@ -364,6 +376,8 @@ def metadata_from_issue(issue):
 
 
 def remove_verified_backup(path, backup, original_sha256):
+    import library_lock
+    library_lock.require(path)  # Raises before any change if another copy owns the library.
     path, backup = filesystem_path(path), filesystem_path(backup)
     intended = path.parent / '.comic-metadata-backups'
     if (backup.is_symlink() or intended.is_symlink()
@@ -381,6 +395,12 @@ def remove_verified_backup(path, backup, original_sha256):
 
 
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False):
+    import library_lock
+    try:
+        scanned_root = row['root']
+    except (KeyError, IndexError):
+        scanned_root = None
+    library_lock.require(row['path'], scanned_root)  # Raises before any change if another copy owns the library.
     path = filesystem_path(row['path'])
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
@@ -586,6 +606,9 @@ class Handler(BaseHTTPRequestHandler):
             import pause_control
             if self.path in ('/api/pause','/api/resume'):
                 return self.respond(pause_control.change(self.path=='/api/pause'))
+            if self.path == '/api/quit':
+                # Allowed while paused; Quit never changes the saved Pause setting.
+                return self.respond(self.server.begin_quit())
             if self.path == '/api/open-folder':
                 with db() as con:
                     scope, params = scope_filter(live_root())
@@ -672,6 +695,10 @@ class LocalServer(ThreadingHTTPServer):
             value=(BASE/'VERSION').read_text(encoding='utf-8').strip()
             self.loaded_version=value if re.fullmatch(r'v?\d+\.\d+\.\d+',value) else ''
         except (OSError,UnicodeError):self.loaded_version=''
+        self.supervisor_stop=None
+        self.worker_leases={}
+        self._quit_mutex=threading.Lock()
+        self._quitting=False
         super().__init__(*args,**kwargs)
         import yandex_verification,lens_verification,progress_snapshot
         yandex_verification.server_started()
@@ -682,22 +709,51 @@ class LocalServer(ThreadingHTTPServer):
         if hasattr(self,'progress_snapshot'):self.progress_snapshot.close()
         super().server_close()
 
+    def begin_quit(self):
+        """Quit: workers finish their current safe step and exit, then the server stops."""
+        with self._quit_mutex:
+            if not self._quitting:
+                self._quitting=True
+                threading.Thread(target=self.finish_quit,name='graceful-quit',daemon=True).start()
+        return {'ok':True,'stopping':True}
+
+    def finish_quit(self,worker_timeout=None):
+        import pause_control
+        try:
+            if self.supervisor_stop is not None:self.supervisor_stop.set()  # No new workers.
+            pause_control.request_stop()
+            with LOCK:  # An in-flight manual write finishes first.
+                self.worker_leases=pause_control.hold_worker_leases(worker_timeout)
+        except Exception as exc:
+            # Keep serving rather than strand a worker that may still be writing.
+            print('Quit did not complete; the server keeps running:',exc.__class__.__name__,exc,file=sys.stderr,flush=True)
+            with self._quit_mutex:self._quitting=False
+            return False
+        self.shutdown()
+        return True
+
     def server_bind(self):
         if os.name == 'nt':
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--no-browser', action='store_true')
-    options = parser.parse_args()
+    options = parser.parse_args(argv)
     with db():
         pass
+    import library_lock, pause_control, supervisor
+    pause_control.begin_run()
+    try:
+        library_lock.claim_configured('dashboard')
+    except library_lock.LibraryBusy as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return library_lock.EXIT_LIBRARY_BUSY
     server = LocalServer(('127.0.0.1', options.port), Handler)
-    import supervisor
-    supervisor_stop = supervisor.start(BASE)
+    supervisor_stop = server.supervisor_stop = supervisor.start(BASE)
     address = f'http://127.0.0.1:{options.port}'
     print(f'Comic metadata pilot: {address}\nKeep this window open. Ctrl+C stops the app.')
     if not options.no_browser:
@@ -705,6 +761,12 @@ if __name__ == '__main__':
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        server.server_close()
+        pass
     finally:
         supervisor_stop.set()
+        server.server_close()
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -12,7 +12,8 @@ import pause_control
 
 
 def progress(**updates):
-    target=app.BASE/'data'/'progress.json'
+    target=app.DATA/'progress.json'
+    target.parent.mkdir(parents=True,exist_ok=True)
     current=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
     current.update(updates)
     current['timestamp']=datetime.now(timezone.utc).isoformat()
@@ -53,7 +54,7 @@ def prepare(folder, reference):
         entries.append({'path':str(path),'action':'write' if changes else 'unchanged',
                         'size':stat.st_size,'mtime':stat.st_mtime_ns,'sha256':digest(path),
                         'changes':changes,'fields':fields})
-    output=app.BASE/'batches'/str(time.time_ns())
+    output=app.STATE_ROOT/'batches'/str(time.time_ns())
     output.mkdir(parents=True)
     plan={'folder':str(folder),'reference':str(reference),'entries':entries,
           'method':'Exact page names, CRCs and sizes match the manually reviewed pilot reference.'}
@@ -121,7 +122,7 @@ def apply(plan_path, remove_verified_backups=False):
     app.JOB.update(running=True,visited=0,changed=0,errors=0)
     app.scan([plan['folder']])
     print('Repeat scan:',app.JOB)
-    status=json.loads((app.BASE/'data'/'progress.json').read_text(encoding='utf-8'))
+    status=json.loads((app.DATA/'progress.json').read_text(encoding='utf-8'))
     completed=[b for b in status.get('completed',[]) if b.get('batch')!=plan_path.parent.name]
     completed.append({'batch':plan_path.parent.name,'folder':Path(plan['folder']).name,'updated':len(results),
                       'review':sum(e['action']=='review' for e in plan['entries'])})

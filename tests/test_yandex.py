@@ -21,6 +21,7 @@ class VerificationTests(unittest.TestCase):
     def setUp(self):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'BASE',self.root))
+        self.enterContext(patch.object(app,'STATE_ROOT',self.root))
         self.enterContext(patch.object(app,'DATA',self.root/'data'))
         self.now=1_000_000
         self.enterContext(patch.object(time,'time',side_effect=lambda:self.now))
@@ -161,6 +162,17 @@ class VerificationTests(unittest.TestCase):
         self.assertIsNone(self.state()['request']);self.assertEqual(verification.status()['phase'],'paused')
         pause_control.change(False);self.assertFalse(verification.service())
 
+    def test_quit_during_open_closes_and_keeps_the_challenge(self):
+        self.queue()
+        def verify(url,query,opened,admitted):
+            opened();admitted();pause_control.request_stop();admitted()
+            self.fail('Quit was not noticed')
+        self.browser.side_effect=verify
+        with patch.object(pause_control,'_stop_baseline',pause_control.stop_generation()):
+            self.assertTrue(verification.service())
+        self.assertTrue(self.state()['human_verification']);self.assertIsNone(self.state()['request'])
+        self.assertEqual(self.state()['failure'],'paused')
+
     def test_pause_resume_between_observations_cancels_original_intent(self):
         self.queue()
         def verify(url,query,opened,admitted):
@@ -294,7 +306,7 @@ class YandexBrowserTests(unittest.TestCase):
 class VersionTests(unittest.TestCase):
     def test_server_reports_captured_version_after_file_changes(self):
         root=Path(self.enterContext(scratch_directory()));(root/'VERSION').write_text('0.1.0')
-        with patch.object(app,'BASE',root),patch.object(app,'DATA',root/'data'),patch.object(app.ThreadingHTTPServer,'__init__',return_value=None):
+        with patch.object(app,'BASE',root),patch.object(app,'STATE_ROOT',root),patch.object(app,'DATA',root/'data'),patch.object(app.ThreadingHTTPServer,'__init__',return_value=None):
             server=app.LocalServer(('127.0.0.1',0),app.Handler)
             (root/'VERSION').write_text('9.9.9')
             self.assertEqual(server.loaded_version,'0.1.0')

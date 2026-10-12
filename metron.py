@@ -7,7 +7,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from html import unescape
 import app
 from provider_wait import ProviderDeferred
@@ -19,8 +18,7 @@ LOCK = threading.Lock()
 def token():
     if os.environ.get('METRON_API_TOKEN'):
         return os.environ['METRON_API_TOKEN'].strip()
-    settings = json.loads((app.BASE / 'config.json').read_text(encoding='utf-8'))
-    for path in [app.BASE / '.env', app.BASE.parents[1] / '.env', Path(settings.get('env_file', app.BASE / '.env'))]:
+    for path in app.env_files():
         if path.is_file():
             for line in path.read_text(encoding='utf-8-sig').splitlines():
                 name, separator, value = line.strip().removeprefix('export ').partition('=')

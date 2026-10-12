@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import shutil
 import uuid
@@ -9,9 +10,14 @@ from unittest.mock import patch
 import worker
 import app
 
+def scratch_parent():
+    """Throwaway test folders; COMICS_META_TEST_SCRATCH moves them out of the checkout."""
+    return Path(os.environ.get('COMICS_META_TEST_SCRATCH') or Path(__file__).resolve().parents[1] / 'work' / 'test-runs')
+
+
 @contextmanager
 def scratch_directory():
-    intended = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+    intended = scratch_parent()
     root = intended / str(uuid.uuid4())
     root.mkdir(parents=True)
     try:

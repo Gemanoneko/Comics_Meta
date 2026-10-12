@@ -150,7 +150,7 @@ def service():
     def admitted():
         with app.db() as con:
             current=read(con);paused,generation=control(con)
-        if paused or generation!=state['generation'] or current.get('owner')!=_owner or current.get('request')!=request_id or current.get('phase') not in {'opening','open'}:
+        if paused or pause_control.stop_requested() or generation!=state['generation'] or current.get('owner')!=_owner or current.get('request')!=request_id or current.get('phase') not in {'opening','open'}:
             raise pause_control.PauseRequested()
     def on_open():
         nonlocal opened

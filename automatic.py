@@ -232,7 +232,7 @@ def discover(root,coverage_only=False):
                     if fields:
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
-                        target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
+                        target = app.STATE_ROOT/'batches'/str(time.time_ns())/'plan.json'
                         target.parent.mkdir(parents=True)
                         target.write_text(json.dumps({'folder':str(path.parent),'method':'Publisher exact title; issue-wide fields only.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
                         outcome = 'queued'
@@ -299,7 +299,7 @@ def discover(root,coverage_only=False):
                 if fields:
                     changes = {k: {'before': '', 'after': v} for k, v in fields.items()}
                     fields['Notes'] = ('Automatic enrichment: existing ComicVine issue ID verified against embedded series and issue number.' if match else 'Automatic match: unique exact series and publisher, issue number, publication year and cover similarity agree.') + ' Existing populated values and synopsis retained.'
-                    target = app.BASE / 'batches' / str(time.time_ns()) / 'plan.json'
+                    target = app.STATE_ROOT / 'batches' / str(time.time_ns()) / 'plan.json'
                     target.parent.mkdir(parents=True)
                     target.write_text(json.dumps({'folder':str(path.parent),'method':'Verified existing issue ID; fill missing fields only.', 'entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
                     outcome = 'queued'
@@ -315,7 +315,7 @@ def discover(root,coverage_only=False):
             if fields:
                 changes={k:{'before':'','after':v} for k,v in fields.items()}
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])
-                target=app.BASE/'batches'/str(time.time_ns())/'plan.json';target.parent.mkdir(parents=True)
+                target=app.STATE_ROOT/'batches'/str(time.time_ns())/'plan.json';target.parent.mkdir(parents=True)
                 target.write_text(json.dumps({'folder':str(path.parent),'method':'Verified issue-wide web fields.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
                 outcome='queued'
         if not old.get('Summary'):
@@ -346,7 +346,7 @@ def discover(root,coverage_only=False):
                             entry['changes']['Summary']={'before':'','after':proposal['summary']}
                             storage.save(target,plan)
                         else:
-                            target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
+                            target = app.STATE_ROOT/'batches'/str(time.time_ns())/'plan.json'
                             target.parent.mkdir(parents=True)
                             target.write_text(json.dumps({'folder':str(path.parent),'method':'Exact publisher issue identity; internet-only synopsis with quote and spoiler checks.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':{'Summary':{'before':'','after':proposal['summary']}},'fields':fields}]}),encoding='utf-8')
                         outcome = 'queued'
