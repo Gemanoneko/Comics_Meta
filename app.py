@@ -498,8 +498,8 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path == '/reverse-image.js':
-                return self.respond((BASE / 'static/reverse-image.js').read_bytes(), mime='text/javascript; charset=utf-8')
+            if url.path in ('/reverse-image.js','/lens-control.js'):
+                return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
             if url.path == '/api/state':
                 with db() as con:
                     root = live_root()
@@ -511,36 +511,20 @@ class Handler(BaseHTTPRequestHandler):
                     totals['needs_information'] = totals['total'] - totals['metadata_and_synopsis']
                 return self.respond({'version':getattr(self.server,'loaded_version',''), 'job': JOB.copy(), 'counts': counts, 'totals': totals, 'roots': roots,
                                      'online': bool(api_key())})
+            if url.path == '/api/browser-verification':
+                import lens_verification,yandex_verification,pause_control
+                result=lens_verification.status()
+                import browser_search
+                result['cover']=browser_search.legacy_status()
+                result['control']=pause_control.status()
+                result['yandex']=yandex_verification.status()
+                return self.respond(result)
             if url.path == '/api/progress':
                 import pause_control
-                progress = DATA / 'progress.json'
-                result = json.loads(progress.read_text(encoding='utf-8')) if progress.exists() else {'phase':'Ready','current_folder':'','completed':[]}
-                queue_dir = DATA / 'queue'
-                tickets = [json.loads(p.read_text(encoding='utf-8')) for p in queue_dir.glob('*.json')]
-                heartbeat = queue_dir / 'heartbeat'
-                alive = heartbeat.exists() and time.time() - json.loads(heartbeat.read_text(encoding='utf-8'))['timestamp'] < 15
-                result['queue'] = {'alive': alive, 'pending':sum(t['state']=='pending' for t in tickets),
-                                   'running':sum(t['state']=='running' for t in tickets),
-                                   'complete':sum(t['state']=='complete' for t in tickets),
-                                   'attention':[{'folder':t['folder'],'error':t.get('error','')} for t in tickets if t['state']=='needs_attention']}
-                import discovery_state
-                result['research'] = discovery_state.counts(live_root())
-                result['live_root'] = live_root()
-                result['control'] = pause_control.status()
-                import cover_tasks
-                result['cover_research'] = cover_tasks.status()
-                import browser_search
-                result['browser_search'] = browser_search.status()
-                import providers
-                result['providers'] = providers.statuses()
-                import research_runtime
-                result['performance'] = research_runtime.metrics()
-                folders_path=DATA/'folders.json'
-                if folders_path.exists():
-                    folder_state=json.loads(folders_path.read_text(encoding='utf-8'))
-                    scheduled=folder_state.get('folders',{})
-                    result['folders']={'total':len(scheduled),'scanned':sum(bool(v.get('last_pass')) and not v.get('error') for v in scheduled.values()),'passes_complete':sum(v.get('state')=='pass_complete' for v in scheduled.values()),'retry_wait':sum(v.get('state')=='retry_wait' for v in scheduled.values()),
-                                       'next_scan_at':min((v.get('next_scan',0) for v in scheduled.values()),default=None),'inventory_pending':bool(folder_state.get('inventory_pending')),'directories_visited':folder_state.get('inventory_visited',0)}
+                try:result=self.server.progress_snapshot.get(args.get('completed_revision',[None])[0])
+                except ValueError as exc:return self.respond({'error':str(exc)},503)
+                # Pause status is authoritative, even while aggregates refresh.
+                result['control']=pause_control.status()
                 return self.respond(result)
             if url.path == '/api/comics':
                 search = args.get('q', [''])[0]
@@ -584,6 +568,8 @@ class Handler(BaseHTTPRequestHandler):
                     mime = 'image/png' if images[0].filename.lower().endswith('.png') else 'image/webp' if images[0].filename.lower().endswith('.webp') else 'image/jpeg'
                     return self.respond(archive.read(images[0]), mime=mime)
             self.respond({'error': 'Not found'}, 404)
+        except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
+            return
         except Exception as exc:
             self.respond({'error': str(exc)}, 400)
 
@@ -671,6 +657,8 @@ class Handler(BaseHTTPRequestHandler):
                     backup = write_metadata(comic(int(body['comic'])), fields, remove_verified_backups=True)
                 return self.respond({'ok': True, 'backup': backup, 'backup_removed_after_verification': True})
             self.respond({'error': 'Not found'}, 404)
+        except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
+            return
         except Exception as exc:
             self.respond({'error': str(exc)}, 400)
 
@@ -685,8 +673,14 @@ class LocalServer(ThreadingHTTPServer):
             self.loaded_version=value if re.fullmatch(r'v?\d+\.\d+\.\d+',value) else ''
         except (OSError,UnicodeError):self.loaded_version=''
         super().__init__(*args,**kwargs)
-        import yandex_verification
+        import yandex_verification,lens_verification,progress_snapshot
         yandex_verification.server_started()
+        lens_verification.server_started()
+        self.progress_snapshot=progress_snapshot.Snapshot()
+
+    def server_close(self):
+        if hasattr(self,'progress_snapshot'):self.progress_snapshot.close()
+        super().server_close()
 
     def server_bind(self):
         if os.name == 'nt':

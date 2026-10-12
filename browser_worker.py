@@ -11,6 +11,7 @@ import browser_search as search
 import cover_tasks
 import storage
 import pause_control
+import lens_verification
 
 
 def locked():
@@ -99,28 +100,15 @@ def wait_for_work(seconds):
 
 
 def verification_request(browser,options):
-    resume=app.DATA/'browser-resume'
-    if not resume.exists():return browser
-    resume.unlink()
-    state=search.status()
-    if not state.get('human_verification') or not state.get('verification_url'):return browser
-    try:
-        search.status(state='opening_verification',verification_state='opening',detail='Opening the verification browser; no further clicks are needed.')
-        if not browser:browser=search.LensBrowser(options)
-        resolved=browser.human_session(state['verification_url'])
-        minimized=browser.minimize() if resolved else False
-        search.status(human_verification=not resolved,verification_state='verified' if resolved else 'required',
-                      verification_window='minimized' if minimized else 'open' if resolved else 'closed',
-                      browser_retry_at=0 if resolved else time.time()+3600,
-                      detail=('Verification complete. The browser is minimized; keep it open for automatic searches.' if minimized else 'Verification complete. You can minimize the browser; keep it open for automatic searches.') if resolved else 'Verification did not finish. Request a new window when ready.')
-    except Exception:
-        search.status(state='needs_human',verification_state='required',detail='Could not complete the verification session. Retry from the dashboard.')
-    return browser
+    return lens_verification.service(browser,options)
 
 
 def main(once=False):
     handle=locked()
     if not handle:return
+    import lens_browser_owner
+    lens_browser_owner.enable()
+    lens_verification.initialize()
     stop=threading.Event()
     def heartbeat():
         while not stop.is_set():
@@ -140,6 +128,7 @@ def main(once=False):
             if pause_control.requested():
                 if browser:
                     browser.close();browser=None
+                lens_verification.paused()
                 pause_control.checkpoint('browser')
                 state=search.status()
                 search.status(state='paused',verification_state='required' if state.get('human_verification') else 'verified',verification_window='closed',detail='Paused; cover queue retained.')

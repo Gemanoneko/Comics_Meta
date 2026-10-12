@@ -1,12 +1,17 @@
 # Changelog
 
-## [Unreleased]
+## [v0.1.1] - 2026-10-12
 
 ### Changed
 
-- In progress for `0.1.1`: serialize dashboard polling and bound progress-response history while preserving stored history, so slow progress requests do not overlap.
-- In progress: acknowledge Google Lens verification requests promptly with durable request states, and name Google Lens explicitly in verification labels.
-- Implementation, QA and deployment are pending. The specific native cause of the reported verification-window failure remains unproven; this entry does not claim the issue is fixed or the running service updated.
+- Serialize dashboard polling and serve bounded progress snapshots while preserving full stored history and its revision, so slow progress requests do not overlap.
+- Acknowledge Google Lens verification requests promptly and retain explicit queued, opening, open, closing, failed and verified outcomes. Verification controls name Google Lens and explain blocked retries.
+- Give Google Lens browser ownership an exclusive profile lease and a private Windows Job, with guarded release while owned descendants remain alive.
+
+### Validation
+
+- Frozen-candidate offline validation: 180 Python checks, 33 rendered DOM/UI checks and a real Windows Job ownership proof passed, with no owned processes remaining after each run.
+- Real headed Google Lens opening remains unverified. The original native verification-window failure remains unattributed; this entry does not claim native launch success or a service deployment.
 
 ## [v0.1.0] - 2026-10-12
 

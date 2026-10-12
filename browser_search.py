@@ -47,7 +47,7 @@ def api_key():
     return ''
 
 
-def status(**changes):
+def legacy_status(**changes):
     path=app.DATA/'browser-search.json'
     previous=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
     if changes:
@@ -57,14 +57,18 @@ def status(**changes):
     previous['verification_pending']=(app.DATA/'browser-resume').exists() or (previous['alive'] and previous.get('human_verification') and previous.get('verification_state') in ('opening','open'))
     return previous
 
+def status(**changes):
+    previous=legacy_status(**changes)
+    import lens_verification
+    current=lens_verification.status()
+    if current.get('request_id'):
+        previous.update(verification_state=current['phase'],verification_window=current['window'],
+                        verification_pending=current['verification_pending'],verification=current)
+    return previous
+
 def request_verification():
-    with VERIFICATION_LOCK:
-        state=status()
-        if not state.get('human_verification'):raise ValueError('No browser verification is pending.')
-        if state.get('verification_pending'):return {'ok':True,'state':'already_requested'}
-        status(verification_state='queued',detail='Verification requested; waiting for the current cover operation to finish.')
-        storage.save(app.DATA/'browser-resume',{'requested':time.time()})
-        return {'ok':True,'state':'queued'}
+    import lens_verification
+    return lens_verification.request()
 
 
 def cover_bytes(path):
@@ -97,6 +101,32 @@ def challenge(url,text):
     return '/sorry/' in url or any(marker in text for marker in ('unusual traffic','verify you are human','confirm you are not a robot','making sure you’re not a bot','making sure you\'re not a bot'))
 
 
+LENS_VISIBLE = '''nodes => nodes.slice(0,20).some(element => {
+    const rect=element.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+    for(let node=element;node;node=node.parentElement){
+        const style=getComputedStyle(node);
+        if(node.hidden || node.getAttribute('aria-hidden')==='true' || style.display==='none' ||
+           style.visibility==='hidden' || style.visibility==='collapse' || Number(style.opacity)===0)return false;
+    }
+    return true;
+})'''
+
+
+def verification_complete(page):
+    """Only a usable Google search page proves the human challenge ended."""
+    p=urllib.parse.urlparse(page.url)
+    if (p.scheme!='https' or p.hostname not in {'google.com','www.google.com','lens.google.com'}
+            or p.username or p.password or p.port not in (None,443)
+            or p.path.rstrip('/') not in {'','/search','/imghp'}):return False
+    text=page.locator('body').inner_text(timeout=10_000).strip()
+    if not text or challenge(page.url,text) or any(value in text.lower() for value in ('this site can’t be reached','this site cannot be reached','something went wrong','internal server error')):return False
+    fields=page.locator('input[name="q"], textarea[name="q"]')
+    if fields.evaluate_all(LENS_VISIBLE):return True
+    button=page.get_by_role('button',name='Search by image',exact=True)
+    return bool(button.evaluate_all(LENS_VISIBLE))
+
+
 def reserve(provider,limit,period):
     if limit<=0:raise ValueError(provider+' request limit reached.')
     now=time.time()
@@ -124,17 +154,23 @@ def save_cache(key,leads):
 
 class LensBrowser:
     def __init__(self,options):
-        from playwright.sync_api import sync_playwright
-        self.runtime=sync_playwright().start();self.context=None;self.options=options
+        self.runtime=None;self.context=None;self.options=options;self.leased=False
 
-    def open(self,visible=False):
-        if self.context:self.context.close()
-        profile=app.DATA/'lens-profile';profile.mkdir(parents=True,exist_ok=True)
-        import maintenance
-        maintenance.browser_cache(profile)
-        self.context=self.runtime.chromium.launch_persistent_context(str(profile),channel=self.options.get('channel','msedge'),headless=not visible,locale='en-US',accept_downloads=False,args=['--disk-cache-size=67108864','--media-cache-size=16777216'])
-        self.page=self.context.pages[0] if self.context.pages else self.context.new_page()
-        self.page.set_default_timeout(15_000)
+    def open(self,visible=False,admitted=lambda:None):
+        from playwright.sync_api import sync_playwright
+        import lens_browser_owner
+        admitted();self.close();admitted()
+        profile=lens_browser_owner.acquire();self.leased=True;self.profile=profile
+        try:
+            import maintenance
+            maintenance.browser_cache(profile)
+            admitted();self.runtime=sync_playwright().start();admitted()
+            self.context=self.runtime.chromium.launch_persistent_context(str(profile),channel=self.options.get('channel','msedge'),headless=not visible,locale='en-US',accept_downloads=False,args=['--disk-cache-size=67108864','--media-cache-size=16777216'])
+            admitted()
+            self.page=self.context.pages[0] if self.context.pages else self.context.new_page()
+            self.page.set_default_timeout(15_000)
+        except BaseException:
+            self.close();raise
 
     def check(self):
         if challenge(self.page.url,self.page.locator('body').inner_text(timeout=10_000)):
@@ -161,22 +197,23 @@ class LensBrowser:
             if leads:return leads
         return []
 
-    def human_session(self,url):
+    def human_session(self,url,admitted=lambda:None,observation=lambda stage:None):
         p=urllib.parse.urlparse(url)
-        if p.scheme!='https' or not (p.hostname=='google.com' or (p.hostname or '').endswith('.google.com')):
+        if (p.scheme!='https' or p.username or p.password or p.port not in (None,443)
+                or len(url)>8192 or any(ord(c)<=32 or ord(c)==127 for c in url)
+                or not (p.hostname=='google.com' or (p.hostname or '').endswith('.google.com'))):
             raise ValueError('Verification URL is not a Google page.')
-        self.open(visible=True)
+        admitted();observation('launch');self.open(visible=True,admitted=admitted)
+        admitted();observation('load')
         self.page.goto(url,wait_until='domcontentloaded',timeout=45_000)
-        status(state='needs_human',verification_state='open',detail='Complete verification in the browser window. It will be minimized when verification succeeds.')
-        deadline=time.time()+600
-        while time.time()<deadline:
-            import pause_control
-            if pause_control.requested():return False
-            self.page.wait_for_timeout(2000)
-            if not challenge(self.page.url,self.page.locator('body').inner_text()):
+        admitted();observation('observe')
+        deadline=time.monotonic()+600
+        while time.monotonic()<deadline:
+            admitted();self.page.wait_for_timeout(500);admitted()
+            if verification_complete(self.page):
                 # Keep the browser the user just verified, including its session.
                 return True
-        self.open();return False
+        return False
 
     def minimize(self):
         """Keep the verified browser session intact while hiding its window."""
@@ -190,10 +227,28 @@ class LensBrowser:
         except Exception:return False
 
     def close(self):
-        if self.context:self.context.close()
-        self.runtime.stop()
-        import maintenance
-        maintenance.browser_cache(app.DATA/'lens-profile')
+        import lens_browser_owner
+        if not self.leased and self.runtime is None and self.context is None:return
+        try:
+            if self.context:self.context.close()
+        finally:
+            try:
+                if self.runtime:self.runtime.stop()
+            finally:
+                if self.leased:
+                    # No cache access until descendants are proven closed and
+                    # the exact leased profile is revalidated. Keep the lock
+                    # throughout cleanup, including failed launch cleanup.
+                    lens_browser_owner.closed()
+                    try:
+                        profile=lens_browser_owner.checked_profile()
+                        if profile!=self.profile:raise ValueError('Lens profile changed while leased.')
+                        import maintenance
+                        maintenance.browser_cache(profile)
+                    finally:lens_browser_owner.release()
+        self.context=None;self.runtime=None;self.leased=False
+        import lens_verification
+        lens_verification.session_closed()
 
 
 def request_json(request):

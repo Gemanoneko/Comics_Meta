@@ -1,4 +1,5 @@
 import io
+import os
 import json
 import time
 import unittest
@@ -10,16 +11,22 @@ import browser_search
 import browser_worker
 import cover_tasks
 import research
+import lens_verification
 from test_worker import scratch_directory
 
 
 class BrowserSearchTests(unittest.TestCase):
+    def ready(self):
+        lens_verification.initialize()
+        (app.DATA/'browser-heartbeat').write_text(json.dumps({'pid':os.getpid(),'timestamp':time.time()}))
+
     def setUp(self):
         control=patch.object(browser_worker.pause_control,'requested',return_value=False)
         control.start();self.addCleanup(control.stop)
 
     def test_verification_request_is_persistent_and_duplicate_clicks_are_ignored(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            self.ready()
             browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
             self.assertEqual(browser_search.request_verification()['state'],'queued')
             path=app.DATA/'browser-resume';original=path.read_bytes()
@@ -35,6 +42,7 @@ class BrowserSearchTests(unittest.TestCase):
 
     def test_verified_session_keeps_browser_and_minimizes_it(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            self.ready()
             browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
             browser_search.request_verification()
             browser=Mock();browser.human_session.return_value=True;browser.minimize.return_value=True
@@ -48,6 +56,7 @@ class BrowserSearchTests(unittest.TestCase):
 
     def test_verification_failure_allows_single_retry(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)):
+            self.ready()
             browser_search.status(human_verification=True,verification_url='https://www.google.com/sorry/')
             browser_search.request_verification()
             browser=Mock();browser.human_session.side_effect=ValueError('failed')

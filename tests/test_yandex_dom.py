@@ -57,11 +57,13 @@ class DashboardDOMTests(YandexDOMTests):
         path=urllib.parse.urlparse(route.request.url).path
         if path=='/':return route.fulfill(body=(self.root/'static/index.html').read_text(encoding='utf-8'),content_type='text/html')
         if path=='/reverse-image.js':return route.fulfill(body='',content_type='text/javascript')
+        if path=='/lens-control.js':return route.fulfill(body=(self.root/'static/lens-control.js').read_text(encoding='utf-8'),content_type='text/javascript')
         if path=='/api/state':
             if getattr(self,'state_mode','')=='delayed':self.pending_state=route;return
             if getattr(self,'state_mode','')=='failed':return route.fulfill(status=503,json={'error':'Fixture service unavailable'})
             data=self.state_payload()
             if getattr(self,'state_mode','')=='missing':data.pop('version')
+        elif path=='/api/browser-verification':data={'engine':'google_lens','phase':'required','human_verification':True,'window':'closed','alive':True,'control':{},'yandex':self.current}
         elif path=='/api/progress':data={'control':{},'providers':{'free_web':{'status':'available','engines':{'yandex':{'verification':self.current}}}},'browser_search':{'alive':True,'human_verification':True},'queue':{'alive':True},'timestamp':1}
         elif path=='/api/comics':data={'rows':[],'total':0}
         elif path=='/api/yandex-verification':
@@ -118,7 +120,7 @@ class DashboardDOMTests(YandexDOMTests):
         self.assertTrue(button.is_hidden())
         self.page.keyboard.press('Tab')
         self.assertTrue(self.page.evaluate("document.activeElement.tagName==='SUMMARY'"))
-        self.assertEqual(self.page.locator('#browserResume').inner_text(),'Open browser verification')
+        self.assertEqual(self.page.locator('#browserResume').inner_text(),'Open Google Lens verification')
 
     def test_version_loading_valid_invalid_failure_recovery_and_no_reannouncement(self):
         for value,expected in [('0.1.0','v0.1.0'),('v0.1.0','v0.1.0'),('', 'Version unavailable'),(None,'Version unavailable'),('latest<script>','Version unavailable'),('0.2.0','v0.2.0')]:
