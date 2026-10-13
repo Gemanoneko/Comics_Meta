@@ -11,6 +11,7 @@ write_stopped and held use the predicates the processing code itself uses
 """
 import json
 import time
+import threading
 import app
 import discovery_state
 
@@ -88,16 +89,60 @@ def candidates(con, root, search=''):
             continue
 
 
-def counts(root):
+def counts(root, connection=None):
     """Spec section 9.1: one count per code for the live root, plus the failure limit."""
     found = dict.fromkeys(CODES, 0)
-    with app.db() as con:
+    def scan(con):
         for _, record, signature in candidates(con, root):
             problem = classify(record, signature)
             if problem:
                 found[problem['code']] += 1
+    if connection is None:
+        with app.db() as con:scan(con)
+    else:
+        scan(connection)
     found['limit'] = discovery_state.WRITE_FAILED_LIMIT
     return found
+
+
+class CountsCache:
+    """Reuse counts until another connection commits to this catalog.
+
+    SQLite data_version is only comparable on the same connection. Keep that read
+    connection across snapshot refreshes; serialize it because refresh threads rotate.
+    A transaction gives the version check and scan a consistent database snapshot.
+    """
+    def __init__(self):
+        self.connection=None;self.path=None;self.key=None;self.value=None;self.closed=False
+        self.lock=threading.Lock()
+
+    def get(self,root):
+        with self.lock:
+            if self.closed:raise RuntimeError('Problem count cache is closed.')
+            path=(app.DATA/'catalog.sqlite').resolve()
+            if self.connection is None or self.path!=path:
+                if self.connection is not None:self.connection.close()
+                # Snapshot refreshes run on successive threads; the lock owns access.
+                import sqlite3
+                with app.db() as con:discovery_state.initialize(con)
+                self.connection=sqlite3.connect(path,check_same_thread=False,timeout=30)
+                self.connection.row_factory=sqlite3.Row
+                self.path=path;self.key=None
+            con=self.connection
+            con.execute('BEGIN')
+            try:
+                key=(str(root),con.execute('PRAGMA data_version').fetchone()[0])
+                if self.key!=key:
+                    self.value=counts(root,con)
+                    self.key=key
+                return dict(self.value)
+            finally:
+                con.rollback()
+
+    def close(self):
+        with self.lock:
+            if self.connection is not None:self.connection.close()
+            self.connection=None;self.key=None;self.closed=True
 
 
 def paths_with(con, root, code, search=''):

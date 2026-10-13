@@ -46,11 +46,12 @@ class SeriesSpellingTests(unittest.TestCase):
         self.assertEqual(self.series('Ghost_Rider 001.cbz', 'GHOST RIDER')[0], 'Ghost Rider')  # "_R" is no contraction.
 
     def test_accents_restored_from_an_exact_cover_title(self):
-        value, evidence = self.series('Asterix 001.cbz', 'ASTÉRIX')
+        value, changes = in_book.normalize_series('Asterix', 'ASTÉRIX', corroboration='ASTÉRIX #1')
         self.assertEqual(value, 'Astérix')
-        self.assertEqual(evidence['normalised']['changes'], ['accents from the cover'])
-        self.assertEqual(self.series('Pokemon Adventures 001.cbz', 'Pokémon Adventures')[0], 'Pokémon Adventures')
-        self.assertEqual(self.series('La Esquina de Eric 002.cbz', 'LA ESQUINA DE ÉRIC #2')[0], 'La Esquina de Éric')
+        self.assertEqual(changes, ['accents from the cover'])
+        self.assertEqual(in_book.normalize_series('Pokemon Adventures','Pokémon Adventures',corroboration='Pokémon Adventures #1')[0], 'Pokémon Adventures')
+        self.assertEqual(in_book.normalize_series('La Esquina de Eric','LA ESQUINA DE ÉRIC #2',corroboration='LA ESQUINA DE ÉRIC #2')[0], 'La Esquina de Éric')
+        self.assertEqual(self.series('Minor Arcana 001.cbz','Mínor Arcana')[0], 'Minor Arcana')
 
     def test_accent_mismatch_is_left_as_is(self):
         # The cover is shorter, longer or punctuated differently: not the same text, nothing borrowed.
@@ -81,9 +82,15 @@ class SeriesSpellingTests(unittest.TestCase):
             self.assertNotIn('normalised', book['evidence']['fields']['Series'], name)
 
     def test_ends_trimmed_but_initialisms_kept(self):
-        self.assertEqual(self.series('Batman. 001.cbz', 'BATMAN')[0], 'Batman')
+        self.assertEqual(self.series('Batman. 001.cbz', 'BATMAN')[0], 'Batman.')
+        for title in ('Hunt. Kill. Repeat.', 'Midnight, Mass.', 'Beware...'):
+            self.assertEqual(self.series(title+' 001.cbz',title.upper())[0],title)
         self.assertEqual(self.series('Agents of S.H.I.E.L.D. 001.cbz', 'AGENTS OF S.H.I.E.L.D.')[0], 'Agents of S.H.I.E.L.D.')
         self.assertEqual(self.series('Spider-Man Jr. 001.cbz', 'SPIDER-MAN JR.')[0], 'Spider-Man Jr.')
+
+    def test_cover_space_does_not_prove_apostrophe(self):
+        self.assertEqual(in_book.normalize_series('Mr_T and the T-Force','Mr T and the T-Force')[0],'Mr T and the T-Force')
+        self.assertEqual(in_book.normalize_series('Beat_T','Beat T')[0],'Beat T')
 
     def test_control_nothing_to_change(self):
         for name, title, expected in (('Spawn 001 (1992).cbz', 'SPAWN', 'Spawn'),

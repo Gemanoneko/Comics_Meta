@@ -214,14 +214,26 @@ def external_plan(old,source_fields,replaceable,allow_replace):
     value changed after the folder scan. Values Sergei or another program wrote are never
     in `replaceable`."""
     import provenance,imprints
-    source_fields=imprints.split(source_fields)  # Sergei 2026-10-13: an imprint goes in Imprint, its parent in Publisher.
+    year=old.get('Year')
+    if not year or (allow_replace and 'Year' in replaceable and provenance.disagrees('Year',replaceable['Year'],source_fields.get('Year'))):
+        year=source_fields.get('Year')
+    source_fields=imprints.split(source_fields,year)  # Date follows the Year that will remain in the archive.
     fields={k:v for k,v in source_fields.items() if not old.get(k)}
     replaced={}
     if allow_replace:
         for k,v in source_fields.items():
-            if k in replaceable and provenance.disagrees(k,replaceable[k],v):
+            if k in replaceable and provenance.disagrees(k,replaceable[k],v,year):
                 fields[k]=v
                 replaced[k]={'in_book':old.get(k),'external':v}
+    # A retained human Publisher can differ from the verified source's house.
+    # Only attach an imprint when its parent matches the Publisher that will remain.
+    imprint=fields.get('Imprint')
+    parent=imprints.parent_of(imprint,year)
+    publisher=fields.get('Publisher') or old.get('Publisher')
+    uncertain=imprints.research.normalize(imprint or '') in imprints.DATE_AWARE and not parent
+    if uncertain or (parent and publisher and imprints.publisher_key(parent,year)!=imprints.publisher_key(publisher,year)):
+        fields.pop('Imprint',None)
+        replaced.pop('Imprint',None)
     changes={k:{'before':old.get(k) if k in replaced else '','after':v} for k,v in fields.items()}
     return fields,changes,replaced
 

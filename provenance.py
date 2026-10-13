@@ -108,18 +108,24 @@ def pages_unchanged(row, signature, con=None):
     return any(_pair(link['input_size'], link['input_mtime']) == list(signature) for link in chain(row, con))
 
 
-def disagrees(field, current, value):
+def disagrees(field, current, value, year=None):
     """A verified external value says something different from the in-book value, not just
     the same thing written another way ("001" and "1", "Image" and "Image Comics")."""
     import research
     a, b = ' '.join(str(current or '').split()), ' '.join(str(value or '').split())
-    if not b or a == b:
+    if not b or a.casefold() == b.casefold():
         return False
+    if field == 'Series':
+        # Sergei: keep existing punctuation when only separators differ; accents and
+        # different wording still count as differences (do not fold accents here).
+        import re
+        key=lambda v:re.sub(r'[^\w]', '', v.casefold()).replace('_','')
+        return key(a)!=key(b)
     if field == 'Number':
         return research.issue_number(a) != research.issue_number(b)
     if field == 'Publisher':
         import imprints  # An imprint and its parent are the same house: "Skybound" agrees with "Image Comics".
-        return imprints.publisher_key(a) != imprints.publisher_key(b)
+        return imprints.publisher_key(a,year) != imprints.publisher_key(b,year)
     if field in ('Year', 'Month', 'Day'):
         try:
             return int(a) != int(b)

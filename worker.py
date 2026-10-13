@@ -152,7 +152,8 @@ def main():
                 try:
                     import automatic as discovery
                     import scheduler
-                    root=automatic.get('library_root',automatic['root'])
+                    root=automatic.get('library_root') or automatic.get('root')
+                    if not root:raise ValueError('Automatic lookup requires library_root or root.')
                     def inventory_progress(visited,found):
                         batch.progress(phase='Inventorying live folders',current_folder=root,
                                        detail=str(visited)+' directories visited; '+str(found)+' comic folders found. No archives are changed during this step.')

@@ -110,11 +110,39 @@ def db():
             CREATE TABLE IF NOT EXISTS api_requests(timestamp REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS api_state(id INTEGER PRIMARY KEY, last_attempt REAL, blocked_until REAL);
             INSERT OR IGNORE INTO api_state VALUES(1,0,0);
+            CREATE TABLE IF NOT EXISTS catalog_migrations(name TEXT PRIMARY KEY);
         ''')
+        refresh_fractional_numbers(con)
     except BaseException:
         con.close()
         raise
     return con
+
+
+def refresh_fractional_numbers(con):
+    """One in-service catalog repair; archives and embedded metadata are untouched.
+
+    Older parse_name stripped every leading zero, including the zero before a decimal.
+    Only rows still holding that exact old parse are repaired; renamed files and human
+    metadata stay as they are. The transaction and marker make concurrent starts safe.
+    """
+    name = 'filename-leading-zero-fraction-v014'
+    if con.execute('SELECT 1 FROM catalog_migrations WHERE name=?', (name,)).fetchone():
+        return
+    con.execute('BEGIN IMMEDIATE')
+    try:
+        if not con.execute('SELECT 1 FROM catalog_migrations WHERE name=?', (name,)).fetchone():
+            rows = con.execute("SELECT id,path,number FROM comics WHERE number LIKE '.%'").fetchall()
+            for row in rows:
+                number = parse_name(row['path'])[1]
+                if number.startswith('0.') and row['number'] == number[1:]:
+                    con.execute('UPDATE comics SET number=? WHERE id=? AND number=?',
+                                (number, row['id'], row['number']))
+            con.execute('INSERT INTO catalog_migrations(name) VALUES(?)', (name,))
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
 
 
 def parse_name(path):
@@ -123,7 +151,9 @@ def parse_name(path):
     clean = re.sub(r'\([^)]*\)|\[[^]]*\]', ' ', title)
     # Only a terminal issue number is trusted; complex chapter naming stays for review.
     match = re.search(r'(?:\s|#)(\d+(?:\.\d+)?[A-Za-z]?)\s*$', clean)
-    number = match.group(1).lstrip('0') or '0' if match else ''
+    number = (match.group(1).lstrip('0') or '0') if match else ''
+    if number.startswith('.'):
+        number = '0' + number
     series = clean[:match.start()] if match else clean
     series = re.sub(r'\s+', ' ', series).strip(' -_')
     return series, number, years[0] if years else ''
@@ -752,6 +782,12 @@ class Handler(BaseHTTPRequestHandler):
                     if publisher:
                         fields['Publisher'] = publisher
                 import imprints
+                if body.get('comic') is not None:
+                    import automatic
+                    row=comic(int(body['comic']))
+                    present,_,_=read_metadata(filesystem_path(row['path']))
+                    fields,_,_=automatic.external_plan(present,fields,{},False)
+                    return self.respond(fields)
                 return self.respond(imprints.split(fields))  # What Approve writes: an imprint in Imprint.
             if self.path == '/api/apply':
                 with LOCK:
@@ -765,8 +801,11 @@ class Handler(BaseHTTPRequestHandler):
                         volume = api('volume/4050-' + str(int(volume_id)), field_list='publisher')
                         if (volume.get('publisher') or {}).get('name'):
                             fields['Publisher'] = volume['publisher']['name']
-                    import imprints
-                    backup = write_metadata(comic(int(body['comic'])), imprints.split(fields), remove_verified_backups=True)
+                    import automatic
+                    row=comic(int(body['comic']))
+                    present,_,_=read_metadata(filesystem_path(row['path']))
+                    fields,_,_=automatic.external_plan(present,fields,{},False)
+                    backup = write_metadata(row,fields,remove_verified_backups=True)
                 return self.respond({'ok': True, 'backup': backup, 'backup_removed_after_verification': True})
             self.respond({'error': 'Not found'}, 404)
         except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):

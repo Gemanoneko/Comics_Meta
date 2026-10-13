@@ -22,7 +22,7 @@ class SplitTests(unittest.TestCase):
         for imprint, parent in (('Vertigo', 'DC Comics'), ('DC Black Label', 'DC Comics'), ('WildStorm', 'DC Comics'),
                                 ('Icon', 'Marvel'), ('Epic Comics', 'Marvel'), ('MAX', 'Marvel'), ('Top Cow', 'Image Comics'),
                                 ('Archaia', 'BOOM! Studios')):
-            self.assertEqual(imprints.split({'Publisher': imprint}), {'Publisher': parent, 'Imprint': imprint}, imprint)
+            self.assertEqual(imprints.split({'Publisher': imprint},year='2022'), {'Publisher': parent, 'Imprint': imprint}, imprint)
         for publisher in ('Image Comics', 'DC Comics', 'Mad Cave Studios', 'Vault Comics', 'Vertigo Press Ltd', ''):
             self.assertEqual(imprints.split({'Publisher': publisher}), {'Publisher': publisher}, publisher)
         self.assertEqual(imprints.split({'Series': 'Spawn'}), {'Series': 'Spawn'})
@@ -112,6 +112,35 @@ class DashboardApplyTests(ReplacementHarness):
         self.assertEqual(status, 200, reply)
         metadata = self.metadata()
         self.assertEqual((metadata['Publisher'], metadata['Imprint']), ('DC Comics', 'Vertigo'))
+
+    def test_manual_preview_and_apply_keep_human_house_without_wrong_imprint(self):
+        self.save('<ComicInfo><Series>Amazing Spider-Man</Series><Number>1</Number><Publisher>Dark Horse Comics</Publisher></ComicInfo>')
+        def api(resource,**params):
+            return {'publisher':{'name':'Skybound'}} if resource.startswith('volume/') else {'id':1,'issue_number':'1','volume':{'id':5,'name':'Amazing Spider-Man'}}
+        self.api.side_effect=api
+        import pause_control
+        with patch.object(pause_control,'requested',return_value=False):
+            status,preview=handler('/api/preview',{'comic':self.row()['id'],'issue':1})
+            self.assertEqual(status,200)
+            self.assertNotIn('Publisher',preview);self.assertNotIn('Imprint',preview)
+            status,reply=handler('/api/apply',{'comic':self.row()['id'],'issue':1})
+        self.assertEqual(status,200,reply)
+        self.assertEqual(self.metadata()['Publisher'],'Dark Horse Comics')
+        self.assertFalse(self.metadata().get('Imprint'))
+
+    def test_manual_preview_and_apply_use_retained_human_year(self):
+        self.save('<ComicInfo><Series>Amazing Spider-Man</Series><Number>1</Number><Publisher>Image Comics</Publisher><Year>1998</Year></ComicInfo>')
+        def api(resource,**params):
+            return {'publisher':{'name':'WildStorm'}} if resource.startswith('volume/') else {'id':1,'issue_number':'1','cover_date':'2020-01-01','volume':{'id':5,'name':'Amazing Spider-Man'}}
+        self.api.side_effect=api
+        import pause_control
+        with patch.object(pause_control,'requested',return_value=False):
+            status,preview=handler('/api/preview',{'comic':self.row()['id'],'issue':1})
+            self.assertEqual((status,preview['Imprint']),(200,'WildStorm'))
+            self.assertNotIn('Publisher',preview);self.assertNotIn('Year',preview)
+            status,reply=handler('/api/apply',{'comic':self.row()['id'],'issue':1})
+        self.assertEqual(status,200,reply)
+        self.assertEqual((self.metadata()['Publisher'],self.metadata()['Year'],self.metadata()['Imprint']),('Image Comics','1998','WildStorm'))
 
 
 if __name__ == '__main__':

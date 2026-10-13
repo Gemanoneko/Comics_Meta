@@ -15,7 +15,9 @@ PAYLOAD_BATCHES = 100
 
 
 class Files:
-    def __init__(self):self.values={}
+    def __init__(self):
+        import problems
+        self.values={};self.problem_counts=problems.CountsCache()
 
     def read(self,path,default):
         try:stat=path.stat()
@@ -55,7 +57,7 @@ def collect(files):
     result['browser_search']=browser_search.public(browser_search.status())
     result['providers']=providers.statuses()
     import problems
-    try:result['problems']=problems.counts(result['live_root'])  # Failure-filter spec 9.1.
+    try:result['problems']=files.problem_counts.get(result['live_root'])  # Failure-filter spec 9.1.
     except Exception:pass  # Absent, never zero: the page then shows no problem lines.
     result['performance']=research_runtime.metrics()
     folder_state=files.read(app.DATA/'folders.json',None)
@@ -98,3 +100,4 @@ class Snapshot:
 
     def close(self):
         with self.lock:self.closed=True
+        self.files.problem_counts.close()

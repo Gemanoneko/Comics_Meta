@@ -307,7 +307,7 @@ def publisher_agreement(hint, reading):
 APOSTROPHE_UNDERSCORE = re.compile(r"(?<=[^\W\d_])_(?=(?:s|t|d|m|ll|re|ve)(?![^\W_]))", re.I)
 # A trailing dot that belongs to the name: an initialism ("S.H.I.E.L.D.") or a short title.
 KEPT_FINAL_DOT = re.compile(r'(?:(?<![^\W\d_])(?:[^\W\d_]\.){2,}|(?<![^\W\d_])(?:jr|sr|mr|mrs|ms|dr|st|vs|inc|co|ltd)\.)$', re.I)
-END_SEPARATORS = ' -_.,:;~'
+END_SEPARATORS = ' -_,:;~'
 
 
 def restore_accents(series, cover_title):
@@ -377,14 +377,26 @@ def series_with_title_groups(path, numbered):
     return parts[0].replace('', '(').replace('', ')')
 
 
-def normalize_series(series, cover_title='', path=None, numbered=False):
+def normalize_series(series, cover_title='', path=None, numbered=False, corroboration=''):
     """(series, changes): the filename's series text with obvious spelling and formatting slips
     fixed, and the list of fixes applied. Deterministic; the wording is never shortened."""
     changes = []
     full = series_with_title_groups(path, numbered) if path else ''
     if full and full != series and research.book_key(re.sub(r'\([^)]*\)', ' ', full)) == research.book_key(series):
         series, changes = full, ['bracketed title words kept']
-    text = APOSTROPHE_UNDERSCORE.sub("'", series)
+    # Possessive _s is mechanical; contractions need the same spelling on the cover.
+    # Otherwise ordinary words such as Beat_The must not turn into Beat'The.
+    def apostrophe(match):
+        candidate = series[:match.start()] + "'" + series[match.end():]
+        tail = re.match(r'[^\W\d_]+',series[match.end():])
+        suffix = tail[0].lower() if tail else ''
+        # book_key strips apostrophes, so it cannot distinguish Mr T from Mr'T.
+        explicit=lambda v:' '.join(str(v or '').replace('_',' ').replace('’',"'").split()).casefold()
+        printed=bool(re.search(r'(?<!\w)'+re.escape(candidate)+r'(?!\w)',corroboration or '',re.I))
+        if suffix == 's' or printed or explicit(candidate) == explicit(TITLE_NUMBER.sub('',cover_title or '').strip()):
+            return "'"
+        return '_'
+    text = APOSTROPHE_UNDERSCORE.sub(apostrophe, series)
     if text != series:
         changes.append('underscore for an apostrophe')
     if '_' in text:
@@ -399,7 +411,12 @@ def normalize_series(series, cover_title='', path=None, numbered=False):
     if trimmed != text:
         changes.append('separators trimmed at the ends')
     text = trimmed
-    accented = restore_accents(text, TITLE_NUMBER.sub('', cover_title or ''))
+    cover_name = TITLE_NUMBER.sub('', cover_title or '').strip()
+    # A single model reading can invent an accent (Minor Arcana -> Mínor Arcana).
+    # Borrow accents only when the separate indicia reading prints the same title.
+    agreed = bool(cover_name and re.search(r'(?<!\w)' + re.escape(cover_name) + r'(?!\w)',
+                                         corroboration or '', re.I))
+    accented = restore_accents(text, cover_name) if agreed else text
     if accented != text:
         changes.append('accents from the cover')
     if accented != series and not changes:
@@ -449,7 +466,7 @@ def judge(row, old, hint, signature, credits=None):
         return None
     raw, number, agreement, source = found
     title = hint.get('title') if isinstance(hint.get('title'), str) else ''
-    series, changes = normalize_series(raw, title, row['path'], bool(number))
+    series, changes = normalize_series(raw, title, row['path'], bool(number), credits_text(credits or {}))
     fields, evidence = {}, {}
     if empty(old, 'Series'):
         fields['Series'] = series
@@ -623,7 +640,7 @@ def judge_credits(row, old, reading, signature, creators=None, cover=None, year=
     if not empty(old, 'Number') and research.issue_number(old['Number']) != research.issue_number(number):
         return None
     cover_title = (cover or {}).get('title') if isinstance((cover or {}).get('title'), str) else ''
-    series, changes = normalize_series(raw, cover_title, row['path'], True)
+    series, changes = normalize_series(raw, cover_title, row['path'], True, indicia)
     fields, evidence = {}, {}
     line = match.group(0).strip()
     if empty(old, 'Series'):

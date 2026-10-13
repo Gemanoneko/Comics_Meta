@@ -1,6 +1,6 @@
 # CMO v0.1.4 task-local test execution audit
 
-Status: ROUTE ACCEPTED for fixed offline Python unittest command only. This is not a release verdict.
+Status: ROUTE ACCEPTED for the fixed bundled-Python suite/targeted commands and separately authorized wheel-only task-local dependency command described in the final section. Current supervisor SHA256: d9bc9b039b7d551a51e3e15d81017a03904031fba71f3f7dc1e5e0acfe178d44. Earlier interpreter and hash entries below are retained audit history and are superseded by that section. This is not a release verdict.
 
 Reviewed source: scratch/owned_test_job.py SHA256 aa3cf9a052c0d49aca70d759a79458aff438c2930a14c278ad3838686bdd7bd0; scratch/probe_owned_test_job.py SHA256 6ccbdc086f0f0a834ed2a16ca73fb7dd1254cd7a5c309e392060c9e61a476d5d.
 
@@ -15,3 +15,13 @@ Evidence: scratch/owned-test-job/containment-probes.json. Seven modes passed in 
 Limit: parent-mode log contains leading NUL bytes because supervisor and fixture redirect shared parent.log. Held-handle containment observations are independent of that logging defect. This route does not certify test correctness, grant generic infrastructure deployment, or clear a release. Changes to reviewed runner hashes require another audit. Preserve source and JSON evidence through handoff.
 
 Primary mechanism references: [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects), [Microsoft atomic process Job assignment](https://devblogs.microsoft.com/oldnewthing/20230209-00/?p=107812/), [UpdateProcThreadAttribute](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute).
+
+## Parent identity correction
+
+Before suite creation, an externally sampled parent PID was stale and OpenProcess failed with WinError87; no test child was started. The reviewed follow-up resolves --parent-pid 0 as os.getppid() inside the supervisor and immediately holds that exact process handle. Current supervisor SHA256: 0cce24ad250edfc54926c31f1c4f68b467a0e9ec766c14ead621fe7729fe8a36. Controller hash unchanged. Existing seven probes use explicit owned parent IDs and retain their recorded mechanism evidence; the sentinel is a reviewed identity-acquisition correction, not an alternate cleanup route.
+
+## Bundled runtime and scoped dependency extension
+
+The Python3.14 suite route failed before useful validation because PIL was unavailable; this is not a passing suite. Reaudited runner SHA256 d9bc9b039b7d551a51e3e15d81017a03904031fba71f3f7dc1e5e0acfe178d44 changes only fixed work modes, interpreter and isolated fixture paths; Job/lease ownership mechanism remains unchanged. Tests now use the installed bundled Python at C:/Users/AnGeLZzZ/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe (reported Python3.12.14/Pillow12.3.0).
+
+Parent authorized task-local dependency installation. Fixed dependency mode is python -B -m pip --isolated install --disable-pip-version-check --no-cache-dir --only-binary=:all: --no-warn-script-location --target <absolute task Temp/ender/dependencies> playwright>=1.55,<2. It refuses unavailable wheels, ignores user pip configuration, writes no global pip cache, and installs no browsers. Exact installed versions and complete dependency/runtime manifests must bind the final manual receipt; the version range alone is not reproducible. Fixed targeted mode runs test_v014_review_fixes, test_series_spelling, test_imprints, test_app, test_progress_snapshot and test_worker. Full suite command remains unittest discover -s tests. All work modes require fresh nonce/foreground lease, hard600000ms deadline and audited Job containment. Test fixtures use absolute task-local Temp/ender/fixtures; PYTHONPATH is fixed to candidate, tests and dependencies.

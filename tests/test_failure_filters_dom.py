@@ -150,10 +150,10 @@ class FailureFilterDOMTests(YandexDOMTests):
         self.assertNotRegex(today, r':\d\d:\d\d')  # No seconds.
         expected = [
             ['Needs a fix', 'Automatic writes stopped after 5 failed attempts. Close any program using the file or repair it, then use Try again.'],
-            ['Retrying', 'Attempt 2 of 5 failed; nothing was written. Next try around ' + today + '.'],
-            ['Retrying', 'Attempt 3 of 5 failed; nothing was written. Next try at the next folder pass.'],
+            ['Retrying', 'Write attempt 2 failed; nothing was written. Next try around ' + today + '.'],
+            ['Retrying', 'Write attempt 3 failed; nothing was written. Next try at the next folder pass.'],
             ['Retrying', 'The write failed; nothing was written. Next try at the next folder pass.'],
-            ['Retrying', 'Attempt 1 of 5 failed; nothing was written. Next try around ' + other + '.'],
+            ['Retrying', 'Write attempt 1 failed; nothing was written. Next try around ' + other + '.'],
             ['Needs a fix', "The file's ComicVine link names issue 123456, which does not exist. Correct the Web link in the file."],
             ['Needs a check', 'ComicVine issue 123 is Another Series #7; the file says Good #1. Check which is right, then correct the file or its link.'],
             ['Needs a check', "ComicVine's series or issue number for this link differs from the file's. Check which is right, then correct the file or its link."],
@@ -234,7 +234,7 @@ class FailureFilterDOMTests(YandexDOMTests):
         self.page.wait_for_function("document.querySelector('#total').textContent.startsWith('0 ')")
         self.assertEqual(self.page.evaluate('document.activeElement.id'), 'total')
         self.filter('write_failed')
-        self.assertIn(['Retrying', 'Attempt 5 of 5 failed; nothing was written. Next try at the next folder pass.'], self.reasons())
+        self.assertIn(['Retrying', 'Write attempt 5 failed; nothing was written. Next try at the next folder pass.'], self.reasons())
 
     def test_try_again_failure_shows_the_banner_and_re_enables(self):
         self.filter('write_stopped')
