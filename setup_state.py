@@ -171,3 +171,57 @@ def save(folder, keys):
             claim.release()  # Every launched engine reclaims before any processing.
         if lock is not None:
             os.close(lock)
+
+
+def save_keys(keys):
+    """One atomic encrypted-key replacement; config and processing are read-only."""
+    if not isinstance(keys, dict) or any(name not in credential_store.ALLOWED_KEYS for name in keys):
+        raise SetupError('key_invalid', '')
+    replacements = {}
+    for name, value in keys.items():
+        if not isinstance(value, str) or any(char in value for char in '\r\n\0'):
+            raise SetupError('key_invalid', name)
+        value = value.strip()
+        if value:
+            replacements[name] = value
+    temporary = None
+    lock = None
+    try:
+        with _mutex:
+            state = credential_store.plain(app.STATE_ROOT)
+            credential_store.plain(state / 'setup.lock')
+            lock = file_lock.open_lock(state / 'setup.lock')
+            if not file_lock.try_lock(lock):
+                raise SetupError('save_failed', '')
+            config = _config()
+            saved = credential_store.saved(config)
+            saved.update(replacements)
+            presence = {name: bool(saved.get(name) or credential_store.setting(name, config=config, saved_values=saved)) for name in credential_store.ALLOWED_KEYS}
+            if replacements:
+                folder = credential_store.plain(state / 'credentials')
+                folder.mkdir(exist_ok=True)
+                destination = credential_store.plain(folder / 'current.dpapi')
+                temporary = folder / (uuid.uuid4().hex + '.tmp')
+                encrypted = credential_store.encrypt({'schema': 1, 'base_generation': config.get(credential_store.POINTER), 'keys': saved})
+                _durable_write(temporary, encrypted)
+                _replace(temporary, destination)
+                temporary = None
+            return {'saved_keys': presence}
+    except SetupError:
+        raise
+    except (OSError, ValueError, TypeError, credential_store.CredentialError):
+        raise SetupError('save_failed', '') from None
+    finally:
+        if temporary is not None:
+            try:temporary.unlink(missing_ok=True)
+            except OSError:pass
+        if lock is not None:os.close(lock)
+
+
+def key_status():
+    try:
+        config = _config()
+        stored = credential_store.saved(config)
+        return {'saved_keys': {name: bool(credential_store.setting(name, config=config, saved_values=stored)) for name in credential_store.ALLOWED_KEYS}}
+    except (OSError, ValueError, credential_store.CredentialError):
+        raise SetupError('save_failed', '') from None

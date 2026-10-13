@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| Version | 0.1.4 (VERSION; tag v0.1.4, 2026-10-13). Live service remains 0.1.3 until approved deployment. |
+| Version | Live service: 0.1.4. Installer integration branch: VERSION/package.json are authoritative; first standalone installer and update QA are pending. |
 | Repo | https://github.com/Gemanoneko/Comics_Meta.git, branch `main` |
 | Phase | Daily Use (confirmed by Sergei 2026-10-12) |
 | Stack | Python 3.11+ on Windows; local web dashboard (stdlib `ThreadingHTTPServer`) on http://127.0.0.1:8765; Pillow; Playwright driving installed Microsoft Edge; local catalog and state in `data/` (gitignored). Optional: Ollama `gemma3:4b`, 7-Zip (CBR/CB7 conversion), SerpApi key. Dependencies pinned exactly in `requirements.txt` |
@@ -25,8 +25,8 @@
 - Dev run: `python app.py`
 - Tests: `python -B -m unittest discover -s tests -v` — always the whole discovery run: `tests/test_0_state_isolation.py` loads first, points state and locks at a throwaway folder, and refuses any access to this folder's `data/`, `batches/`, `config.json`, `.env` and to `%LOCALAPPDATA%\ComicsMeta`; `test_zz_state_isolation.py` fails the run if a refusal was swallowed. A single module run (`-p test_x.py`) bypasses that net. Set `COMICS_META_TEST_SCRATCH` to an absolute folder (with the exact letter case Windows reports) to keep test folders out of the checkout.
 - In-book credits and publisher-agreement pilot (read-only, run while paused, uses the GPU): `python -B pilot_credits.py --out <folder> [--limit 150]`
-- Build: none (no installer or build step)
-- Release: Sully bumps `VERSION` and `CHANGELOG.md`, commits, creates a named tag and pushes it. No `package.json` or lockfile.
+- Installer build: `npm run pack` through the separately reviewed held Windows build supervisor and exact source/runtime/native contract. Packaging source is implemented; actual installer build and installed update certification remain pending.
+- Release: Sully synchronizes `VERSION`, `package.json` and `package-lock.json`, commits and pushes immediately. `npm run release` promotes the exact QA-certified artifact bytes from its pinned release contract, verifies the named tag and retains the last four heavy GitHub releases; it never rebuilds the approved installer. No public installer release until actual native installation/update QA and independent review pass.
 
 ## Decision Log
 
@@ -63,3 +63,9 @@
 | Held comics (F18, v0.1.3) | Retried after 5, 10, 20 and 40 minutes, then hourly, never before ComicVine's own wait ends; later held passes only ask ComicVine again; comics held by a ComicVine wait are woken when ComicVine answers any request; a missing key or an empty answer keeps the daily retry; source results carried from the first held pass no longer make a held comic due (code review F24) | Every 10-minute folder pass (v0.1.2); doubling up to 24 h (Senua's first option) | Recovery after an outage takes over an hour, or held passes show up in pass timing |
 | Library walk (v0.1.3) | Whole-library walk every 6 hours (`automatic.inventory_interval_seconds`, at least 600); known folders keep their delta scans | Every 10 minutes | New folders need to appear sooner |
 | Credits/indicia tier (v0.1.3 stretch) | Built, off by default (`in_book.credits_pages`, creators separately `in_book.credits_creators`); `pilot_credits.py` measures it read-only against comics any external source verified (v0.1.4; was Metron only), and reports publisher agreement, the gate and model seconds per comic | Enable now | Pilot results reviewed by Sergei |
+
+## Installer source checkpoint — 2026-10-14
+
+The M1 branch implements first-run library/optional-key setup, a guarded keys-only editor, tray/window ownership, graceful quit/update pause, held-payload installer launch, metadata-safe per-comic conflict/dead-link recovery, and a private authenticated update feed confined to owned QA state. The public/live v0.1.4 checkout and scheduled task are outside this branch's implementation scope; migration/deployment is still a separate approved step.
+
+Development evidence: offline09 ran 788 Python tests (736 passed; five native conversion and 47 DOM cases explicitly deferred), 23 mocked/scratch Node cases passed, and source syntax checks passed under one 600-second owner; all native roots and descendants exited and complete before/after identities matched. The bundled CPython/dependency import and RAR5-to-ZIP component proofs passed separately. These are development checks, not installer readiness: actual broker/DOM/native app conversion, packaged installation, prior-to-next replacement/relaunch with preserved state/pause/recovery, and final Futaba/Senua acceptance remain required.

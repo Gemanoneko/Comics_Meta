@@ -142,9 +142,4 @@ def guard_output(mode):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        main()
-    elif len(sys.argv) == 2:
-        guard_output(sys.argv[1])
-    else:
-        raise RuntimeError('Unexpected packaging arguments')
+    raise RuntimeError('Legacy runtime assembly retired; use separately reviewed pinned Job graph and complete held runtime manifest')

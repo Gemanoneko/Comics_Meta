@@ -12,10 +12,11 @@ class GracefulStop extends EventEmitter {
     try {
       if(!this.engine.ready){if(mode==='install')throw Error('Engine unavailable');await this.engine.forceStop();return true;}
       const initial=await this.engine.call('/api/shell/status');
-      if(initial.setup && !initial.setup.configured){await this.engine.stop();return true;}
+      if(initial.setup && !initial.setup.configured){await this.engine.stop({timeoutMs:10000});return true;}
       await this.engine.call('/api/shell/pause',{});
       while(true){
         if(this.cancelled){await this.engine.call('/api/shell/cancel-pause',{});return false;}
+        if(mode==='install' && Date.now()-start>=600000)throw Error('Pause and install timed out; installation was not started');
         if(this.forced || (mode==='quit' && Date.now()-start>=600000)){await this.engine.forceStop();return true;}
         let status;
         try{status=await this.engine.call('/api/shell/status');failures=0;await this.engine.call('/api/shell/pause',{});}catch(error){
@@ -27,7 +28,7 @@ class GracefulStop extends EventEmitter {
         if(this.stage==='gpu' && pausedAt===null)pausedAt=Date.now();
         if(control.phase==='paused' && (control.gpu_released || control.error)){
           this.stage='closing';this.emit('stage',{stage:'closing',mode,control,elapsed:Date.now()-start});
-          await this.engine.stop();return true;
+          await this.engine.stop({timeoutMs:Math.max(1,600000-(Date.now()-start))});return true;
         }
         if(Date.now()-start>=1500)this.emit('stage',{stage:this.stage,mode,control,elapsed:Date.now()-start,gpuElapsed:pausedAt?Date.now()-pausedAt:0});
         await sleep(500);

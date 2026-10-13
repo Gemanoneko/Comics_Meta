@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.2.0] - 2026-10-14
+
+### Added
+
+- Source checkpoint for the standalone Windows shell, embedded Python/7-Zip runtime, in-app library/API-key setup, and manual verified update installation and restart.
+- Per-comic identity and dead-link recovery actions with preview, explicit confirmation, guarded writes and retained recovery evidence.
+
+### Changed
+
+- Isolated application state and library ownership, cooperative quit and updater launch outcomes preserve user pause and distinguish uncertain installation results.
+
+### Validation
+
+- Development offline09 passed 736 Python and 23 Node checks plus source parsing; 52 native/DOM checks are explicitly deferred. Two subsequent raw-regex literal changes are qualified as equivalent. Isolated embedded-runtime and RAR fixture checks passed.
+- This is an unfinished source/version milestone, not a tagged release or installer readiness verdict. Native shell and rendered UI, packaged installer, actual prior-to-new update transition, independent QA and final code review remain pending. No live deployment or state migration occurred.
+
 ## [v0.1.4] - 2026-10-13
 
 ### Added

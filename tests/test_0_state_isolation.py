@@ -17,6 +17,7 @@ import atexit
 import os
 import shutil
 import sqlite3
+import socket
 import sys
 import unittest
 import uuid
@@ -62,7 +63,38 @@ _EVENTS = {'open', 'sqlite3.connect', 'os.remove', 'os.rename', 'os.mkdir', 'os.
            'os.scandir', 'os.listdir', 'shutil.copyfile', 'shutil.move', 'os.utime', 'os.chmod'}
 
 
+# Only servers bound by this isolated suite may receive real socket traffic.
+# This excludes the live dashboard and shared Ollama even though both are local.
+_suite_ports = set()
+_OriginalSocket = socket.socket
+
+
+class _SuiteSocket(_OriginalSocket):
+    def bind(self, address):
+        if not isinstance(address, tuple) or address[0] not in ('127.0.0.1', '::1') or address[1] in (8765, 11434):
+            raise PermissionError('Test isolation refused a non-fixture listener')
+        super().bind(address)
+        self._suite_port = self.getsockname()[1]
+        _suite_ports.add(self._suite_port)
+
+    def close(self):
+        port = getattr(self, '_suite_port', None)
+        if port is not None:
+            _suite_ports.discard(port)
+        super().close()
+
+
+socket.socket = _SuiteSocket
+
+
 def _guard(event, args):
+    if event == 'socket.getaddrinfo':
+        if args[0] not in ('127.0.0.1', '::1', 'localhost'):
+            raise PermissionError('Test isolation refused external DNS')
+    if event == 'socket.connect':
+        address = args[1]
+        if not isinstance(address, tuple) or address[0] not in ('127.0.0.1', '::1') or address[1] in (8765, 11434) or address[1] not in _suite_ports:
+            raise PermissionError('Test isolation refused a non-fixture connection')
     if event not in _EVENTS:
         return
     for value in args[:2]:

@@ -54,6 +54,42 @@ class LibraryTests(unittest.TestCase):
         with app.db() as con:
             return dict(con.execute('SELECT * FROM comics WHERE path=?', (str(path),)).fetchone())
 
+    def test_same_archive_writer_contention_preserves_original(self):
+        path=self.make(xml='<ComicInfo><Series>Original</Series></ComicInfo>')
+        self.scan(); original=path.read_bytes()
+        with patch('library_lock.require'), app.comic_write_guard(path):
+            with self.assertRaisesRegex(app.ArchiveChanged,'in progress'):
+                app.write_metadata(self.row(path),{'Series':'Chosen'},overwrite_fields={'Series'})
+        self.assertEqual(path.read_bytes(),original)
+        self.assertFalse((self.root/'.comic-metadata-backups').exists())
+
+    def test_guard_flag_without_owned_lock_cannot_write(self):
+        path=self.make();self.scan();original=path.read_bytes()
+        with patch('library_lock.require'), self.assertRaisesRegex(app.ArchiveChanged,'not held'):
+            app.write_metadata(self.row(path),{'Title':'Chosen'},guard_held=True)
+        self.assertEqual(path.read_bytes(),original)
+        self.assertFalse((self.root/'.comic-metadata-backups').exists())
+
+    def test_full_preview_snapshot_rejects_unshown_field_change(self):
+        path=self.make(xml='<ComicInfo><Series>Original</Series><Notes>Personal</Notes></ComicInfo>')
+        self.scan();original=path.read_bytes()
+        stale=dict(app.read_metadata(path)[0],Notes='Prior note')
+        with patch('library_lock.require'), self.assertRaisesRegex(app.ArchiveChanged,'this preview'):
+            app.write_metadata(self.row(path),{'Series':'Chosen'},overwrite_fields={'Series'},expected_snapshot=stale)
+        self.assertEqual(path.read_bytes(),original)
+        self.assertFalse((self.root/'.comic-metadata-backups').exists())
+
+    def test_guarded_manual_choice_preserves_notes_and_retains_verified_backup(self):
+        path=self.make(xml='<ComicInfo><Series>Original</Series><Notes>Personal</Notes></ComicInfo>')
+        self.scan();original=path.read_bytes();snapshot=app.read_metadata(path)[0]
+        with patch('library_lock.require'), app.comic_write_guard(path):
+            backup=app.write_metadata(self.row(path),{'Series':'Chosen'},overwrite_fields={'Series'},
+                expected_snapshot=snapshot,verify_readback=True,guard_held=True,writer='manual')
+        self.assertEqual(Path(backup).read_bytes(),original)
+        self.assertEqual(app.read_metadata(path)[0]['Series'],'Chosen')
+        self.assertEqual(app.read_metadata(path)[0]['Notes'],'Personal')
+        self.assertFalse(path.with_name(path.name+'.metadata-tmp').exists())
+
     def test_delta_new_changed_and_unchanged(self):
         first = self.make()
         self.scan()

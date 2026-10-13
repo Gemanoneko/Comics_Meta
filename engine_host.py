@@ -99,6 +99,20 @@ def main():
         raise ValueError('A selected state root and shell identity are required')
     parent=api('OpenProcess',HANDLE,W.DWORD,W.BOOL,W.DWORD)(0x100000,False,options.parent_pid)
     require(parent,'Hold shell parent identity')
+    # The sole writer is the shell-created pipe; neither PID reuse nor a
+    # recreated process can inherit that writer after the original shell exits.
+    import secrets, threading
+    supplied=sys.stdin.buffer.readline(256).rstrip(b'\r\n')
+    expected=os.environ['COMICS_META_SHELL_TOKEN'].encode('ascii')
+    if not secrets.compare_digest(supplied,expected):
+        close(parent)
+        raise RuntimeError('Original shell owner stream unavailable')
+    owner_stop=threading.Event()
+    def observe_owner():
+        command=sys.stdin.buffer.readline(16)
+        # EOF or any unexpected control closes the owned tree fail-closed.
+        owner_stop.set()
+    threading.Thread(target=observe_owner,daemon=True).start()
     job=create_job(None,None); require(job,'Create engine job')
     proc=ProcessInfo(); attributes=None
     try:
@@ -110,34 +124,45 @@ def main():
         require(update_attributes(attributes,0,0x2000D,joblist,C.sizeof(joblist),None,None),'Atomic engine Job required')
         get_std=api('GetStdHandle',HANDLE,W.DWORD)
         stdio=(HANDLE*3)(get_std(0xFFFFFFF6),get_std(0xFFFFFFF5),get_std(0xFFFFFFF4))
+        inherited=(HANDLE*len(set(stdio)))(*dict.fromkeys(stdio))
         set_handle=api('SetHandleInformation',W.BOOL,HANDLE,W.DWORD,W.DWORD)
         for handle in stdio:require(set_handle(handle,1,1),'Inherit owned stdio')
-        require(update_attributes(attributes,0,0x20002,stdio,C.sizeof(stdio),None,None),'Only service stdio inherited')
+        require(update_attributes(attributes,0,0x20002,inherited,C.sizeof(inherited),None,None),'Only service stdio inherited')
         startup=StartupEx();startup.startup.cb=C.sizeof(startup);startup.startup.flags=0x101
         startup.startup.stdin,startup.startup.stdout,startup.startup.stderr=stdio
         startup.attributes=C.cast(attributes,C.c_void_p)
         code=Path(__file__).resolve().parent
         argv=[sys.executable,'-B',str(code/'app.py'),'--no-browser','--port',str(options.port)]
         command=C.create_unicode_buffer(subprocess.list2cmdline(argv))
-        if wait_process(parent,0)!=0x102:raise RuntimeError('Shell owner already exited')
+        if owner_stop.is_set() or wait_process(parent,0)!=0x102:raise RuntimeError('Shell owner already exited')
         require(create_process(sys.executable,command,None,None,True,0x08000000|0x4|0x80000,None,str(code),C.byref(startup),C.byref(proc)),'Owned engine creation')
         require(resume_thread(proc.thread)!=0xFFFFFFFF,'Resume owned engine')
+        forced=False
         while wait_process(proc.process,100)==0x102:
-            if wait_process(parent,0)!=0x102:
+            if owner_stop.is_set() or wait_process(parent,0)!=0x102:
+                forced=True
                 require(terminate_job(job,125),'Shell exit closes only owned engine tree')
                 break
+        if forced:
+            until=time.monotonic()+5
+            while active_engine(job) and time.monotonic()<until:time.sleep(.01)
+            if active_engine(job):raise RuntimeError('Owned engine descendants remain')
+            return 125
         exit_value=W.DWORD();require(exit_code(proc.process,C.byref(exit_value)),'Owned engine exit')
         return exit_value.value
     finally:
+        closed=True
         if job:
             terminate_job(job,125)
             until=time.monotonic()+5
             while active_engine(job) and time.monotonic()<until:time.sleep(.01)
+            closed=active_engine(job)==0
             close(job)
         if proc.thread:close(proc.thread)
         if proc.process:close(proc.process)
         if attributes is not None:delete_attributes(attributes)
         close(parent)
+        if not closed:raise RuntimeError('Engine descendant closure unconfirmed')
 
 def active_engine(job):
     counts=Accounting()

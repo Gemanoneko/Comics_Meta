@@ -1,4 +1,8 @@
 import json
+import io
+import threading
+from types import SimpleNamespace
+from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
@@ -54,9 +58,10 @@ class SetupStateTests(unittest.TestCase):
         env = b'GCD_EMAIL=fixture@example.invalid\n'
         (self.state / '.env').write_bytes(env)
         app.DATA.mkdir()
-        with sqlite3.connect(app.DATA / 'catalog.sqlite') as connection:
+        with closing(sqlite3.connect(app.DATA / 'catalog.sqlite')) as connection:
             connection.execute('CREATE TABLE processing_control(id INTEGER PRIMARY KEY, paused INTEGER)')
             connection.execute('INSERT INTO processing_control VALUES(1,1)')
+            connection.commit()
         before = (app.DATA / 'catalog.sqlite').read_bytes()
         result = setup_state.save(str(self.library), {})
         self.assertTrue(result['configured'] and result['user_paused'])
@@ -140,6 +145,50 @@ class SetupStateTests(unittest.TestCase):
         self.error('save_failed', lambda: setup_state.save(str(self.library), {}))
 
 
+    def test_keys_only_save_keeps_config_env_pause_and_other_keys(self):
+        original={'automatic':{'library_root':str(self.library),'enabled':False},'unknown':{'keep':'fixture'},'sources':{'disabled':['fixture source']}}
+        self.config(original)
+        env=b'GCD_EMAIL=fixture@example.invalid\n'
+        (self.state/'.env').write_bytes(env)
+        before=(self.state/'config.json').read_bytes()
+        setup_state.save_keys({'COMICVINE_API_KEY':'  synthetic-only-key  '})
+        encrypted=(self.state/'credentials/current.dpapi').read_bytes()
+        self.assertNotIn(b'synthetic-only-key',encrypted)
+        self.assertEqual((self.state/'config.json').read_bytes(),before)
+        self.assertEqual((self.state/'.env').read_bytes(),env)
+        self.assertFalse(app.DATA.exists())
+        self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-only-key')
+        setup_state.save_keys({'METRON_API_TOKEN':'synthetic-metron'})
+        self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-only-key')
+        self.assertTrue(credential_store.setting('METRON_API_TOKEN')=='synthetic-metron')
+        self.acquire.assert_not_called()
+        self.assertNotIn('synthetic-only-key',json.dumps(setup_state.key_status()))
+
+    def test_blank_keys_do_not_delete_or_rewrite_saved_ciphertext(self):
+        self.config({'automatic':{'library_root':str(self.library)}})
+        setup_state.save_keys({'COMICVINE_API_KEY':'synthetic-existing'})
+        before=(self.state/'credentials/current.dpapi').read_bytes()
+        setup_state.save_keys({'COMICVINE_API_KEY':'  '})
+        self.assertEqual((self.state/'credentials/current.dpapi').read_bytes(),before)
+        self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-existing')
+
+    def test_failed_keys_commit_keeps_previous_keys_and_config_bytes(self):
+        self.config({'unknown':{'keep':9}})
+        setup_state.save_keys({'COMICVINE_API_KEY':'synthetic-existing'})
+        before=(self.state/'credentials/current.dpapi').read_bytes()
+        config=(self.state/'config.json').read_bytes()
+        with patch.object(setup_state,'_replace',side_effect=OSError('synthetic failure')):
+            self.error('save_failed',lambda:setup_state.save_keys({'COMICVINE_API_KEY':'synthetic-replacement'}))
+        self.assertEqual((self.state/'credentials/current.dpapi').read_bytes(),before)
+        self.assertEqual((self.state/'config.json').read_bytes(),config)
+        self.assertFalse(list((self.state/'credentials').glob('*.tmp')))
+
+    def test_later_setup_generation_includes_overlay_but_new_replacements_win(self):
+        setup_state.save_keys({'COMICVINE_API_KEY':'synthetic-first'})
+        setup_state.save(str(self.library),{'COMICVINE_API_KEY':'synthetic-second'})
+        self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-second')
+
+
 @unittest.skipUnless(os.name == 'nt', 'Windows DPAPI only')
 class NativeDpapiTests(unittest.TestCase):
     def test_user_bound_dpapi_roundtrip_with_synthetic_value(self):
@@ -150,3 +199,50 @@ class NativeDpapiTests(unittest.TestCase):
         self.assertTrue(recovered == values, 'Synthetic DPAPI roundtrip failed')
         with self.assertRaises(credential_store.CredentialError):
             credential_store._crypt(b'not-a-dpapi-blob', False)
+
+
+class SetupBoundaryTests(unittest.TestCase):
+    def request(self, server):
+        body=json.dumps({'folder':'synthetic-folder','keys':{}}).encode()
+        handler=app.Handler.__new__(app.Handler)
+        handler.path='/api/shell/setup'
+        handler.server=server
+        handler.headers={'Origin':'http://127.0.0.1:18976','Host':'127.0.0.1:18976','Content-Length':str(len(body)),'X-ComicsMeta-Shell':'synthetic-setup-token'}
+        handler.rfile=io.BytesIO(body)
+        handler.respond=Mock(side_effect=lambda value, code=200: (value,code))
+        with patch.dict(os.environ, {'COMICS_META_SHELL_TOKEN':'synthetic-setup-token'}):
+            return app.Handler.do_POST(handler)
+
+    def test_completed_setup_rejects_repeat_without_saving_or_activating(self):
+        server=SimpleNamespace(server_port=18976,_setup_mutex=threading.Lock(),_quitting=False,setup_required=False,activate_setup=Mock())
+        with patch.object(setup_state,'save') as save:
+            result=self.request(server)
+        self.assertEqual(result,({'error':'save_failed','field':'library'},400))
+        save.assert_not_called()
+        server.activate_setup.assert_not_called()
+
+    def test_post_commit_overlap_is_typed_and_does_not_claim_activation_success(self):
+        server=SimpleNamespace(server_port=18976,_setup_mutex=threading.Lock(),_quitting=False,setup_required=True,activate_setup=Mock(side_effect=library_lock.LibraryBusy('synthetic overlap')))
+        with patch.object(setup_state,'save',return_value={'configured':True}):
+            result=self.request(server)
+        self.assertEqual(result,({'error':'library_busy','field':'library'},400))
+        self.assertTrue(server.setup_required)
+
+    def test_first_run_quit_needs_no_worker_or_gpu_acknowledgement(self):
+        server=app.LocalServer.__new__(app.LocalServer)
+        server._setup_mutex=threading.Lock()
+        server.setup_required=True
+        server.shutdown=Mock()
+        with patch('pause_control.request_stop') as stop, patch('pause_control.hold_worker_leases') as leases:
+            self.assertTrue(server.finish_quit())
+        server.shutdown.assert_called_once()
+        stop.assert_not_called()
+        leases.assert_not_called()
+
+    def test_saved_config_is_not_running_until_activation_completed(self):
+        server=app.LocalServer.__new__(app.LocalServer)
+        server.setup_required=True
+        with patch.dict(os.environ, {'COMICS_META_SHELL_TOKEN':'synthetic-setup-token'}), patch.object(setup_state,'status',return_value={'configured':True}):
+            self.assertFalse(server.setup_status()['configured'])
+            server.setup_required=False
+            self.assertTrue(server.setup_status()['configured'])

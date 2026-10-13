@@ -61,18 +61,32 @@ def encrypt(values):
     return _crypt(json.dumps(values, ensure_ascii=False).encode('utf-8'), True)
 
 
+def _validated(values):
+    if not isinstance(values, dict) or any(name not in ALLOWED_KEYS or not isinstance(value, str) or any(c in value for c in '\r\n\0') for name, value in values.items()):
+        raise CredentialError()
+    return values
+
+
 def saved(config=None):
     config = app.load_config() if config is None else config
     pointer = config.get(POINTER)
-    if pointer is None:
-        return {}
-    if not isinstance(pointer, str) or not re.fullmatch(r'credentials/[a-f0-9]{32}\.dpapi', pointer):
+    if pointer is not None and (not isinstance(pointer, str) or not re.fullmatch(r'credentials/[a-f0-9]{32}\.dpapi', pointer)):
         raise CredentialError()
     try:
-        path = plain(app.STATE_ROOT / pointer)
-        values = json.loads(_crypt(path.read_bytes(), False).decode('utf-8'))
-        if not isinstance(values, dict) or any(name not in ALLOWED_KEYS or not isinstance(value, str) or any(c in value for c in '\r\n\0') for name, value in values.items()):
-            raise CredentialError()
+        values = {} if pointer is None else _validated(json.loads(_crypt(plain(app.STATE_ROOT / pointer).read_bytes(), False).decode('utf-8')))
+        overlay_path = plain(app.STATE_ROOT / 'credentials' / 'current.dpapi')
+        if overlay_path.is_file():
+            overlay = json.loads(_crypt(overlay_path.read_bytes(), False).decode('utf-8'))
+            if not isinstance(overlay, dict) or set(overlay) != {'schema', 'base_generation', 'keys'} or type(overlay['schema']) is not int or overlay['schema'] != 1:
+                raise CredentialError()
+            generation=overlay['base_generation']
+            if generation is not None and (not isinstance(generation,str) or not re.fullmatch(r'credentials/[a-f0-9]{32}\.dpapi',generation)):
+                raise CredentialError()
+            keys = _validated(overlay['keys'])
+            # A later first-run config generation invalidates the old overlay.
+            # Its new base already includes the previously saved keys.
+            if overlay['base_generation'] == pointer:
+                values.update(keys)
         return values
     except (OSError, ValueError, TypeError, UnicodeError):
         raise CredentialError() from None

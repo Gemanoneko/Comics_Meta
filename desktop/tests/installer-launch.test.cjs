@@ -1,0 +1,8 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const {EventEmitter}=require('node:events');const {launchInstaller}=require('../installer-launch.cjs');
+function native(receipt){const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.stdin=new EventEmitter();child.unref=()=>{};child.stdin.end=raw=>{const request=JSON.parse(raw);assert.equal(request.parent_pid,42);queueMicrotask(()=>child.stdout.emit('data',Buffer.from(JSON.stringify(receipt)+'\n')));};return child;}
+const request={python:'owned-python',helper:'owned-helper',path:'owned-exe',size:7,sha512:'synthetic',parent_pid:42};
+test('held helper acceptance resolves without claiming final update completion',async()=>{const result=await launchInstaller(request,()=>native({started:true,accepted:true,phase:'started',installer_pid:5}));assert.equal(result.installer_pid,5);});
+test('receipt distinguishes proved pre-start failure from partial/unknown install',async()=>{for(const started of [false,true]){await assert.rejects(launchInstaller(request,()=>native({started,accepted:false,phase:'observe',code:'synthetic'})),error=>error.installerStarted===started);}});
+test('malformed helper response never permits old-engine recovery inference',async()=>{await assert.rejects(launchInstaller(request,()=>native({accepted:true})),error=>error.installerStarted===null);});
+test('helper spawn failure proves installer did not start',async()=>{await assert.rejects(launchInstaller(request,()=>{throw Error('synthetic spawn failure');}),error=>error.installerStarted===false);});

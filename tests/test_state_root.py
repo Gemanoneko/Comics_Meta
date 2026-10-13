@@ -44,7 +44,7 @@ class StateRootSelectionTests(unittest.TestCase):
                       '"metron":str(metron.STATE),"index":str(open_library.INDEX),"automatic":str(automatic.STATE),'
                       '"code":str(app.BASE)}))')
             env = dict(os.environ, COMICS_META_STATE_ROOT=str(state), COMICS_META_LOCK_DIR=str(Path(folder) / 'locks'))
-            result = subprocess.run([sys.executable, '-c', script], cwd=CODE, env=env, capture_output=True,
+            result = subprocess.run([sys.executable, '-S', '-B', '-c', script], cwd=CODE, env=env, capture_output=True,
                                     text=True, timeout=120, check=True)
             paths = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertEqual(Path(paths.pop('code')), CODE)

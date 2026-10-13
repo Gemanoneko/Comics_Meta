@@ -1,0 +1,7 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const {EventEmitter}=require('node:events');const {Engine}=require('../engine.cjs');
+function fixture(exitCode=null){const engine=new Engine({resources:'fixture',state:'fixture',locks:'fixture',port:18980,log:'fixture'});const child=new EventEmitter();child.exitCode=exitCode;child.commands=[];child.kill=()=>{throw Error('Root-only kill must not be used');};child.stdin={writable:true,write:command=>{child.commands.push(command);queueMicrotask(()=>{child.exitCode=125;child.emit('exit',125);});}};engine.child=child;return {engine,child};}
+test('force sends the private broker command and waits for acknowledged whole-job closure',async()=>{const {engine,child}=fixture();await engine.forceStop();assert.deepEqual(child.commands,['force\n']);assert.equal(child.exitCode,125);});
+test('unexpected dead broker exit cannot claim engine closure',async()=>{const {engine}=fixture(1);await assert.rejects(engine.forceStop(),/closure/);});
+test('missing owner stream refuses force rather than killing only the broker',async()=>{const {engine,child}=fixture();child.stdin.writable=false;await assert.rejects(engine.forceStop(),/control unavailable/);assert.equal(child.exitCode,null);});
+test('normal stop rejects a nonzero broker return',async()=>{const {engine,child}=fixture();engine.call=async()=>{queueMicrotask(()=>{child.exitCode=1;child.emit('exit',1);});return {ok:true};};await assert.rejects(engine.stop(),/not confirmed/);});

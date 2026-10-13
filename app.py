@@ -1,5 +1,6 @@
 """Local comic metadata pilot. Python standard library only."""
 import secrets
+from contextlib import contextmanager
 import argparse
 import hashlib
 import json
@@ -20,6 +21,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import qa_runtime
+qa_runtime.install()
 from provider_wait import ProviderDeferred
 import app_paths
 
@@ -457,8 +460,62 @@ class ArchiveChanged(ValueError):
     again from what the archive holds now (v0.1.3 review F22)."""
 
 
+
+_write_guard_state=threading.local()
+
+
+@contextmanager
+def comic_write_guard(path):
+    """One OS-held metadata writer per canonical archive, including same-state workers."""
+    import file_lock, library_lock
+    canonical=library_lock.identity(filesystem_path(path))
+    folder=DATA/'write-locks'
+    for entry in (folder,*folder.parents):
+        try:info=entry.lstat()
+        except FileNotFoundError:continue
+        if entry.is_symlink() or getattr(info,'st_file_attributes',0)&0x400:
+            raise ArchiveChanged('Metadata write lock path is unavailable; nothing written.')
+    folder.mkdir(parents=True,exist_ok=True)
+    lock_path=folder/(hashlib.sha256(canonical.encode('utf-8')).hexdigest()+'.lock')
+    if lock_path.is_symlink() or (lock_path.exists() and getattr(lock_path.lstat(),'st_file_attributes',0)&0x400):
+        raise ArchiveChanged('Metadata write lock path is unavailable; nothing written.')
+    fd=file_lock.open_lock(lock_path)
+    acquired=False
+    try:
+        acquired=file_lock.try_lock(fd)
+        if not acquired:raise ArchiveChanged('Another metadata write is in progress. Review this comic again.')
+        held=getattr(_write_guard_state,'held',set())
+        _write_guard_state.held=held
+        held.add(canonical)
+        try:yield
+        finally:held.discard(canonical)
+    finally:
+        try:
+            if acquired:file_lock.unlock(fd)
+        finally:os.close(fd)
+
+
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
-                   expected=None, history_source=None, attempt=None, writer='manual'):
+                   expected=None, history_source=None, attempt=None, writer='manual',
+                   expected_snapshot=None, verify_readback=False, guard_held=False):
+    import library_lock
+    try:scanned_root=row['root']
+    except (KeyError,IndexError):scanned_root=None
+    library_lock.require(row['path'],scanned_root)
+    options=dict(append_notes=append_notes,overwrite_fields=overwrite_fields,
+                 remove_verified_backups=remove_verified_backups,expected=expected,
+                 history_source=history_source,attempt=attempt,writer=writer,
+                 expected_snapshot=expected_snapshot,verify_readback=verify_readback)
+    if guard_held:
+        if library_lock.identity(filesystem_path(row['path'])) not in getattr(_write_guard_state,'held',set()):
+            raise ArchiveChanged('Metadata write guard was not held; nothing written.')
+        return _write_metadata_guarded(row,fields,**options)
+    with comic_write_guard(row['path']):
+        return _write_metadata_guarded(row,fields,**options)
+
+
+def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
+                   expected=None, history_source=None, attempt=None, writer='manual', expected_snapshot=None, verify_readback=False):
     """Write fields into a CBZ's ComicInfo.xml with a backup, temporary-archive checks and readback.
 
     expected: {field: value} the archive's ComicInfo must still hold, checked on the
@@ -499,6 +556,8 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
         if len({i.filename for i in infos}) != len(infos) or len(names) > 1:
             raise ValueError('Duplicate ZIP entries require manual review.')
         present, _, _ = read_metadata(path)
+        if expected_snapshot is not None and present!=expected_snapshot:
+            raise ArchiveChanged('ComicInfo changed since this preview; nothing written.')
         if expected:
             # Whitespace-only counts as empty, as it does for planning and the write below.
             stale = sorted(key for key, value in expected.items() if (present.get(key) or '').strip() != (value or '').strip())
@@ -557,7 +616,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
     finally:
         temporary.unlink(missing_ok=True)
     metadata, _, _ = read_metadata(path)
-    if remove_verified_backups:
+    if remove_verified_backups or verify_readback:
         for key, value in expected_fields.items():
             if metadata.get(key, '') != value:
                 raise ValueError('Readback verification failed for ' + key)
@@ -614,18 +673,38 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js'):
+            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
+            if url.path == '/comic-recovery.css':
+                return self.respond((BASE/'static/comic-recovery.css').read_bytes(),mime='text/css; charset=utf-8')
+            if url.path == '/api/recovery/evidence':
+                if self.headers.get('Sec-Fetch-Site') not in (None,'same-origin','none'):
+                    return self.respond({'error':'Untrusted origin'},403)
+                import comic_recovery
+                try:
+                    if set(args)-{'comic','issue'} or len(args.get('comic',[]))!=1 or len(args.get('issue',[]))>1:
+                        raise comic_recovery.RecoveryError('invalid_link','Choose a comic and an available issue.')
+                    return self.respond(comic_recovery.evidence(int(args['comic'][0]),args.get('issue',[None])[0]))
+                except comic_recovery.RecoveryError as exc:
+                    return self.respond({'error':str(exc),'code':exc.code},400)
+            if url.path == '/api/shell/keys':
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                import setup_state
+                try:return self.respond(setup_state.key_status())
+                except setup_state.SetupError:return self.respond({'error':'save_failed'},400)
             if url.path == '/api/shell/status':
                 token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
                 if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
                     return self.respond({'error': 'Untrusted shell'}, 403)
-                import pause_control, browser_search, lens_verification
+                import pause_control, lens_verification
                 verification = lens_verification.status()
-                cover = browser_search.public(browser_search.legacy_status())
+                lens_action = bool(verification.get('human_verification') and verification.get('alive') and not verification.get('paused') and verification.get('phase') not in {'queued','opening','open','closing','paused'} and (verification.get('phase') != 'failed' or (verification.get('window') == 'closed' and not verification.get('verification_pending'))))
+                engines = ['Google Lens'] if lens_action else []
                 return self.respond({'owned': True, 'version': self.server.loaded_version,
                                      'control': pause_control.status(),
-                                     'verification': bool(verification.get('human_verification') or cover.get('human_verification')),
+                                     'verification': bool(engines), 'verification_engines': engines,
                                      'job_running': bool(JOB.get('running')),
                                      'setup': self.server.setup_status()})
             if url.path == '/api/state':
@@ -726,16 +805,48 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
             import pause_control
-            if self.path == '/api/shell/setup':
+            if self.path in ('/api/recovery/preview','/api/recovery/confirm'):
+                import comic_recovery
+                try:
+                    if not isinstance(body,dict):
+                        raise comic_recovery.RecoveryError('invalid_action','Choose an available recovery option.')
+                    if self.path=='/api/recovery/preview':
+                        if set(body)-{'comic','action','issue'} or not {'comic','action'}<=set(body):
+                            raise comic_recovery.RecoveryError('invalid_action','Choose an available recovery option.')
+                        result=comic_recovery.preview(body['comic'],body['action'],body.get('issue'))
+                    else:
+                        if set(body)!={'token','confirm'}:
+                            raise comic_recovery.RecoveryError('confirmation','Review and explicitly confirm this change.')
+                        result=comic_recovery.confirm(body['token'],body['confirm'])
+                    return self.respond(result)
+                except comic_recovery.RecoveryError as exc:
+                    return self.respond({'error':str(exc),'code':exc.code},400)
+            if self.path == '/api/shell/keys':
                 token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
                 if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
                     return self.respond({'error': 'Untrusted shell'}, 403)
                 import setup_state
                 try:
+                    if not isinstance(body,dict) or set(body)!={'keys'}:raise setup_state.SetupError('key_invalid','')
                     with self.server._setup_mutex:
-                        if self.server._quitting:raise setup_state.SetupError('save_failed')
+                        if self.server._quitting or self.server.setup_required:raise setup_state.SetupError('save_failed','')
+                        result=setup_state.save_keys(body['keys'])
+                    return self.respond(result)
+                except setup_state.SetupError as exc:
+                    return self.respond({'error':exc.code,'field':exc.field},400)
+            if self.path == '/api/shell/setup':
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                import setup_state, library_lock
+                try:
+                    with self.server._setup_mutex:
+                        if self.server._quitting or not self.server.setup_required:raise setup_state.SetupError('save_failed')
                         result = setup_state.save(body.get('folder'), body.get('keys', {}))
-                        self.server.activate_setup()
+                        try:
+                            self.server.activate_setup()
+                        except library_lock.LibraryBusy:
+                            raise setup_state.SetupError('library_busy') from None
                     return self.respond(result)
                 except setup_state.SetupError as exc:
                     return self.respond({'error': exc.code, 'field': getattr(exc, 'field', None)}, 400)
@@ -873,7 +984,9 @@ class LocalServer(ThreadingHTTPServer):
     def setup_status(self):
         if not os.environ.get('COMICS_META_SHELL_TOKEN'):return {'configured': True}
         import setup_state
-        return setup_state.status()
+        result = setup_state.status()
+        result['configured'] = not self.setup_required
+        return result
 
     def activate_setup(self):
         if not self.setup_required:return
@@ -896,6 +1009,10 @@ class LocalServer(ThreadingHTTPServer):
 
     def finish_quit(self,worker_timeout=None):
         import pause_control
+        with self._setup_mutex:
+            if self.setup_required:
+                self.shutdown()
+                return True
         try:
             if self.supervisor_stop is not None:self.supervisor_stop.set()  # No new workers.
             pause_control.request_stop()
@@ -941,7 +1058,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
-        supervisor_stop.set()
+        if server.supervisor_stop is not None:server.supervisor_stop.set()
         server.server_close()
     return 0
 

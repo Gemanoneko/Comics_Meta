@@ -12,7 +12,8 @@ import app
 import library_lock
 import pause_control
 
-SEVEN_ZIP=Path('C:/Program Files/7-Zip/7z.exe')
+SEVEN_ZIP=Path(os.environ.get('COMICS_META_7ZIP') or 'C:/Program Files/7-Zip/7z.exe')
+if not SEVEN_ZIP.is_absolute():raise ValueError('7-Zip resource must be an absolute path')
 
 class ArchiveDamage(ValueError):
     pass

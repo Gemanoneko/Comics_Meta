@@ -99,7 +99,7 @@ class ClaimTests(LockFixture):
 
     def test_leftover_process_of_another_copy_blocks_until_it_ends(self):
         env = dict(os.environ, COMICS_META_STATE_ROOT=str(self.other_state), **{library_lock.LOCK_DIR_ENV: str(self.locks)})
-        holder = subprocess.Popen([sys.executable, '-c', HOLDER, str(self.library)], cwd=CODE, env=env,
+        holder = subprocess.Popen([sys.executable, '-S', '-B', '-c', HOLDER, str(self.library)], cwd=CODE, env=env,
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.assertEqual(holder.stdout.readline().strip(), 'held', holder.stderr.read() if holder.poll() else '')
@@ -247,7 +247,7 @@ class StartupTests(LockFixture):
 class DashboardClaimTests(LockFixture):
     def test_dashboard_claims_the_configured_library_and_wires_quit_to_the_supervisor(self):
         self.configure(self.library)
-        server = Mock()
+        server = Mock(setup_required=False)
         server.serve_forever.side_effect = KeyboardInterrupt
         with patch.object(app, 'LocalServer', return_value=server), patch('supervisor.start') as supervise:
             self.assertEqual(app.main(['--no-browser', '--port', '0']), 0)
