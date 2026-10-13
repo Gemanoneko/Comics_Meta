@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.1.2] - 2026-10-13
+
+### Fixed
+
+- Blocked Google Lens searches keep their place in the queue instead of losing it.
+- Any publisher, and unnumbered books, can now be confirmed, under stricter title, creator and cover checks.
+- Results are read after a solved Google check.
+- The Google verification URL is no longer exposed.
+- Lens verification timeouts are fixed, and there is no permanent "no result" state.
+- Identity conflicts keep searching but block field writes, including during ComicVine outages.
+- Dead ComicVine ids no longer pause lookups.
+- The dashboard status filter works correctly.
+
+### Added
+
+- A one-time relabel script for mislabelled cover tasks. It is not run by this release.
+
+### Validation
+
+- Futaba GO and Senua RELEASE CLEAR on a73f43e. This entry records the release only; it does not claim the running service has been restarted or updated.
+
 ## [v0.1.1] - 2026-10-12
 
 ### Changed
