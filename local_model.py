@@ -6,6 +6,9 @@ import urllib.request
 import zipfile
 import re
 import time
+import http.client
+import socket
+import threading
 from pathlib import Path
 from PIL import Image
 import app
@@ -17,15 +20,56 @@ CREDITS_SECONDS = 30
 CREDITS_BYTES = 32000
 
 
+def credits_response(request):
+    """A total deadline for this owned loopback socket, including headers and body.
+
+    shutdown unblocks an active read without taking BufferedReader's read lock. The
+    watchdog owns this socket object only; it never touches other requests or processes.
+    """
+    deadline=time.monotonic()+CREDITS_SECONDS
+    sock=socket.create_connection(('127.0.0.1',11434),timeout=CREDITS_SECONDS)
+    connection=http.client.HTTPConnection('127.0.0.1',11434,timeout=CREDITS_SECONDS)
+    connection.sock=sock
+    def abort():
+        try:sock.shutdown(socket.SHUT_RDWR)
+        except OSError:pass
+        finally:sock.close()
+    expired=threading.Event()
+    def expire():
+        expired.set();abort()
+    remaining=deadline-time.monotonic()
+    if remaining<=0:
+        abort();raise TimeoutError('Credits reading exceeded its deadline.')
+    watchdog=threading.Timer(remaining,expire);watchdog.daemon=True
+    watchdog.start()
+    try:
+        connection.request('POST','/api/chat',body=request.data,headers=dict(request.header_items()))
+        with connection.getresponse() as response:
+            if response.status!=200:raise OSError('Credits model returned HTTP '+str(response.status))
+            raw=response.read(CREDITS_BYTES+1)
+        if expired.is_set() or time.monotonic()>=deadline:raise TimeoutError('Credits reading exceeded its deadline.')
+        return raw
+    finally:
+        watchdog.cancel()
+        abort()
+        connection.close()
+
+
 def model_reply(request, schema=None):
     """Bound credits generation and response bytes; overrun is an unusable reading."""
     credits = schema == CREDITS_SCHEMA
     started = time.monotonic()
-    with urllib.request.urlopen(request,timeout=CREDITS_SECONDS if credits else 240) as response:
-        raw = response.read(CREDITS_BYTES + 1) if credits else response.read()
+    if credits:
+        raw=credits_response(request)
+    else:
+        with urllib.request.urlopen(request,timeout=240) as response:raw=response.read()
     if credits and (len(raw)>CREDITS_BYTES or time.monotonic()-started>CREDITS_SECONDS):
         raise ValueError('Credits reading exceeded its limit.')
-    return json.loads(json.loads(raw)['message']['content'])
+    envelope=json.loads(raw)
+    message=envelope.get('message') if isinstance(envelope,dict) else None
+    if not isinstance(message,dict) or not isinstance(message.get('content'),str):
+        raise ValueError('Local model response has no JSON message.')
+    return json.loads(message['content'])
 
 def available():
     try:
@@ -166,7 +210,7 @@ def read_credits(path,ask=None):
     started=time.monotonic()
     try:
         result=(ask or chat)(CREDITS_PROMPT,images,schema=CREDITS_SCHEMA)
-    except (OSError,ValueError):
+    except (OSError,ValueError,http.client.HTTPException):
         return None
     if (time.monotonic()-started>CREDITS_SECONDS or not isinstance(result,dict)
             or any(not isinstance(result.get(k),str) or len(result[k])>4000 for k in ('indicia','credits'))):

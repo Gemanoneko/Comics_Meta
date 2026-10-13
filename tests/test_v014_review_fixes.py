@@ -86,11 +86,32 @@ class ReviewFixTests(unittest.TestCase):
             self.assertEqual(local_model.read_credits('fixture',ask=lambda *a,**k:good)['indicia'],good['indicia'])
 
     def test_credits_transport_caps_tokens_time_and_bytes(self):
-        response=io.BytesIO(json.dumps({'message':{'content':'{"indicia":"","credits":""}'}}).encode())
-        with patch.object(local_model.urllib.request,'urlopen',return_value=response) as request,patch('pause_control.requested',return_value=False):
+        response=json.dumps({'message':{'content':'{"indicia":"","credits":""}'}}).encode()
+        with patch.object(local_model,'credits_response',return_value=response) as request,patch('pause_control.requested',return_value=False):
             local_model.chat('test',schema=local_model.CREDITS_SCHEMA)
-            self.assertEqual(request.call_args.kwargs['timeout'],local_model.CREDITS_SECONDS)
             body=json.loads(request.call_args.args[0].data)
             self.assertEqual(body['options']['num_predict'],local_model.CREDITS_TOKENS)
-        with patch.object(local_model.urllib.request,'urlopen',return_value=io.BytesIO(b'x'*(local_model.CREDITS_BYTES+1))):
+        with patch.object(local_model,'credits_response',return_value=b'x'*(local_model.CREDITS_BYTES+1)):
             with self.assertRaises(ValueError):local_model.model_reply(None,local_model.CREDITS_SCHEMA)
+
+    def test_credits_watchdog_shuts_held_socket_for_trickling_read(self):
+        import threading
+        import time
+        from unittest.mock import Mock
+        stopped=threading.Event();sock=Mock()
+        sock.shutdown.side_effect=lambda *a:stopped.set()
+        response=Mock(status=200)
+        response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
+        def trickle(limit):
+            # Continuous input cannot renew the total deadline as it could a socket timeout.
+            while not stopped.wait(.005):pass
+            return b'{}'
+        response.read.side_effect=trickle
+        connection=Mock();connection.getresponse.return_value=response
+        request=local_model.urllib.request.Request('http://127.0.0.1:11434/api/chat',data=b'{}')
+        with patch.object(local_model,'CREDITS_SECONDS',.05),patch.object(local_model.socket,'create_connection',return_value=sock),patch.object(local_model.http.client,'HTTPConnection',return_value=connection):
+            started=time.monotonic()
+            with self.assertRaises(TimeoutError):local_model.credits_response(request)
+            self.assertLess(time.monotonic()-started,1)
+            self.assertTrue(stopped.is_set())
+            sock.shutdown.assert_called_with(local_model.socket.SHUT_RDWR)
