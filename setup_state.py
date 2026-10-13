@@ -105,7 +105,7 @@ def _durable_write(path, data):
         os.fsync(stream.fileno())
 
 
-def save(folder, keys):
+def save(folder, keys, *, retain_claim=False):
     library = _folder(folder)
     if not isinstance(keys, dict) or any(name not in credential_store.ALLOWED_KEYS for name in keys):
         raise SetupError('key_invalid', '')
@@ -128,7 +128,7 @@ def save(folder, keys):
             if not file_lock.try_lock(lock):
                 raise SetupError('save_failed', '')
             try:
-                claim = library_lock.acquire(library, role='setup')
+                claim = library_lock.acquire(library, role='dashboard' if retain_claim else 'setup')
             except library_lock.LibraryBusy:
                 raise SetupError('library_busy') from None
             config = _config()
@@ -156,6 +156,9 @@ def save(folder, keys):
             # the previous config/pointer. Unreferenced ciphertext is recovery evidence.
             _replace(temporary, destination)
             temporary = None
+            if retain_claim:
+                library_lock.adopt(claim)
+                claim = None  # Dashboard owns the same live descriptor until quit.
             return {'configured': True, 'user_paused': paused, 'saved_keys': presence, 'library': library}
     except SetupError:
         raise

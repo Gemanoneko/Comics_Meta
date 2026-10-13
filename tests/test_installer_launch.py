@@ -190,5 +190,45 @@ class NativeContractTests(unittest.TestCase):
         self.assertLess(names.index('wait'),names.index('close'))
 
 
+class CapsuleContractTests(unittest.TestCase):
+    def test_copied_runtime_remains_held_until_installer_exit(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory(dir=os.environ['COMICS_META_TEST_SCRATCH']) as folder:
+            root=Path(folder)
+            (root/'runtime/python').mkdir(parents=True)
+            (root/'engine').mkdir()
+            files={'python.exe':b'synthetic executable','python314.dll':b'synthetic dll','python314.zip':b'synthetic zip','python314._pth':b'python314.zip\n.\n../../engine\n'}
+            for name,raw in files.items():(root/'runtime/python'/name).write_bytes(raw)
+            helper=b'synthetic helper'
+            (root/'engine/installer_launch.py').write_bytes(helper)
+            manifest={'schema':1,'python':{'files':[{'path':name,'sha256':hashlib.sha256(raw).hexdigest()} for name,raw in files.items()],'directories':[]},'helperSha256':hashlib.sha256(helper).hexdigest()}
+            (root/'runtime-manifest.json').write_text(json.dumps(manifest))
+            native=FakeWindows()
+            request=launch.validate_request(payload(capsule_root=str(root)))
+            with patch.object(launch,'__file__',str(root/'engine/installer_launch.py')),patch.object(launch.sys,'executable',str(root/'runtime/python/python.exe')):
+                self.assertEqual(launch.run(request,native,native.receipt),0)
+            paths=[event[1] for event in native.events if event[0]=='hold']
+            self.assertIn(str(root/'runtime/python/python314.dll'),paths)
+            self.assertIn(str(root/'engine/installer_launch.py'),paths)
+            self.assertLess(next(i for i,e in enumerate(native.events) if e[0]=='wait'),next(i for i,e in enumerate(native.events) if e[0]=='close'))
+            (root/'runtime/python/extra.py').write_text('foreign')
+            native=FakeWindows()
+            with patch.object(launch,'__file__',str(root/'engine/installer_launch.py')),patch.object(launch.sys,'executable',str(root/'runtime/python/python.exe')):
+                self.assertEqual(launch.run(request,native,native.receipt),1)
+            self.assertNotIn('create',[event[0] for event in native.events])
+            self.assertFalse(native.receipts[0]['started'])
+            (root/'runtime/python/extra.py').unlink()
+            escaped=b'python314.zip\n.\n../../../outside\n'
+            (root/'runtime/python/python314._pth').write_bytes(escaped)
+            for item in manifest['python']['files']:
+                if item['path']=='python314._pth':item['sha256']=hashlib.sha256(escaped).hexdigest()
+            (root/'runtime-manifest.json').write_text(json.dumps(manifest))
+            native=FakeWindows()
+            with patch.object(launch,'__file__',str(root/'engine/installer_launch.py')),patch.object(launch.sys,'executable',str(root/'runtime/python/python.exe')):
+                self.assertEqual(launch.run(request,native,native.receipt),1)
+            self.assertNotIn('create',[event[0] for event in native.events])
+            self.assertEqual(native.receipts[0]['code'],'capsule_module_path_escapes')
+
+
 if __name__ == '__main__':
     unittest.main()

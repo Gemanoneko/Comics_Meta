@@ -842,7 +842,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     with self.server._setup_mutex:
                         if self.server._quitting or not self.server.setup_required:raise setup_state.SetupError('save_failed')
-                        result = setup_state.save(body.get('folder'), body.get('keys', {}))
+                        result = setup_state.save(body.get('folder'), body.get('keys', {}),retain_claim=True)
                         try:
                             self.server.activate_setup()
                         except library_lock.LibraryBusy:
@@ -998,6 +998,9 @@ class LocalServer(ThreadingHTTPServer):
     def server_close(self):
         if hasattr(self,'progress_snapshot'):self.progress_snapshot.close()
         super().server_close()
+        if getattr(self,'_quitting',False):
+            import library_lock
+            library_lock.release_all()  # Quit already holds worker leases; no writer remains.
 
     def begin_quit(self):
         """Quit: workers finish their current safe step and exit, then the server stops."""

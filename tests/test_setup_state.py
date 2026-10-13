@@ -6,6 +6,8 @@ from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import unittest
 from unittest.mock import Mock, patch
 import app
@@ -30,8 +32,51 @@ class SetupStateTests(unittest.TestCase):
         # Atomicity/priority tests need no real OS credentials. Ciphertext is opaque
         # to plaintext sentinel checks; the separate Windows test covers real DPAPI.
         self.enterContext(patch.object(credential_store, '_crypt', side_effect=lambda data, protect: b'fixture:' + data[::-1] if protect else data.removeprefix(b'fixture:')[::-1]))
+        self.real_acquire = library_lock.acquire
         self.claim = Mock()
         self.acquire = self.enterContext(patch.object(library_lock, 'acquire', return_value=self.claim))
+
+    def competing_copy(self):
+        source=str(Path(app.__file__).resolve().parent)
+        code="import sys;sys.path.insert(0,"+repr(source)+");import app,library_lock;\ntry:\n claim=library_lock.acquire("+repr(str(self.library))+",role='owned-competing-fixture')\nexcept library_lock.LibraryBusy:\n print('busy')\nelse:\n claim.release();print('free')"
+        env=dict(os.environ,COMICS_META_STATE_ROOT=str(self.root/'other-state'))
+        return subprocess.check_output([sys.executable,'-I','-S','-B','-c',code],env=env,text=True,timeout=10).strip()
+
+    def test_setup_claim_survives_request_thread_and_transfers_to_other_activation_thread_until_quit(self):
+        lock_root=self.root/'owned-locks'
+        with patch.object(library_lock,'acquire',self.real_acquire),patch.object(library_lock,'_held',[]),patch.dict(os.environ,{'COMICS_META_LOCK_DIR':str(lock_root)}):
+            results=[];errors=[]
+            def request_thread():
+                try:results.append(setup_state.save(str(self.library),{},retain_claim=True))
+                except BaseException as exc:errors.append(exc)
+            request=threading.Thread(target=request_thread,name='owned-setup-request');request.start();request.join(10)
+            self.assertFalse(request.is_alive());self.assertEqual(errors,[]);self.assertTrue(results[0]['configured'])
+            self.assertEqual(self.competing_copy(),'busy')
+            retained=library_lock._held[0];self.addCleanup(retained.release);self.assertTrue(retained.held)
+            server=app.LocalServer.__new__(app.LocalServer);server.setup_required=True;server._setup_mutex=threading.Lock();server._quitting=False;server._quit_mutex=threading.Lock();server.worker_leases={};quit_done=threading.Event();server.shutdown=Mock(side_effect=quit_done.set)
+            stop=threading.Event()
+            def activate_thread():
+                try:server.activate_setup()
+                except BaseException as exc:errors.append(exc)
+            with patch('supervisor.start',return_value=stop),patch.object(library_lock,'acquire',side_effect=AssertionError('Must reuse the original claim')):
+                activation=threading.Thread(target=activate_thread,name='owned-activation');activation.start();activation.join(10)
+            self.assertFalse(activation.is_alive());self.assertEqual(errors,[]);self.assertFalse(server.setup_required)
+            self.assertEqual(self.competing_copy(),'busy')
+            with patch('pause_control.request_stop'),patch('pause_control.hold_worker_leases',return_value={}):
+                self.assertEqual(server.begin_quit(),{'ok':True,'stopping':True})
+                self.assertTrue(quit_done.wait(10))
+            server.shutdown.assert_called_once();self.assertTrue(stop.is_set())
+            with patch('http.server.ThreadingHTTPServer.server_close'):server.server_close()
+            self.assertFalse(retained.held);self.assertEqual(library_lock._held,[])
+            self.assertEqual(self.competing_copy(),'free')
+
+    def test_failed_durable_setup_never_retains_claim_or_changes_config(self):
+        self.config({'unknown':{'keep':7}});before=(self.state/'config.json').read_bytes()
+        with patch.object(library_lock,'acquire',self.real_acquire),patch.object(library_lock,'_held',[]),patch.dict(os.environ,{'COMICS_META_LOCK_DIR':str(self.root/'owned-locks')}),patch.object(setup_state,'_replace',side_effect=OSError('owned failure')):
+            self.error('save_failed',lambda:setup_state.save(str(self.library),{},retain_claim=True))
+            self.assertEqual(library_lock._held,[])
+            self.assertEqual((self.state/'config.json').read_bytes(),before)
+            self.assertEqual(self.competing_copy(),'free')
 
     def config(self, value):
         (self.state / 'config.json').write_text(json.dumps(value), encoding='utf-8')

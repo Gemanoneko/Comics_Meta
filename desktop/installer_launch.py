@@ -12,6 +12,7 @@ import hmac
 import json
 import ntpath
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -48,7 +49,7 @@ def absolute_windows_path(value, executable=False):
 
 
 def validate_request(value):
-    if not isinstance(value, dict) or not {'path', 'size', 'sha512', 'parent_pid'} <= set(value) or set(value) - {'path', 'size', 'sha512', 'parent_pid', 'install_dir'}:
+    if not isinstance(value, dict) or not {'path', 'size', 'sha512', 'parent_pid'} <= set(value) or set(value) - {'path', 'size', 'sha512', 'parent_pid', 'install_dir', 'capsule_root'}:
         raise LaunchError('input', 'invalid_schema')
     size, parent = value['size'], value['parent_pid']
     if isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= MAX_SIZE:
@@ -68,6 +69,8 @@ def validate_request(value):
               'digest': digest, 'parent_pid': parent}
     if 'install_dir' in value:
         result['install_dir'] = absolute_windows_path(value['install_dir'])
+    if 'capsule_root' in value:
+        result['capsule_root'] = absolute_windows_path(value['capsule_root'])
     return result
 
 
@@ -229,6 +232,75 @@ class Windows:
             time.sleep(0.1)
 
 
+def hold_capsule(root, native, held, check_deadline):
+    root = Path(root)
+    if root.resolve() != Path(__file__).resolve().parent.parent or Path(sys.executable).resolve() != root / 'runtime' / 'python' / 'python.exe':
+        raise LaunchError('runtime', 'capsule_location_differs')
+    for folder in ancestors(str(root / 'runtime-manifest.json')):
+        held.append(native.hold(folder, directory=True))
+        check_deadline()
+    manifest_path = root / 'runtime-manifest.json'
+    held.append(native.hold(str(manifest_path)))
+    manifest = json.loads(manifest_path.read_bytes(), object_pairs_hook=unique_object)
+    if manifest.get('schema') != 1 or set(manifest) != {'schema', 'python', 'helperSha256'} or set(manifest['python']) != {'files', 'directories'}:
+        raise LaunchError('runtime', 'invalid_capsule_manifest')
+    def relative(name):
+        if not isinstance(name, str) or not name or '\\' in name or ':' in name or any(p in ('', '.', '..') or p.endswith((' ', '.')) for p in name.split('/')):
+            raise LaunchError('runtime', 'invalid_capsule_member')
+        return name
+    expected = {}
+    for item in manifest['python']['files']:
+        if set(item) != {'path', 'sha256'} or not re.fullmatch('[a-f0-9]{64}', item['sha256']):
+            raise LaunchError('runtime', 'invalid_capsule_member')
+        name = relative(item['path'])
+        if name.lower() in {n.lower() for n in expected}:
+            raise LaunchError('runtime', 'duplicate_capsule_member')
+        expected[name] = item['sha256']
+    dirs = [relative(name) for name in manifest['python']['directories']]
+    if len(set(n.lower() for n in dirs)) != len(dirs) or set(n.lower() for n in dirs) & set(n.lower() for n in expected):
+        raise LaunchError('runtime', 'duplicate_capsule_member')
+    python = root / 'runtime' / 'python'
+    held.append(native.hold(str(root / 'runtime'), directory=True))
+    held.append(native.hold(str(root / 'engine'), directory=True))
+    held.append(native.hold(str(python), directory=True))
+    observed_files, observed_dirs = [], []
+    for current, folders, files in os.walk(python, followlinks=False):
+        for name in folders:
+            target = Path(current) / name
+            held.append(native.hold(str(target), directory=True))
+            observed_dirs.append(target.relative_to(python).as_posix())
+            check_deadline()
+        for name in files:
+            target = Path(current) / name
+            held.append(native.hold(str(target)))
+            member = target.relative_to(python).as_posix()
+            observed_files.append(member)
+            if member not in expected or hashlib.sha256(target.read_bytes()).hexdigest() != expected[member]:
+                raise LaunchError('runtime', 'capsule_bytes_differ')
+            check_deadline()
+    helper = root / 'engine' / 'installer_launch.py'
+    held.append(native.hold(str(helper)))
+    if not re.fullmatch('[a-f0-9]{64}', manifest['helperSha256']) or hashlib.sha256(helper.read_bytes()).hexdigest() != manifest['helperSha256'] or sorted(observed_files) != sorted(expected) or sorted(observed_dirs) != sorted(dirs):
+        raise LaunchError('runtime', 'capsule_closure_differs')
+    configs = [name for name in expected if re.fullmatch(r'python[0-9]+\._pth', name)]
+    if len(configs) != 1:
+        raise LaunchError('runtime', 'capsule_module_path_missing')
+    resolved = []
+    for line in (python / configs[0]).read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):continue
+        if line.startswith('import ') or ntpath.isabs(line) or ':' in line or '\\' in line:
+            raise LaunchError('runtime', 'unsafe_capsule_module_path')
+        target = (python / line).resolve()
+        if not target.is_relative_to(root.resolve()) or target == root.resolve() or not target.exists():
+            raise LaunchError('runtime', 'capsule_module_path_escapes')
+        resolved.append(target)
+    zip_name = configs[0].replace('._pth', '.zip')
+    if python.resolve() not in resolved or (root / 'engine').resolve() not in resolved or (python / zip_name).resolve() not in resolved or sorted(p.name for p in (root / 'engine').iterdir()) != ['installer_launch.py']:
+        raise LaunchError('runtime', 'capsule_module_closure_differs')
+    check_deadline()
+
+
 def run(request, native, receipt):
     held, parent, process = [], None, None
     reported = False
@@ -245,6 +317,8 @@ def run(request, native, receipt):
     try:
         parent = native.parent(request['parent_pid'])
         check_deadline()
+        if request.get('capsule_root'):
+            hold_capsule(request['capsule_root'], native, held, check_deadline)
         for folder in ancestors(request['path']):
             held.append(native.hold(folder, directory=True))
             check_deadline()

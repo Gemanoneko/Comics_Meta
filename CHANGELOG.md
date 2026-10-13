@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.2.1] - 2026-10-14
+
+### Fixed
+
+- Source checkpoint fixes F40 setup/library ownership handling and strengthens update helper capsules, module paths and staged manifest validation.
+
+### Validation
+
+- F40 independently rechecked: 77 checks passed. Capsule18 passed 18 Python and 19 Node checks plus all source parsing; complete 234-input identities remained unchanged, with native/root/descendant exit zero.
+- Actual offline lock regeneration changed only the two version fields; all 290 dependency records stayed unchanged.
+- This is a source-only patch checkpoint. Native shell/rendered UI, actual packaged install/update transition, final QA and release review remain pending. No installer release, tag, live deployment or migration.
+
 ## [v0.2.0] - 2026-10-14
 
 ### Added

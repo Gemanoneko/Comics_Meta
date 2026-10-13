@@ -102,18 +102,34 @@ with HeldPaths() as held:
     licenses=held.mkdir(stage/'licenses',True)
     copy_file(runtime/'runtime/python/LICENSE.txt',licenses/'Python-LICENSE.txt')
     copy_file(source/'scripts/packaging/runtime-lock.json',licenses/'runtime-lock.json')
+    python_prefix='runtime/python/'
+    python_identity=inventory(stage/'runtime/python')
+    authenticated_python={'files':sorted([{'path':item['path'][len(python_prefix):],'sha256':item['sha256']} for item in runtime_manifest['files'] if item['path'].startswith(python_prefix)],key=lambda x:x['path']),'directories':sorted([name[len(python_prefix):] for name in runtime_manifest['directories'] if name.startswith(python_prefix)])}
+    if python_identity!=authenticated_python:raise RuntimeError('Packaged Python closure differs from authenticated runtime')
+    update_runtime={'schema':1,'python':python_identity,'helperSha256':digest((engine/'installer_launch.py').read_bytes())}
+    update_runtime_path=engine/'update-runtime-manifest.json'
+    with update_runtime_path.open('xb') as output:output.write((json.dumps(update_runtime,sort_keys=True,indent=2)+'\n').encode())
+    held.hold(update_runtime_path)
     stage_identity=inventory(stage)
     staged={'schema':2,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'engineSources':mapping,**stage_identity}
     staged_path=snapshot/'build/staged-manifest.json'
     with staged_path.open('xb') as output:output.write((json.dumps(staged,sort_keys=True,indent=2)+'\n').encode())
     held.hold(staged_path)
     held.mkdir(snapshot/'dist',True)
+    def cloned_inputs():
+        value=inventory(snapshot)
+        def selected(name):return name.split('/')[0] not in ('build','dist')
+        return {'files':[item for item in value['files'] if selected(item['path'])],'directories':[name for name in value['directories'] if selected(name)]}
+    clone_identity=cloned_inputs()
     env={'SystemRoot':r'C:\Windows','WINDIR':r'C:\Windows','ComSpec':r'C:\Windows\System32\cmd.exe','PATH':r'C:\Program Files\nodejs;C:\Windows\System32','HOME':str(jobroot),'USERPROFILE':str(jobroot),'LOCALAPPDATA':str(jobroot),'APPDATA':str(jobroot),'TEMP':str(jobroot),'TMP':str(jobroot),'COMICS_META_HELD_BUILD':'1','COMICS_META_BUILD_CONTRACT':str(contract_path),'COMICS_META_BUILD_CONTRACT_SHA256':sys.argv[2],'COMICS_META_STAGED_MANIFEST_SHA256':digest(staged_path.read_bytes())}
     node=held.hold(c['nodeExecutable'])
     if digest(node.read_bytes())!=c['nodeSha256']:raise RuntimeError('Node identity differs')
     result=owned_job(node,[str(snapshot/'scripts/packaging/build-entry.cjs')],snapshot,jobroot/'build-logs',STARTED+540,None,environment_override=env)
     if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:raise RuntimeError('Build failed or native closure unknown')
     if inventory(stage)!=stage_identity or inventory(runtime)!={'files':runtime_manifest['files'],'directories':runtime_manifest['directories']} or inventory(modules)['files']!=sorted(module_files,key=lambda x:x['path']) or inventory(native_root)!=native_manifest or selected_source_names()!=sorted(x['path'] for x in sourcefiles):raise RuntimeError('Held input path/byte closure changed across build')
+    if cloned_inputs()!=clone_identity:raise RuntimeError('Cloned desktop/scripts/dependencies input path/type/bytes changed')
+    for item in sourcefiles:
+        if digest((source/item['path']).read_bytes())!=item['sha256']:raise RuntimeError('Original source bytes changed across build')
     artifacts=inventory(snapshot/'dist')
     receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
     with (jobroot/'build-receipt.json').open('xb') as output:output.write((json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode())

@@ -228,6 +228,19 @@ def _hold(library, library_id, role=None):
         return claim
 
 
+def adopt(claim):
+    """Retain an existing process-owned claim across setup request threads.
+
+    No gate/reacquisition occurs: the original byte lock stays held throughout
+    the durable config commit and dashboard activation.
+    """
+    if not isinstance(claim,Claim) or not claim.held:
+        raise ValueError('Only a live library claim can be retained')
+    with _mutex:
+        if claim not in _held:_held.append(claim)
+    return claim
+
+
 def claim_configured(role):
     """Claim the configured library when a process starts; None when no library is configured."""
     global _role

@@ -4,10 +4,11 @@ const fs=require('node:fs/promises');
 const {createReadStream}=require('node:fs');
 const crypto=require('node:crypto');
 const {launchInstaller}=require('./installer-launch.cjs');
+const {prepareUpdateCapsule}=require('./update-capsule.cjs');
 const path=require('node:path');
 class Updates extends EventEmitter {
-  constructor({updater,stopper,engine,log,exit,qaInstallDirectory,qaArtifact,launch=launchInstaller,record=()=>{}}){
-    super();Object.assign(this,{updater,stopper,engine,log,exit,qaInstallDirectory,qaArtifact,launch,record});this.state={phase:'idle',check:'idle',dismissed:false};this.info=null;this.file=null;this.fileIdentity=null;this.operation=null;
+  constructor({updater,stopper,engine,log,exit,qaInstallDirectory,qaArtifact,launch=launchInstaller,prepare=prepareUpdateCapsule,workRoot,record=()=>{}}){
+    super();Object.assign(this,{updater,stopper,engine,log,exit,qaInstallDirectory,qaArtifact,launch,prepare,workRoot,record});this.state={phase:'idle',check:'idle',dismissed:false};this.info=null;this.file=null;this.fileIdentity=null;this.operation=null;
     updater.autoDownload=false;updater.autoInstallOnAppQuit=false;updater.allowDowngrade=false;
     updater.on('update-available',info=>{try{this.validateInfo(info);}catch(error){this.log(error);this.info=null;this.file=null;this.fileIdentity=null;this.patch({phase:'check-failed',check:'idle',dismissed:false});return;}const identity=this.identity(info);if(this.fileIdentity!==identity){this.file=null;this.fileIdentity=null;}this.info=structuredClone(info);this.patch({phase:this.file?'ready':'available',version:info.version,check:'idle',dismissed:false});});
     updater.on('update-not-available',()=>{this.info=null;this.file=null;this.fileIdentity=null;this.patch({phase:'idle',check:'current'});setTimeout(()=>this.patch({check:'idle'}),5000);});
@@ -55,13 +56,14 @@ class Updates extends EventEmitter {
     this.operation='install';this.patch({phase:'ready'});let launcherInvoked=false;
     try{
       await this.verify();
+      const capsule=await this.prepare({resources:this.engine.resources,workRoot:this.workRoot});
       if(!await this.stopper.run('install'))return;
       // The fixed per-user NSIS contract is launched only after all engine
       // workers/browser descendants have exited. Observe spawn before quitting
       // so a startup error can restore the earlier engine and user-pause state.
       await this.verify();
       const expected=this.validateInfo(this.info);
-      launcherInvoked=true;const receipt=await this.launch({python:path.join(this.engine.resources,'runtime','python','python.exe'),helper:path.join(this.engine.resources,'engine','installer_launch.py'),path:this.file,size:expected.size,sha512:expected.sha512,parent_pid:process.pid,install_dir:this.qaInstallDirectory});
+      launcherInvoked=true;const receipt=await this.launch({python:capsule.python,helper:capsule.helper,capsule_root:capsule.root,path:this.file,size:expected.size,sha512:expected.sha512,parent_pid:process.pid,install_dir:this.qaInstallDirectory});
       this.recordAttempt(receipt);this.patch({phase:'installing'});this.exit();
     }catch(error){
       if(!launcherInvoked)error.installerStarted=false;let restoreFailed=false;this.log(error);this.recordAttempt(error.installerReceipt||{started:error.installerStarted??null,accepted:false,phase:error.installerStarted===false?'not-started':'unknown',code:error.code||'INSTALLER_OUTCOME_UNKNOWN'});

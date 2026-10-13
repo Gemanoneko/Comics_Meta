@@ -1,12 +1,15 @@
 'use strict';
 const {spawn}=require('node:child_process');
-function launchInstaller({python,helper,path,size,sha512,parent_pid,install_dir},spawnChild=spawn){
+const paths=require('node:path');
+function launchInstaller({python,helper,path,size,sha512,parent_pid,install_dir,capsule_root},spawnChild=spawn){
   return new Promise((resolve,reject)=>{
     let child,settled=false,bytes=0,line='';
     const failure=(code,started,receipt)=>Object.assign(Error('Installer startup could not be confirmed'),{code,installerStarted:started,installerReceipt:receipt||null});
     const finish=(error,receipt)=>{if(settled)return;settled=true;clearTimeout(timer);if(receipt?.accepted){child.unref();child.stdout?.unref?.();child.stderr?.unref?.();resolve(receipt);}else reject(error);};
     const timer=setTimeout(()=>finish(failure('INSTALLER_OUTCOME_UNKNOWN',null)),12000);
-    try{child=spawnChild(python,['-I','-S','-B',helper],{windowsHide:true,stdio:['pipe','pipe','pipe'],detached:false});}
+    const environment=Object.fromEntries(Object.entries(process.env).filter(([name])=>!/^NODE_|^PYTHON|^PATH$/i.test(name)));
+    environment.PATH=paths.join(environment.SystemRoot||environment.SYSTEMROOT||'C:\\Windows','System32');
+    try{child=spawnChild(python,['-I','-S','-B',helper],{cwd:paths.dirname(helper),env:environment,windowsHide:true,stdio:['pipe','pipe','pipe'],detached:false});}
     catch{finish(failure('INSTALLER_NOT_STARTED',false));return;}
     child.once('error',()=>finish(failure('INSTALLER_NOT_STARTED',false)));
     child.once('exit',()=>{if(!settled)finish(failure('INSTALLER_OUTCOME_UNKNOWN',null));});
@@ -19,7 +22,7 @@ function launchInstaller({python,helper,path,size,sha512,parent_pid,install_dir}
       else finish(failure('INSTALLER_OUTCOME_UNKNOWN',null));
     });
     child.stdin.on('error',()=>finish(failure('INSTALLER_OUTCOME_UNKNOWN',null)));
-    const request={path,size,sha512,parent_pid,...(install_dir?{install_dir}:{})};child.stdin.end(JSON.stringify(request)+'\n');
+    const request={path,size,sha512,parent_pid,...(capsule_root?{capsule_root}:{}),...(install_dir?{install_dir}:{})};child.stdin.end(JSON.stringify(request)+'\n');
   });
 }
 module.exports={launchInstaller};
