@@ -11,14 +11,22 @@ It is recorded, the others are written, and it is offered again after the daily
 retry. An archive that may have been written but did not verify still stops the
 plan for inspection with its backup kept.
 
+F29: a write that fails after the backup step (a page with a bad CRC, a replace
+refused because the comic is open elsewhere) removes the backup it made, and only
+that one, once the archive is confirmed to hold the planned bytes. Repeated failures
+on one unchanged archive wait 1, 2, 4 and 7 days, then automatic retries stop until
+the archive changes.
+
 Isolated catalog, queue and archives; every source is mocked.
 """
 import json
+import os
+import sqlite3
 import time
 import unittest
 import warnings
 import zipfile
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 import app
@@ -66,6 +74,35 @@ def catalog_row(path):
 
 def backups(folder):
     return sorted(p.name for p in (folder / '.comic-metadata-backups').glob('*'))
+
+
+def damaged_comic(path):
+    """Page 002 fails its CRC check. The folder scan reads only ComicInfo, so the catalog
+    lists this comic like any other; its write fails after the backup step (F29)."""
+    page = b'page' * 100 + path.name.encode()
+    with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr('001.jpg', b'cover ' + path.name.encode())
+        archive.writestr('002.jpg', page)
+    data = bytearray(path.read_bytes())
+    data[data.find(page) + 10] ^= 0xFF
+    path.write_bytes(bytes(data))
+    return path
+
+
+def discovery_record(path):
+    with app.db() as con:
+        return json.loads(con.execute('SELECT value FROM discovery_records WHERE path=?', (str(path),)).fetchone()[0])
+
+
+class Clock:
+    """time.time moved forward by a virtual offset."""
+
+    def __init__(self):
+        self.offset = 0.0
+        self.real = time.time
+
+    def time(self):
+        return self.real() + self.offset
 
 
 class Isolated(unittest.TestCase):
@@ -257,6 +294,269 @@ class FailingArchiveTests(Isolated):
         self.assertEqual(len(backups(self.folder)), 1)  # Kept for inspection.
         self.assertNotIn('Title', app.read_metadata(paths[1])[0])
         self.assertEqual(self.recorded(plan, 'failed.json'), [])
+
+
+class FailedWriteBackupTests(Isolated):
+    """F29."""
+
+    def copies_of(self, name, made, after=None):
+        """shutil.copy2 that notes each backup of the comic `name` (the backup step ran)."""
+        real = app.shutil.copy2
+
+        def copy2(src, dst, *args, **kwargs):
+            result = real(src, dst, *args, **kwargs)
+            if Path(src).name == name:
+                made.append(Path(dst))
+                if after:
+                    after(Path(dst))
+            return result
+        return patch.object(app.shutil, 'copy2', side_effect=copy2)
+
+    def test_a_failed_write_removes_only_the_backup_it_made(self):
+        # Senua's probe T6, with older backups beside it. Before: the failed attempt's full copy stayed.
+        paths = [make_comic(self.folder / 'Example 001.cbz'), damaged_comic(self.folder / 'Example 002.cbz'),
+                 make_comic(self.folder / 'Example 003.cbz')]
+        app.scan([str(self.folder)], recursive=False)
+        folder = self.folder / '.comic-metadata-backups'
+        folder.mkdir()
+        older = {'Example 002.cbz.1000.bak': b'an older backup of the damaged comic',
+                 'Example 009.cbz.1000.bak': b'a backup of another comic'}
+        for name, body in older.items():
+            (folder / name).write_bytes(body)
+        plan = self.plan([self.entry(path, {'Title': 'T ' + path.stem}, signature=[catalog_row(path)['size'], catalog_row(path)['mtime']])
+                          for path in paths])
+        made = []
+        with self.copies_of('Example 002.cbz', made):
+            batch.apply(plan, remove_verified_backups=True)
+        self.assertEqual([app.read_metadata(path)[0].get('Title') for path in paths], ['T Example 001', None, 'T Example 003'])
+        self.assertEqual(len(made), 1)  # The failure came after the backup step: the case F29 is about.
+        # Only this attempt's backup is gone; every other one is untouched, byte for byte,
+        # including an older backup of the same comic.
+        self.assertFalse(made[0].exists())
+        self.assertEqual({p.name: p.read_bytes() for p in folder.iterdir()}, older)
+        failed = json.loads((plan.parent / 'failed.json').read_text(encoding='utf-8'))
+        self.assertEqual([Path(f['path']).name for f in failed], ['Example 002.cbz'])
+        self.assertIn('Bad CRC-32', failed[0]['reason'])
+        self.assertEqual(Path(failed[0]['backup']).name, made[0].name)
+        self.assertTrue(failed[0]['backup_removed_after_verification'])
+
+    def test_a_damaged_comic_backs_off_then_stops_and_leaves_no_backup(self):
+        # Senua's probe T7 over 30 virtual days. Before: planned again every day, one full backup left per attempt.
+        good = make_comic(self.folder / 'Example 001.cbz')
+        bad = damaged_comic(self.folder / 'Example 002.cbz')
+        app.scan([str(self.folder)], recursive=False)
+        for path, issue in ((good, '1'), (bad, '2')):
+            row = catalog_row(path)
+            research.save_evidence(path, {'cover_identification': {'title': 'EXAMPLE', 'issue': issue},
+                                          'cover_signature': [row['size'], row['mtime']]})
+        clock = Clock()
+        made, present = [], []
+        backup_folder = self.folder / '.comic-metadata-backups'
+        passes = 0
+        with ExitStack() as stack:
+            self.mock_sources(stack)
+            stack.enter_context(patch.object(time, 'time', clock.time))
+            stack.enter_context(self.copies_of(bad.name, made, after=lambda dst: present.append(len(list(backup_folder.iterdir())))))
+            attempts = []
+            while clock.offset < 30 * 86400:  # A folder pass every 6 hours.
+                before = len(made)
+                automatic.discover(self.folder)
+                while worker.run_one():
+                    pass
+                if len(made) > before:
+                    attempts.append(clock.offset)
+                present.append(len(backups(self.folder)))
+                clock.offset += 6 * 3600
+                passes += 1
+            now = clock.time()
+        self.assertEqual(passes, 120)
+        self.assertTrue(app.read_metadata(good)[0])  # The good comic was written as usual.
+        self.assertEqual(backups(self.folder), [])
+        self.assertLessEqual(max(present), 1)  # At most one backup at any moment: the attempt's own, while it runs.
+        gaps = [round((later - earlier) / 86400, 2) for earlier, later in zip(attempts, attempts[1:])]
+        self.assertEqual(gaps, [1, 2, 4, 7])  # Five attempts, then none for the last 16 days.
+        record = discovery_record(bad)
+        self.assertEqual(record['outcome'], 'write_failed')
+        self.assertEqual((record['write_failures']['count'], record['write_failures']['stopped']), (5, True))
+        self.assertTrue(record['detail'].startswith('Automatic writes stopped after 5 failed attempts on this unchanged archive.'))
+        self.assertIn('Bad CRC-32', record['detail'])
+        held = [t for t in map(lambda p: json.loads(p.read_text(encoding='utf-8')), worker.QUEUE.glob('*.json'))
+                if any(Path(e['path']).name == bad.name for e in json.loads(Path(t['plan']).read_text(encoding='utf-8'))['entries'])]
+        self.assertEqual([t['state'] for t in held], ['complete'] * 5)
+        # Stopped for good on this archive; due again at once when the archive changes.
+        row = catalog_row(bad)
+        saved = coverage_priority.saved_evidence(bad)
+        with patch.object(pipeline_config, 'in_book_cover', return_value=True):
+            self.assertTrue(in_book.ready(row, saved, record))
+            self.assertFalse(coverage_priority.lookup_flags(row, record, {}, automatic.MATCHER_VERSION, saved, now + 365 * 86400)[0])
+            changed = dict(row, mtime=row['mtime'] + 1)
+            self.assertTrue(coverage_priority.lookup_flags(changed, record, {}, automatic.MATCHER_VERSION, saved, now)[0])
+
+    def mock_sources(self, stack):
+        import archive_conversion, cover_tasks, getcomics, local_model, metron, open_library, publisher_catalogs, research_runtime
+        for target, name, kwargs in (
+                (archive_conversion, 'one', {'return_value': False}), (providers, 'statuses', {'return_value': {}}),
+                (research_runtime, 'reuse', {'return_value': None}), (research_runtime, 'remember', {}),
+                (automatic, 'lookup_unidentified', {'return_value': None}), (app, 'api', {'return_value': None}),
+                (metron, 'token', {'return_value': None}), (providers, 'gcd_lookup', {'return_value': None}),
+                (providers, 'google_lookup', {'return_value': None}), (open_library, 'lookup', {'return_value': None}),
+                (publisher_catalogs, 'lookup', {'return_value': None}), (getcomics, 'lookup', {'return_value': None}),
+                (research, 'publisher_lookup', {'return_value': None}), (research, 'resolve_leads', {'return_value': None}),
+                (research, 'general_lookup', {'return_value': None}), (research, 'wiki_candidates', {'return_value': []}),
+                (cover_tasks, 'enqueue', {}), (local_model, 'available', {'return_value': False}),
+                (pipeline_config, 'in_book_cover', {'return_value': True})):
+            stack.enter_context(patch.object(target, name, **kwargs))
+
+    def test_failed_writes_wait_longer_then_stop_until_the_archive_changes(self):
+        path = make_comic(self.folder / 'Example 002.cbz')
+        app.scan([str(self.folder)], recursive=False)
+        row = catalog_row(path)
+        signature = [row['size'], row['mtime']]
+        planned = {'version': automatic.MATCHER_VERSION, 'signature': signature, 'outcome': 'queued', 'tier': 'in_book',
+                   'retry_at': time.time() + 30 * 86400}
+        now = time.time()
+        waits = []
+        for attempt in range(1, discovery_state.WRITE_FAILED_LIMIT + 1):
+            discovery_state.save_one(path, dict(planned))  # The pass that plans the comic again.
+            self.assertTrue(discovery_state.write_not_done(path, 'write_failed', "Bad CRC-32 for file '002.jpg'", now=now))
+            record = discovery_record(path)
+            self.assertEqual(record['write_failures']['count'], attempt)
+            self.assertEqual(record['write_failures']['stopped'], attempt == discovery_state.WRITE_FAILED_LIMIT)
+            if attempt == 1:
+                self.assertTrue(record['detail'].startswith("Write failed (attempt 1 of 5 on this archive): Bad CRC-32 for file '002.jpg'."))
+                self.assertIn('Next attempt in 1 day,', record['detail'])
+            if attempt < discovery_state.WRITE_FAILED_LIMIT:
+                waits.append((record['retry_at'] - now) / 86400)
+                now = record['retry_at'] + 1
+            if attempt == 2:
+                # A skipped write (ComicInfo changed, signature kept) waits a day and is not counted as a failure.
+                discovery_state.write_not_done(path, 'write_skipped', 'ComicInfo changed since planning (Series); nothing written.', now=now)
+                skipped = discovery_record(path)
+                self.assertEqual((skipped['write_failures']['count'], skipped['retry_at'] - now), (2, discovery_state.WRITE_RETRY_SECONDS))
+        self.assertEqual(waits, [1, 2, 4, 7])
+        self.assertTrue(record['write_failures']['stopped'])
+        self.assertEqual(record['retry_at'], 0)
+        self.assertIn('It is tried again once the file changes', record['detail'])
+        self.assertEqual(discovery_state.counts(self.folder), {'write_failed': 1})  # Still valid JSON for the dashboard counts.
+        reading = {'cover_identification': {'title': 'Example', 'issue': '2'}, 'cover_signature': signature}
+        with patch.object(pipeline_config, 'in_book_cover', return_value=True):
+            self.assertTrue(in_book.ready(row, reading, record))  # The saved reading alone would make it due at once.
+            flags = lambda at, at_row=row: coverage_priority.lookup_flags(at_row, record, {}, automatic.MATCHER_VERSION, reading, at)[0]
+            self.assertFalse(flags(now + 365 * 86400))
+            changed = dict(row, mtime=row['mtime'] + 1)
+            self.assertTrue(flags(now, changed))
+        # A pass on the changed archive starts a new run.
+        discovery_state.save_one(path, dict(planned, signature=[row['size'], row['mtime'] + 1]))
+        self.assertNotIn('write_failures', discovery_record(path))
+        discovery_state.write_not_done(path, 'write_failed', 'Bad CRC-32', now=now)
+        record = discovery_record(path)
+        self.assertEqual((record['write_failures']['count'], record['retry_at'] - now), (1, 86400))
+
+    def test_a_successful_write_keeps_its_normal_backup_chain(self):
+        # Positive control: the F29 cleanup never reaches a written comic's backup.
+        kept, cleaned = make_comic(self.folder / 'Example 001.cbz'), make_comic(self.folder / 'Example 002.cbz')
+        app.scan([str(self.folder)], recursive=False)
+        original = kept.read_bytes()
+        plan = self.plan([self.entry(kept, {'Title': 'Kept'})])
+        batch.apply(plan)  # `batch.py apply` without --remove-verified-backups keeps verified backups.
+        result = json.loads((plan.parent / 'results.json').read_text(encoding='utf-8'))[0]
+        backup = Path(result['backup'])
+        self.assertEqual(backup.read_bytes(), original)
+        self.assertEqual((result['backup_sha256_verified'], result['backup_removed_after_verification']), (True, False))
+        with app.db() as con:
+            self.assertEqual([r[0] for r in con.execute('SELECT backup FROM history')], [result['backup']])
+        # The worker's mode: the backup is removed only after readback and the SHA-256 check.
+        plan = self.plan([self.entry(cleaned, {'Title': 'Cleaned'})])
+        batch.apply(plan, remove_verified_backups=True)
+        result = json.loads((plan.parent / 'results.json').read_text(encoding='utf-8'))[0]
+        self.assertTrue(result['backup_removed_after_verification'])
+        self.assertFalse(Path(result['backup']).exists())
+        self.assertEqual(backups(self.folder), [backup.name])
+        self.assertEqual([app.read_metadata(p)[0]['Title'] for p in (kept, cleaned)], ['Kept', 'Cleaned'])
+
+    def test_a_failure_after_the_archive_was_replaced_keeps_its_backup(self):
+        # Senua's probe T9: the catalog is locked after os.replace. The backup is now the only copy of the original.
+        paths = [make_comic(self.folder / ('Example %03d.cbz' % i)) for i in (1, 2)]
+        app.scan([str(self.folder)], recursive=False)
+        original = paths[0].read_bytes()
+        plan = self.plan([self.entry(path, {'Title': 'T ' + path.stem}) for path in paths])
+        real_db, locked = app.db, []
+
+        @contextmanager
+        def db():
+            with real_db() as con:
+                class Locked:
+                    def __getattr__(self, name):
+                        return getattr(con, name)
+
+                    def execute(self, sql, *args):
+                        if sql.startswith('UPDATE comics SET size=?,mtime=?,metadata=?') and not locked:
+                            locked.append(True)
+                            raise sqlite3.OperationalError('database is locked')
+                        return con.execute(sql, *args)
+                yield Locked()
+        with patch.object(app, 'db', db), self.assertRaisesRegex(sqlite3.OperationalError, 'locked'):
+            batch.apply(plan, remove_verified_backups=True)
+        self.assertEqual(locked, [True])
+        self.assertEqual(app.read_metadata(paths[0])[0]['Title'], 'T Example 001')  # The archive was replaced.
+        names = backups(self.folder)
+        self.assertEqual(len(names), 1)
+        self.assertEqual((self.folder / '.comic-metadata-backups' / names[0]).read_bytes(), original)
+        self.assertEqual(self.recorded(plan, 'failed.json'), [])
+        self.assertNotIn('Title', app.read_metadata(paths[1])[0])  # The plan stopped for inspection.
+
+    def test_a_failure_on_an_archive_changed_by_another_program_keeps_its_backup(self):
+        # The replace is refused after another program rewrote the comic: it no longer holds the planned bytes.
+        path = make_comic(self.folder / 'Spawn 001 (1992).cbz')
+        app.scan([str(self.folder)], recursive=False)
+        original = path.read_bytes()
+        plan = self.plan([self.entry(path, {'Title': 'Mine'})])
+        real_replace = os.replace
+
+        def replace(src, dst, *args, **kwargs):
+            if Path(dst).name == path.name:
+                make_comic(path, SERGEI)
+                raise PermissionError(32, 'The process cannot access the file because it is being used by another process')
+            return real_replace(src, dst, *args, **kwargs)
+        with patch.object(app.os, 'replace', side_effect=replace), self.assertRaises(PermissionError):
+            batch.apply(plan, remove_verified_backups=True)
+        self.assertEqual(app.read_metadata(path)[0]['Series'], 'Spawn (Sergei)')
+        names = backups(self.folder)
+        self.assertEqual(len(names), 1)
+        self.assertEqual((self.folder / '.comic-metadata-backups' / names[0]).read_bytes(), original)
+        self.assertEqual(self.recorded(plan, 'failed.json'), [])
+
+    def test_a_refused_replace_on_an_unchanged_archive_removes_its_backup(self):
+        # Senua's probe T8: another program holds the comic open, so Windows refuses the replace.
+        paths = [make_comic(self.folder / ('Example %03d.cbz' % i)) for i in (1, 2)]
+        app.scan([str(self.folder)], recursive=False)
+        plan = self.plan([self.entry(path, {'Title': 'T ' + path.stem}) for path in paths])
+        real_replace = os.replace
+
+        def replace(src, dst, *args, **kwargs):
+            if Path(dst).name == paths[0].name:
+                raise PermissionError(32, 'The process cannot access the file because it is being used by another process')
+            return real_replace(src, dst, *args, **kwargs)
+        made = []
+        with patch.object(app.os, 'replace', side_effect=replace), self.copies_of(paths[0].name, made):
+            batch.apply(plan, remove_verified_backups=True)
+        self.assertEqual(len(made), 1)
+        self.assertEqual([app.read_metadata(path)[0].get('Title') for path in paths], [None, 'T Example 002'])
+        self.assertEqual(self.recorded(plan, 'failed.json'), ['Example 001.cbz'])
+        self.assertEqual(backups(self.folder), [])
+
+    def test_a_backup_that_does_not_match_the_planned_digest_is_kept(self):
+        # The cleanup removes a backup only when its SHA-256 is the planned digest.
+        path = damaged_comic(self.folder / 'Example 002.cbz')
+        app.scan([str(self.folder)], recursive=False)
+        plan = self.plan([self.entry(path, {'Title': 'T'})])
+        made = []
+        with self.copies_of(path.name, made, after=lambda dst: dst.write_bytes(dst.read_bytes() + b'!')):
+            batch.apply(plan, remove_verified_backups=True)
+        failed = json.loads((plan.parent / 'failed.json').read_text(encoding='utf-8'))
+        self.assertIn('Backup kept: Backup verification failed.', failed[0]['reason'])
+        self.assertFalse(failed[0]['backup_removed_after_verification'])
+        self.assertEqual(backups(self.folder), [made[0].name])
 
 
 if __name__ == '__main__':

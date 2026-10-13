@@ -74,10 +74,12 @@ def lookup_flags(row, previous, statuses, version, saved, now):
 
 def write_retry_waiting(previous, signature, now):
     """F23: a planned write to this unchanged archive did not happen (it failed, or the
-    archive's ComicInfo had changed); the comic waits for its daily retry instead of
-    being planned again, and failing again, at every folder pass."""
-    return (previous.get('outcome') in discovery_state.WRITE_NOT_DONE and previous.get('signature') == signature
-            and previous.get('retry_at', 0) > now)
+    archive's ComicInfo had changed); the comic waits for its retry instead of being
+    planned again, and failing again, at every folder pass. F29: after repeated failed
+    writes the wait grows, then automatic retries stop until the archive changes."""
+    if previous.get('outcome') not in discovery_state.WRITE_NOT_DONE or previous.get('signature') != signature:
+        return False
+    return previous.get('retry_at', 0) > now or discovery_state.write_retries_stopped(previous, signature)
 
 
 def comicvine_answered_since_hold(previous, statuses, now):

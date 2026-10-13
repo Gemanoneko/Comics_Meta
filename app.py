@@ -430,7 +430,7 @@ class ArchiveChanged(ValueError):
 
 
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
-                   expected=None, history_source=None):
+                   expected=None, history_source=None, attempt=None):
     """Write fields into a CBZ's ComicInfo.xml with a backup, temporary-archive checks and readback.
 
     expected: {field: value} the archive's ComicInfo must still hold, checked on the
@@ -438,7 +438,11 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
     "empty" (or "this value") from an earlier read; a field changed since then, for
     example tagged in another program during the pass, is never overwritten (F22).
     history_source: provenance stored with the write history in the same transaction
-    (default: the written Web link), for example 'in-book:cover' (F27)."""
+    (default: the written Web link), for example 'in-book:cover' (F27).
+    attempt: an optional dict. Once this call's backup copy is complete its path is
+    stored in attempt['backup'], so a caller whose write then fails knows exactly which
+    backup this call made (v0.1.3 review F29). A backup name already in use is never
+    reused, so that path always names a file this call created."""
     path = filesystem_path(row['path'])
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
@@ -481,7 +485,11 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
     backup_dir = path.parent / '.comic-metadata-backups'
     backup_dir.mkdir(exist_ok=True)
     backup = backup_dir / (path.name + '.' + str(time.time_ns()) + '.bak')
+    if backup.exists():
+        raise ValueError('A backup with this name already exists; nothing written.')
     shutil.copy2(path, backup)
+    if attempt is not None:
+        attempt['backup'] = str(backup)
     try:
         with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as target:
             target.comment = source.comment

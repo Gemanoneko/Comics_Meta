@@ -131,15 +131,33 @@ def unchanged(path,sha256):
         return False
 
 
+def discard_failed_backup(path,backup,sha256):
+    """Remove the backup a failed write made, and nothing else (v0.1.3 review F29).
+
+    Call only after unchanged() has confirmed that the archive still holds exactly the
+    planned bytes: the backup is then a second copy of an archive that is still in
+    place. backup is the one path write_metadata reported for this attempt.
+    remove_verified_backup removes it only from the comic's own backup folder and only
+    when its SHA-256 is the planned digest. Returns '' once it is removed, or why it was kept."""
+    try:
+        app.remove_verified_backup(path,backup,sha256)
+    except Exception as exc:
+        return 'Backup kept: '+(str(exc) or type(exc).__name__)
+    return ''
+
+
 def apply(plan_path, remove_verified_backups=False):
     """Write a reviewed plan, one comic at a time, each with its own checks.
 
     - A comic whose archive changed since planning (F22) is skipped (skipped.json).
     - A comic whose write failed with its archive untouched (F23) is recorded
-      (failed.json) and offered again after the daily retry; the rest are written.
+      (failed.json) and offered again later (discovery_state.write_not_done: the wait
+      grows, then automatic retries stop until the archive changes); the rest are written.
+      The backup that attempt made is removed once the archive is confirmed to hold
+      exactly the planned bytes (F29); no other backup is touched.
     - An archive that may have been written but did not verify stops the plan; the
       ticket needs attention, and its backup is kept.
-    Nothing is written to a skipped or failed comic, and no backup is removed for one."""
+    Nothing is written to a skipped or failed comic, and a skipped comic's backup is kept."""
     plan_path=Path(plan_path).resolve()
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
     result_path=plan_path.parent/'results.json'
@@ -147,10 +165,10 @@ def apply(plan_path, remove_verified_backups=False):
     finished={r['path']:r for r in results if r.get('metadata_readback_verified')}
     skipped=[]
     failed=[]
-    def not_written(path,outcome,reason):
-        """Record a comic left unwritten; its discovery record waits for the daily retry."""
+    def not_written(path,outcome,reason,**extra):
+        """Record a comic left unwritten; its discovery record waits for its retry."""
         items,name=(skipped,'skipped.json') if outcome=='write_skipped' else (failed,'failed.json')
-        items.append({'path':str(path),'reason':reason,'at':time.time()})
+        items.append({'path':str(path),'reason':reason,'at':time.time(),**extra})
         storage.save(plan_path.parent/name,items)
         discovery_state.write_not_done(path,outcome,reason)
         print('Skipped, changed since planning:' if outcome=='write_skipped' else 'Not written, retried later:',path.name,'-',reason)
@@ -171,6 +189,7 @@ def apply(plan_path, remove_verified_backups=False):
             continue
         writing=False  # Set once write_metadata may have touched the archive.
         changed=''
+        attempt={}  # write_metadata reports the backup this attempt made here (F29).
         try:
             # A plan can hold several comics, so one comic changed since planning is
             # skipped rather than blocking the others; its new signature makes the next
@@ -185,7 +204,7 @@ def apply(plan_path, remove_verified_backups=False):
                 # the write history in the same transaction (F27).
                 backup=app.write_metadata(row,entry['fields'],append_notes=True,overwrite_fields=set(entry['changes']),
                                           expected={k:c.get('before','') for k,c in entry['changes'].items()},
-                                          history_source=entry.get('source'))
+                                          history_source=entry.get('source'),attempt=attempt)
         except pause_control.PauseRequested:
             raise
         except app.ArchiveChanged as exc:
@@ -194,9 +213,20 @@ def apply(plan_path, remove_verified_backups=False):
             if writing and not unchanged(path,entry['sha256']):
                 raise  # The archive may have been replaced: keep the ticket and its backups for inspection.
             # F23: nothing was written to this archive (duplicate ZIP entries, a leftover
-            # temporary file, a failed temporary-archive check). The other comics are
-            # still written; this one is offered again after the daily retry.
-            not_written(path,'write_failed',str(exc)[:1000] or type(exc).__name__)
+            # temporary file, a page with a bad CRC, a failed temporary-archive check, a
+            # replace refused because another program has the comic open). The other
+            # comics are still written; this one is offered again later.
+            reason=str(exc)[:1000] or type(exc).__name__
+            extra={}
+            if writing and attempt.get('backup'):
+                # F29: write_metadata ran (so `writing` is set) and unchanged() has just
+                # confirmed the archive holds exactly the planned bytes, so the backup this
+                # attempt made is a redundant copy. Without this, every retry of a damaged
+                # comic left one more full copy of it in the library folder.
+                kept=discard_failed_backup(path,attempt['backup'],entry['sha256'])
+                if kept:reason+=' '+kept
+                extra={'backup':attempt['backup'],'backup_removed_after_verification':not kept}
+            not_written(path,'write_failed',reason,**extra)
             continue
         if changed:
             not_written(path,'write_skipped',changed)
