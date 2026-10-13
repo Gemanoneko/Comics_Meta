@@ -182,3 +182,12 @@ def service():
         if success:current.pop('url',None);current.pop('query',None)
         save(con,current)
     return True
+
+
+def active():
+    """Yandex is searched only while it is one of the regular engines (removed 2026-10-12).
+
+    While it is not, no verification window opens and the dashboard shows no Yandex row;
+    the saved state, hold and dedicated profile are kept unchanged."""
+    import web_search
+    return 'yandex' in web_search.FREE_ENGINES

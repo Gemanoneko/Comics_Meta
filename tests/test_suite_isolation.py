@@ -15,9 +15,28 @@ class SuiteIsolationTests(unittest.TestCase):
         finally:case.doCleanups()
 
     def assert_isolated(self,data):
+        import test_worker
         checkout=Path(app.BASE).resolve()
         self.assertNotEqual(data,checkout/'data')
-        self.assertTrue(data.is_relative_to(checkout/'work'/'test-runs'),data)
+        self.assertTrue(data.is_relative_to(test_worker.scratch_parent().resolve()),data)
+
+    def test_scratch_folders_leave_no_empty_work_folder_behind(self):
+        # Before v0.1.3 every run left <checkout>/work/test-runs behind.
+        import os,shutil,tempfile,test_worker
+        from unittest.mock import patch
+        outside=Path(tempfile.mkdtemp(prefix='cmo-scratch-check-'))
+        self.addCleanup(shutil.rmtree,outside,ignore_errors=True)
+        default=outside/'checkout'/'work'/'test-runs'
+        with patch.dict(os.environ,{'COMICS_META_TEST_SCRATCH':''}),patch.object(test_worker,'scratch_parent',return_value=default):
+            with test_worker.scratch_directory() as first:
+                with test_worker.scratch_directory():pass
+                self.assertTrue(Path(first).is_dir())  # A folder still in use is never pruned.
+        self.assertFalse((outside/'checkout'/'work').exists())
+        self.assertTrue((outside/'checkout').is_dir())  # Only the empty work/test-runs pair is removed.
+        named=outside/'named';named.mkdir()
+        with patch.dict(os.environ,{'COMICS_META_TEST_SCRATCH':str(named)}):
+            with test_worker.scratch_directory():pass
+        self.assertTrue(named.is_dir())  # An explicitly named scratch folder is left alone.
 
     def test_conversion_pipeline_and_evidence_tests_use_an_isolated_catalog(self):
         import test_conversion,test_pipeline,test_lead_verification,test_unnumbered_any_publisher

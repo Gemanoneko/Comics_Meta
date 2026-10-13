@@ -29,11 +29,46 @@ def enqueue(plan_path):
     return target
 
 
+_complete = {}  # ticket path -> (mtime_ns, size) of a ticket last read as complete
+
+
+def tickets():
+    """(path, ticket) for every queue ticket, in queue order.
+
+    The queue keeps every completed ticket, thousands on a large library, and
+    reading them all on each worker loop and catalog probe took about a second.
+    A ticket last read as complete is skipped until its file changes; every
+    other ticket is always read from disk."""
+    result = []
+    seen = set()
+    if not QUEUE.is_dir():
+        return result
+    with os.scandir(QUEUE) as entries:
+        for entry in entries:
+            if not entry.name.endswith('.json') or not entry.is_file():
+                continue
+            path = Path(entry.path)
+            stat = entry.stat()
+            key = (stat.st_mtime_ns, stat.st_size)
+            seen.add(path)
+            if _complete.get(path) == key:
+                result.append((path, {'state': 'complete'}))
+                continue
+            item = json.loads(path.read_text(encoding='utf-8'))
+            if item.get('state') == 'complete':
+                _complete[path] = key
+            else:
+                _complete.pop(path, None)
+            result.append((path, item))
+    for path in [p for p in _complete if p.parent == QUEUE and p not in seen]:
+        _complete.pop(path, None)
+    return sorted(result, key=lambda pair: pair[0].name)
+
+
 def run_one():
     if pause_control.requested():return False
     QUEUE.mkdir(parents=True, exist_ok=True)
-    for ticket in sorted(QUEUE.glob('*.json')):
-        item = json.loads(ticket.read_text(encoding='utf-8'))
+    for ticket, item in tickets():
         if item['state'] != 'pending':
             continue
         item.update(state='running', started=time.time())
@@ -96,7 +131,7 @@ def main():
             next_discovery=0
             continue
         try:
-            if yandex_verification.service():continue
+            if yandex_verification.active() and yandex_verification.service():continue
             import maintenance
             try:maintenance.run()
             except Exception:pass  # Cleanup failures must not stop metadata processing.

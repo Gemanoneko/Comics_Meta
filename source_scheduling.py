@@ -42,7 +42,9 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
     if previous.get('retry_at',0)<=now:return True
-    attempts=previous.get('source_schedule',{})
+    import pipeline_config
+    # A source switched off in config.json never makes a comic due again.
+    attempts={name:a for name,a in previous.get('source_schedule',{}).items() if pipeline_config.source_enabled(name)}
     if any(available_free_alternative(name,attempt,statuses,now) for name,attempt in attempts.items()):return True
     if any(a.get('result')=='error' and a.get('next_at',0)<=now and
            (name not in FREE_SOURCES or not blocked(attempt_status(name,a,statuses),now))
@@ -53,7 +55,7 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
            not blocked(attempt_status(name,a,statuses),now) for name,a in attempts.items()):return True
     return any(attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready')
                and not blocked(attempt_status(name,attempt,statuses),now)
-               for name,attempt in previous.get('source_schedule',{}).items())
+               for name,attempt in attempts.items())
 
 
 def ready(name,attempt,statuses,now):

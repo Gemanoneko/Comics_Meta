@@ -144,7 +144,10 @@ def usable_bing_results(result):
     return isinstance(result,list) and all(isinstance(item,dict) and isinstance(item.get('title'),str)
         and item['title'].strip() and isinstance(item.get('url'),str) and item['url'].startswith('https://') for item in result)
 
-FREE_ENGINES=('ddg','bing','yandex')
+# Yandex is no longer searched (Sergei, 2026-10-12: it produced no verified result).
+# Its code, dedicated profile, state table and saved hold stay, so it can return.
+SUPPORTED_ENGINES=('ddg','bing','yandex')
+FREE_ENGINES=('ddg','bing')
 
 
 def free_state_id(engine='ddg'):
@@ -179,7 +182,7 @@ def admit_navigation():
 
 
 def free_engine_status(engine,now=None):
-    if engine not in FREE_ENGINES:raise ValueError('Unsupported free search engine.')
+    if engine not in SUPPORTED_ENGINES:raise ValueError('Unsupported free search engine.')
     now=time.time() if now is None else now
     limit,interval=free_policy()
     with app.db() as con:
@@ -216,7 +219,7 @@ def free_status(now=None):
 def search(query,free_only=False,engine=None):
     query=re.sub(r'\s+',' ',query).strip()[:500]
     if not query:return []
-    if engine is not None and engine not in FREE_ENGINES:raise ValueError('Unsupported free search engine.')
+    if engine is not None and engine not in SUPPORTED_ENGINES:raise ValueError('Unsupported free search engine.')
     options=config()
     is_free=free_only or engine is not None or options.get('provider','free')!='brave'
     choices=(engine,) if engine else FREE_ENGINES

@@ -109,6 +109,8 @@ class CoveragePriorityTests(unittest.TestCase):
         self.assertEqual(record, self.waiting())
 
     def test_provider_wait_is_preserved_and_new_availability_reopens_coverage(self):
+        import pipeline_config
+        self.enterContext(patch.object(pipeline_config, 'disabled_sources', return_value=set()))  # GetComics switched on.
         self.row('A', 'refine.cbz', written=True)
         previous = self.waiting(source_schedule={'GetComics': {'result': 'unavailable', 'next_at': 2000}})
         self.row('Z', 'new.cbz', previous=previous)

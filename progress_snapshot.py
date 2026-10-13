@@ -1,6 +1,7 @@
-"""One progress aggregation at a time, with complete backwards-compatible data.
+"""One progress aggregation at a time, with backwards-compatible data.
 
-Only immutable parsed values are cached. File identity detects atomic replace;
+The payload lists the PAYLOAD_BATCHES most recent write batches; completed_total
+counts every batch in progress.json. Only immutable parsed values are cached. File identity detects atomic replace;
 removed queue files are evicted. No history, queue, plan or archive is rewritten.
 """
 import copy
@@ -9,6 +10,8 @@ import json
 import threading
 import time
 import app
+
+PAYLOAD_BATCHES = 100
 
 
 class Files:
@@ -36,6 +39,9 @@ def collect(files):
     import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime
     result=dict(files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]}))
     completed=result.get('completed',[])
+    # The dashboard lists recent batches; older summaries stay on disk, not in every poll.
+    result['completed_total']=len(completed)
+    completed=result['completed']=completed[-PAYLOAD_BATCHES:]
     result['completed_revision']=hashlib.sha256(json.dumps(completed,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     queue_dir=app.DATA/'queue';tickets=files.queue(queue_dir)
     heartbeat=files.read(queue_dir/'heartbeat',{})

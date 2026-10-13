@@ -16,7 +16,8 @@ import app
 
 class ManualBackupCleanupTests(unittest.TestCase):
     def setUp(self):
-        self.scratch = Path(__file__).resolve().parents[1] / 'scratch' / 'manual-backup-cleanup-2026-10-10'
+        from test_worker import scratch_parent
+        self.scratch = scratch_parent()  # Before v0.1.3: <checkout>/scratch/manual-backup-cleanup-2026-10-10, left behind empty.
         self.root = self.scratch / str(uuid.uuid4())
         self.root.mkdir(parents=True)
         self.data_patch = patch.object(app, 'DATA', self.root / 'data')
@@ -34,6 +35,8 @@ class ManualBackupCleanupTests(unittest.TestCase):
         self.data_patch.stop()
         assert self.root.resolve().parent == self.scratch.resolve()
         shutil.rmtree(self.root)
+        from test_worker import prune_scratch
+        prune_scratch(self.scratch)
         app.JOB['running'] = False
 
     def backups(self):

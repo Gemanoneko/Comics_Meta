@@ -50,6 +50,10 @@ def opening_images(path):
     return images,names
 
 def synopsis_proposal(path):
+    # Story inference (a synopsis composed from the comic's pages) stays disabled.
+    # Identification text the comic itself prints is a separate, allowed source
+    # (Sergei, 2026-10-12): a cover title and number that agree with the filename
+    # may be written by in_book.py without an external source.
     raise ValueError('Archive-based story inference is disabled by user instruction. Use internet sources.')
 
 def excerpt_candidates(sources):
@@ -115,6 +119,38 @@ def sourced_synopsis(sources, diagnostics=None):
             return reject("claim_quotes_invalid")
     diagnostics.update(status='accepted',reason='verified_exact_excerpt')
     return {'summary':summary,'sources':[s['url'] for s in sources],'evidence':quotes,'review':review,'model':MODEL,'status':'internet_evidence_reviewed','method':'exact_source_excerpt'}
+
+CREDITS_SCHEMA={'type':'object','properties':{'indicia':{'type':'string'},'credits':{'type':'string'}},'required':['indicia','credits'],'additionalProperties':False}
+CREDITS_PROMPT=('Transcribe, word for word, only two kinds of small print from these comic pages. Return {"indicia":string,"credits":string}. '
+    'indicia: the publication notice, i.e. the title, issue number, cover date, publisher and copyright lines. '
+    'credits: the creator credits with their printed role labels, such as "Writer" or "Art by". '
+    'Copy the text exactly as printed. Leave a field empty when it is not printed. No story text, no summary, nothing that is not printed.')
+
+
+def credits_pages(path,limit=4):
+    """The pages after the cover and the last page: where credits, indicia and recaps are printed."""
+    with zipfile.ZipFile(app.filesystem_path(path)) as archive:
+        pages=sorted((p for p in archive.infolist() if p.filename.lower().endswith(('.jpg','.jpeg','.png','.webp'))),key=lambda p:p.filename)
+        chosen=list(dict.fromkeys(pages[1:1+limit]+pages[-1:])) if len(pages)>=3 else []
+        images=[];names=[]
+        for page in chosen:
+            if page.file_size>20_000_000:continue
+            with Image.open(io.BytesIO(archive.read(page))) as image:
+                image=image.convert('RGB');image.thumbnail((1400,1800))
+                output=io.BytesIO();image.save(output,format='JPEG',quality=88)
+            images.append(base64.b64encode(output.getvalue()).decode());names.append(page.filename)
+    return images,names
+
+
+def read_credits(path,ask=None):
+    """Verbatim indicia and credits text from the opening pages and the last page, or None.
+
+    Text extraction only: the in-book credits tier decides what agrees with the filename."""
+    images,names=credits_pages(path)
+    if not images:return None
+    result=(ask or chat)(CREDITS_PROMPT,images,schema=CREDITS_SCHEMA)
+    return {'indicia':str(result.get('indicia') or '')[:4000],'credits':str(result.get('credits') or '')[:4000],'pages':names,'model':MODEL}
+
 
 def identify_cover(path):
     import reverse_image

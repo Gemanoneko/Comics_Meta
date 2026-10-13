@@ -561,7 +561,8 @@ class Handler(BaseHTTPRequestHandler):
                 # Challenge URLs and the comic that hit them stay worker-only.
                 result['cover']=browser_search.public(browser_search.legacy_status())
                 result['control']=pause_control.status()
-                result['yandex']=yandex_verification.status()
+                # Yandex is no longer searched; without a state the dashboard keeps its row hidden.
+                result['yandex']=yandex_verification.status() if yandex_verification.active() else None
                 return self.respond(result)
             if url.path == '/api/progress':
                 import pause_control
@@ -648,6 +649,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(browser_search.request_verification())
             if self.path == '/api/yandex-verification':
                 import yandex_verification
+                if not yandex_verification.active():raise ValueError('Yandex web search is switched off.')
                 return self.respond(yandex_verification.request(body))
             if self.path == '/api/scan':
                 with LOCK:

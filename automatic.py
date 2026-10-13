@@ -18,7 +18,8 @@ import storage
 import coverage_priority
 
 MATCHER_VERSION = 9
-HOLD_RETRY_SECONDS = 300  # Earliest retry of a comic held by a transient ComicVine pause.
+HOLD_RETRY_SECONDS = 300  # First retry of a comic held for its ComicVine check; doubles per held pass in a row (F18)
+HOLD_RETRY_MAX_SECONDS = 3600  # up to hourly.
 
 def normalized(value):
     return re.sub(r'[^a-z0-9]', '', str(value).lower())
@@ -117,11 +118,95 @@ def load_state():
     return json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'checked': {}}
 
 
+
+def held_before(previous,signature):
+    """The comic's previous pass, on this archive and matcher, was held for its ComicVine check."""
+    return (isinstance(previous.get('hold'),dict) and previous.get('signature')==signature
+            and previous.get('version')==MATCHER_VERSION)
+
+
+def hold_retry(retry,wait_end,count,now):
+    """F18: retry time after the count-th held pass in a row.
+
+    Never before the comic's own ComicVine wait ends; otherwise 5, 10, 20 and 40
+    minutes, then hourly; never later than the ordinary retry. A hold with no
+    known end (missing key) keeps the ordinary daily retry. ComicVine answering
+    any request wakes held comics sooner (coverage_priority.lookup_flags)."""
+    if wait_end<=0:return retry
+    interval=min(HOLD_RETRY_SECONDS*2**min(count-1,16),HOLD_RETRY_MAX_SECONDS)
+    return min(retry,max(wait_end,now+interval))
+
+
+MAX_PLAN_ENTRIES = 50
+
+
+class PassPlan:
+    """One reviewed plan and one queue ticket for a folder pass, holding several comics.
+
+    The ticket is queued with the first entry. Later entries join before the
+    worker can start it: discovery and writing take turns in one serial process.
+    Each entry keeps its own digest, changes, fields and verification."""
+
+    def __init__(self,folder):
+        self.folder=str(folder);self.target=None;self.plan=None
+
+    def __len__(self):
+        return len(self.plan['entries']) if self.plan else 0
+
+    def full(self):
+        return len(self)>=MAX_PLAN_ENTRIES
+
+    def add(self,path,changes,fields,method,**extra):
+        if self.plan is None:
+            # Plans live with the state (the state root once M1's code/state split lands).
+            self.target=getattr(app,'STATE_ROOT',app.BASE)/'batches'/str(time.time_ns())/'plan.json'
+            self.target.parent.mkdir(parents=True)
+            self.plan={'folder':self.folder,'method':method,'entries':[]}
+        entry=dict({'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields,'method':method},**extra)
+        self.plan['entries'].append(entry)
+        if len({e.get('method') for e in self.plan['entries']})>1:self.plan['method']='Several methods; see each entry.'
+        self.save()
+        if len(self.plan['entries'])==1:worker.enqueue(self.target)
+        return entry
+
+    def save(self):
+        storage.save(self.target,self.plan)
+
+
+def queue_in_book(plan,path,row,saved,signature,previous,book,record=True):
+    """Plan the fields the comic itself supports, keep per-field evidence, end identity search."""
+    import in_book,cover_tasks
+    entry=in_book.entry(path,book,'')
+    entry=plan.add(path,entry['changes'],entry['fields'],entry['method'],source=entry['source'],evidence=entry['evidence'])
+    research.save_evidence(path,{'in_book':book['evidence']})
+    cover_tasks.identified(row)  # The comic identified itself; a cover search is unnecessary.
+    if not record:return entry  # The caller saves this comic's discovery record.
+    same=previous.get('signature')==signature and previous.get('version')==MATCHER_VERSION
+    record={'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'queued','tier':'in_book',
+            'retry_at':time.time()+30*86400,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':{},
+            'source_schedule':dict(previous.get('source_schedule',{})) if same else {},'error':None}
+    discovery_state.save_one(path,record)
+    return entry
+
+
+def credits_reading(path,saved,signature):
+    """The saved indicia/credits reading for this archive, or a new one from the local model."""
+    if saved.get('credits_signature')==signature and isinstance(saved.get('credits_reading'),dict):
+        return saved['credits_reading']
+    import local_model
+    if not local_model.available():return None
+    with research_runtime.stage('In-book credits reading'):
+        reading=local_model.read_credits(path)
+    if reading:research.save_evidence(path,{'credits_reading':reading,'credits_signature':signature})
+    return reading
+
+
 def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False):
     """Independent free attempts; a wiki series hit is still only a lead."""
-    import source_scheduling
+    import source_scheduling,pipeline_config
     wiki_found=False
     for name in ('General free web','Wikipedia/wiki'):
+        if not pipeline_config.source_enabled(name):continue  # Switched off in config.json; code kept.
         if not source_scheduling.ready(name,source_schedule.get(name,{}),statuses,time.time()):continue
         try:
             if name=='General free web':
@@ -156,8 +241,15 @@ def discover(root,coverage_only=False):
         scope,args=app.scope_filter(root)
         rows = [dict(r) for r in con.execute("SELECT * FROM comics WHERE status NOT IN ('absent','error','corrupted','unsupported') AND "+scope+' ORDER BY path',args)]
         written=coverage_priority.written_paths(con)
-    rows=coverage_priority.order_rows(rows,state['checked'],written,coverage_priority.pending_paths(),coverage_only)
+    evidence={}
+    def saved_for(path):
+        key=str(Path(path).resolve())
+        if key not in evidence:evidence[key]=coverage_priority.saved_evidence(Path(key))
+        return evidence[key]
+    rows=coverage_priority.order_rows(rows,state['checked'],written,coverage_priority.pending_paths(),coverage_only,evidence=saved_for)
     checked = 0
+    plan = PassPlan(root)  # Every comic queued in this pass shares one plan and one write cycle.
+    import in_book
     for row in rows:
         import pause_control
         if pause_control.requested():return True  # Retain a due folder; resume from persisted per-file state.
@@ -166,9 +258,21 @@ def discover(root,coverage_only=False):
             continue
         signature = [row['size'], row['mtime']]
         previous = state['checked'].get(str(path), {})
-        saved=coverage_priority.saved_evidence(path)
+        saved=saved_for(path)
         due,new_cover_leads,metron_upgrade=coverage_priority.lookup_flags(row,previous,source_statuses,MATCHER_VERSION,saved,time.time())
         if not due:
+            continue
+        if plan.full():
+            return True  # Write this pass's plan; the folder continues in the next pass.
+        old = json.loads(row['metadata'])
+        book=in_book.identify(row,old,saved,signature,previous) if language_eligible(row,old) else None  # None while the identity rules block it.
+        if book:
+            # In-book tier: the comic's own cover agrees with its filename. No external
+            # source, so it does not count toward the bounded research checks below.
+            batch.progress(phase='Automatic metadata lookup', current_folder=path.parent.name,
+                           detail='In-book identification: '+path.name)
+            queue_in_book(plan,path,row,saved,signature,previous,book)
+            research_runtime.record_check('queued')
             continue
         checked += 1
         if checked > 20:
@@ -176,13 +280,12 @@ def discover(root,coverage_only=False):
         batch.progress(phase='Automatic metadata lookup', current_folder=path.parent.name,
                        checked=checked, total=0, updated=0, review=0,
                        detail='Checking ' + path.name)
-        old = json.loads(row['metadata'])
         if not language_eligible(row,old):
             discovery_state.save_one(path,{'version':MATCHER_VERSION,'signature':signature,'outcome':'excluded_language','retry_at':time.time()+30*86400})
             continue
         match = re.search(r'https?://(?:www\.)?comicvine\.gamespot\.com/[^\s]*4000-(\d+)', old.get('Web', ''))
         outcome = 'needs_identity_lookup'
-        target = None
+        entry = None  # This comic's entry in the pass plan, once queued.
         retry = time.time() + 86400
         lookup_error = None
         provider_waits = {}
@@ -197,21 +300,41 @@ def discover(root,coverage_only=False):
         if external and not source_scheduling.useful(external,old):
             external=None
             reused_evidence=False  # A thin cached match must not block richer sources.
+        attempts=[]
+        def completed(name,result,exc):
+            nonlocal lookup_error
+            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
+            attempts.append({'provider':name,'result':source_schedule[name]['result']})
+            if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
+        import pipeline_config
+        if not external and not issue_reused and match:
+            # Metron is asked before ComicVine (20-second spacing, hourly budget).
+            import metron
+            if (pipeline_config.source_enabled('Metron')
+                    and source_scheduling.ready('Metron',source_schedule.get('Metron',{}),source_statuses,time.time())):
+                metron_first=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None)]
+                try:external=research_runtime.first_verified(metron_first,row,old,completed,accept=lambda result:source_scheduling.useful(result,old))
+                except pause_control.PauseRequested:return True
+                if external:
+                    research.save_evidence(path,external)
+                    outcome='web_issue_found'
         dead_web = False  # ComicVine answered that the issue Web names does not exist.
         comicvine_failure = None
         try:
-            # Saved evidence keeps only an issue that matched. When Web names a
-            # ComicVine issue and none was saved, ask again (the API cache keeps
-            # it 30 days) so a conflict found on an earlier pass still blocks
-            # field writes when that evidence is reused.
-            if not issue_reused and (not external or match):
+            # ComicVine is asked only by the comic's embedded issue ID; without one it
+            # is not searched (lookup_unidentified is kept but no longer called). For
+            # a comic with an ID, ComicVine is also the identity check (v0.1.2): saved
+            # evidence keeps only an issue that matched, so when none was saved it is
+            # asked (its API cache keeps answers 30 days) even when Metron or reused
+            # evidence answered, and a conflict found on any pass blocks field writes.
+            if not issue_reused and match:
                 with research_runtime.stage('ComicVine'):
-                    issue = app.api('issue/4000-' + match.group(1)) if match else lookup_unidentified(row, old)
+                    issue = app.api('issue/4000-' + match.group(1))
         except app.ComicVineNotFound:
             # F17: a definitive answer, not an outage. The comic is searched like
             # an unidentified one, with strict verification; nothing to retry soon.
             issue = None
-            dead_web = bool(match)
+            dead_web = True
         except Exception as exc:
             lookup_error = record_failure(lookup_error,provider_waits,'ComicVine',exc)
             comicvine_failure = str(exc)
@@ -242,16 +365,16 @@ def discover(root,coverage_only=False):
         # A dead Web id is no known conflict: field writes may follow, but only
         # from sources verified strictly.
         strict = conflict or hold or dead_web
+        # F18: a comic already held on its previous pass searched every other source
+        # strictly then and wrote nothing. While ComicVine still cannot answer, this
+        # pass only asked ComicVine again: no source searches, approved-list cover
+        # hash, local-model cover read, lead downloads or Lens task. New cover leads
+        # still get one strict check.
+        wait_only = hold and held_before(previous,signature) and not new_cover_leads
         found = None if conflict else issue
         if external:outcome='web_issue_found'
-        if (not found or not old.get('Summary')) and not external:
+        if (not found or not old.get('Summary')) and not external and not wait_only:
             import providers, open_library, getcomics, publisher_catalogs, metron
-            attempts=[]
-            def completed(name,result,exc):
-                nonlocal lookup_error
-                source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
-                attempts.append({'provider':name,'result':source_schedule[name]['result']})
-                if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
             # While a conflict stands or is unchecked, web-verified sources need a named creator and an agreeing cover.
             sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
                      ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
@@ -262,7 +385,9 @@ def discover(root,coverage_only=False):
             sources=source_scheduling.order(sources,row,old)
             ready=[]
             for name,lookup in sources:
-                if source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):ready.append((name,lookup))
+                if not pipeline_config.source_enabled(name):
+                    attempts.append({'provider':name,'result':'switched_off'})
+                elif source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):ready.append((name,lookup))
                 else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})
             batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
             try:external=research_runtime.first_verified(ready,row,old,completed,accept=lambda result:source_scheduling.useful(result,old))
@@ -271,7 +396,7 @@ def discover(root,coverage_only=False):
                 research.save_evidence(path,external)
                 outcome='web_issue_found'
             research.save_evidence(path,{'provider_attempts':attempts})
-        if not found:
+        if not found and not wait_only:
             try:
                 with research_runtime.stage('Publisher research'):
                     publisher = research.publisher_lookup(row, old, strict=strict) if not external else None
@@ -283,9 +408,7 @@ def discover(root,coverage_only=False):
                     if fields and not (conflict or hold):  # Strict lookups return only the approved exact-cover list.
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
-                        target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
-                        target.parent.mkdir(parents=True)
-                        target.write_text(json.dumps({'folder':str(path.parent),'method':'Publisher exact title; issue-wide fields only.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
+                        entry = plan.add(path,changes,fields,'Publisher exact title; issue-wide fields only.')
                         outcome = 'queued'
             except Exception as exc:
                 lookup_error = record_failure(lookup_error,provider_waits,'Publisher',exc)
@@ -313,7 +436,23 @@ def discover(root,coverage_only=False):
                     if external:
                         research.save_evidence(path,external)
                         outcome='web_issue_found'
-            if not external:
+            book=None
+            # The identity rules come first (v0.1.2): never during a conflict, hold or dead id,
+            # and never for a comic whose Web names a ComicVine issue.
+            if (not external and not strict and not in_book.identity_blocked(old,previous)
+                    and pipeline_config.in_book_credits_pages()):
+                # Stretch tier, off by default: the indicia names this series and issue.
+                try:
+                    reading=credits_reading(path,saved,signature)
+                    import in_book
+                    book=in_book.judge_credits(row,old,reading,signature) if reading else None
+                except Exception as exc:
+                    if isinstance(exc,pause_control.PauseRequested):raise
+                    lookup_error=record_failure(lookup_error,provider_waits,'In-book credits',exc)
+                if book:
+                    entry=queue_in_book(plan,path,row,saved,signature,previous,book,record=False)
+                    outcome='queued'
+            if not external and not book:
                 import cover_tasks
                 cover_tasks.enqueue(row)
         from html import unescape
@@ -329,7 +468,9 @@ def discover(root,coverage_only=False):
             cover_tasks.identified(row)
         if issue:
             identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
-            if identity_matches(identity, issue):
+            if identity_matches(identity, issue) and external and external.get('provider')=='Metron':
+                pass  # v0.1.3: Metron answered and is written below. ComicVine was asked only as the identity check: no fields, no volume request.
+            elif identity_matches(identity, issue):
                 import cover_tasks
                 cover_tasks.identified(row)
                 if not external and issue.get('description'):
@@ -352,9 +493,7 @@ def discover(root,coverage_only=False):
                 if fields:
                     changes = {k: {'before': '', 'after': v} for k, v in fields.items()}
                     fields['Notes'] = ('Automatic enrichment: existing ComicVine issue ID verified against embedded series and issue number.' if match else 'Automatic match: unique exact series and publisher, issue number, publication year and cover similarity agree.') + ' Existing populated values and synopsis retained.'
-                    target = app.BASE / 'batches' / str(time.time_ns()) / 'plan.json'
-                    target.parent.mkdir(parents=True)
-                    target.write_text(json.dumps({'folder':str(path.parent),'method':'Verified existing issue ID; fill missing fields only.', 'entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
+                    entry = plan.add(path,changes,fields,'Verified existing issue ID; fill missing fields only.')
                     outcome = 'queued'
                 else:
                     outcome = 'current'
@@ -372,8 +511,7 @@ def discover(root,coverage_only=False):
             if fields:
                 changes={k:{'before':'','after':v} for k,v in fields.items()}
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])
-                target=app.BASE/'batches'/str(time.time_ns())/'plan.json';target.parent.mkdir(parents=True)
-                target.write_text(json.dumps({'folder':str(path.parent),'method':'Verified issue-wide web fields.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields}]}),encoding='utf-8')
+                entry=plan.add(path,changes,fields,'Verified issue-wide web fields.')
                 outcome='queued'
         if not old.get('Summary') and not hold:  # A held pass writes no field, Summary included.
             import local_model
@@ -396,21 +534,16 @@ def discover(root,coverage_only=False):
                         if outcome == 'queued':
                             # One digest, one archive rewrite, one verification for
                             # metadata and the separately reviewed synopsis.
-                            plan=json.loads(target.read_text(encoding='utf-8'))
-                            entry=plan['entries'][0]
                             entry['fields']['Summary']=proposal['summary']
                             entry['fields']['Notes']+='\n\n'+fields['Notes']
                             entry['changes']['Summary']={'before':'','after':proposal['summary']}
-                            storage.save(target,plan)
+                            plan.save()
                         else:
-                            target = app.BASE/'batches'/str(time.time_ns())/'plan.json'
-                            target.parent.mkdir(parents=True)
-                            target.write_text(json.dumps({'folder':str(path.parent),'method':'Exact publisher issue identity; internet-only synopsis with quote and spoiler checks.','entries':[{'path':str(path),'action':'write','sha256':batch.digest(path),'changes':{'Summary':{'before':'','after':proposal['summary']}},'fields':fields}]}),encoding='utf-8')
+                            entry=plan.add(path,{'Summary':{'before':'','after':proposal['summary']}},fields,'Exact publisher issue identity; internet-only synopsis with quote and spoiler checks.')
                         outcome = 'queued'
                 except Exception as exc:
                     if pause_control.requested():
-                        if outcome == 'queued':worker.enqueue(target)
-                        return True
+                        return True  # A queued entry is already in the pass plan's ticket.
                     research.save_evidence(path,{'synopsis_diagnostics':dict(diagnostics,status='error',error=str(exc)[:500])})
                     lookup_error = (lookup_error or '') + '; local model: ' + str(exc)
             else:
@@ -418,28 +551,34 @@ def discover(root,coverage_only=False):
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
         comicvine_wait = provider_waits.get('comicvine') or {}
-        if hold and comicvine_wait.get('retry_at',0) > 0:
-            # F17: a transient ComicVine pause (cooldown, budget, rate limit,
-            # outage) ends at a known time. Ask again then, not a day later
-            # behind the same trigger. A missing key has no such time.
-            retry = min(retry, max(comicvine_wait['retry_at'], time.time() + HOLD_RETRY_SECONDS))
+        if hold:
+            # F17: a ComicVine wait (cooldown, budget, rate limit, outage) ends at a
+            # known time; ask again then, not a day later. F18: each further held
+            # pass in a row doubles the wait, so a lasting fault (revoked key, a
+            # machine offline for days) is not polled every folder pass. ComicVine
+            # answering again wakes the comic sooner (coverage_priority.lookup_flags).
+            held = previous['hold'] if held_before(previous,signature) else {}
+            hold_record = {'count':held.get('count',0)+1,'since':held.get('since') or time.time(),'at':time.time(),
+                           'wait_end':comicvine_wait.get('retry_at',0)}
+            retry = hold_retry(retry,comicvine_wait.get('retry_at',0),hold_record['count'],time.time())
         # A Summary-only plan during a conflict still leaves the comic unresolved.
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
+        if hold:state['checked'][str(path)]['hold'] = hold_record
         if dead_web:
             state['checked'][str(path)]['detail'] = ('Web names ComicVine issue '+match.group(1)+', which ComicVine reports does not exist; check the Web link. '
                 + ('A conflict saved on an earlier pass still blocks field writes.' if conflict else 'Other sources are searched with strict verification.'))
         elif hold:
             reason = comicvine_wait.get('reason') or comicvine_failure or 'ComicVine returned no issue.'
             state['checked'][str(path)]['detail'] = ('Field writes held: Web names ComicVine issue '+match.group(1)+', which could not be checked this pass. '
-                + reason[:500] + ' Other sources are searched with strict verification.')
+                + reason[:500] + (' Other sources were searched with strict verification on the first held pass; until ComicVine answers, only ComicVine is asked again.'
+                                  if wait_only else ' Other sources are searched with strict verification.'))
         if conflict and match:
             # The conflicting issue lets later passes keep the conflict without ComicVine.
             named = issue or saved_conflict
             state['checked'][str(path)]['conflict_issue'] = {'id':match.group(1),'volume':{'name':(named.get('volume') or {}).get('name')},'issue_number':named.get('issue_number')}
         discovery_state.save_one(path,state['checked'][str(path)])
-        if outcome == 'queued':worker.enqueue(target)
         research_runtime.record_check(outcome)
-        if outcome == 'queued':
-            return True
+    if len(plan):
+        return True  # Write this pass's plan; the folder is checked again once it is written.
     batch.progress(phase='Automatic discovery complete', detail='Discovery checked this root. Unidentified comics remain pending further identity lookup; next delta scan in 10 minutes.')
     return False

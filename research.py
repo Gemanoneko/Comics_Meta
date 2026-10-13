@@ -511,15 +511,35 @@ def verify_web_source(row,old,source,cover_hint=None,require_cover=False,errors=
     return {'provider':'Verified web research','fields':fields,'sources':[evidence],'identity':{'series':series,'number':number},'status':'web_issue_found'}
 
 
+def lead_context(row,old,cover_hint=None,strict=False):
+    """Everything besides the page that decides a lead: identity, archive, cover hint and strictness."""
+    series,number=query_identity(row,old)
+    value=[series_key(series),issue_number(number),str(old.get('Year') or row.get('year') or ''),
+           publisher_hint(row,old,cover_hint),creator_names(old,cover_hint,row),[row.get('size'),row.get('mtime')],
+           (cover_hint or {}).get('publisher') if isinstance(cover_hint,dict) else None]
+    if strict:value.append('strict')  # A strict rejection says nothing about the hinted route.
+    return hashlib.sha256(json.dumps(value,sort_keys=True,default=str).encode()).hexdigest()
+
+
 def resolve_leads(row,old,cover_hint=None,strict=False):
-    """Follow relevant wiki references and saved web/reverse-image results automatically."""
-    import web_search
+    """Follow relevant wiki references and saved web/reverse-image results automatically.
+
+    With 'Saved lead re-checks' switched off (the default), a lead already
+    rejected for this archive, identity, cover hint and strictness is not fetched
+    again; new leads and leads that failed to load are still checked."""
+    import web_search,pipeline_config
     target=CACHE/('evidence-'+hashlib.sha256(row['path'].encode()).hexdigest()+'.json')
     evidence=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
     leads=list(evidence.get('web_candidates',[]))+list(evidence.get('reverse_image_matches',[]))
     inspected=[];errors=[];wiki_leads=[];skipped=[];deferred=None
+    recheck=pipeline_config.source_enabled('Saved lead re-checks')
+    context=lead_context(row,old,cover_hint,strict)
+    previous=evidence.get('lead_checks') if isinstance(evidence.get('lead_checks'),dict) else {}
+    rejected=set(previous.get('rejected',[])) if previous.get('context')==context else set()
+    not_rechecked=[]
     series,number=query_identity(row,old)
     wiki=[c for c in evidence.get('wiki_candidates',[]) if normalize(series) in normalize(c.get('title',''))]
+    if not pipeline_config.source_enabled('Wikipedia/wiki'):wiki=[]  # Switched off: no extlinks request.
     for candidate in wiki[:2]:
         if not candidate.get('pageid'):continue
         try:
@@ -540,17 +560,22 @@ def resolve_leads(row,old,cover_hint=None,strict=False):
     for lead in leads:
         url=lead.get('url','')
         if not url or url in seen:continue
+        if not recheck and url in rejected:
+            not_rechecked.append(url);continue
         seen.add(url)
         if len(seen)>8:break
         try:
             source=web_search.source(url)
+            failures=len(errors)
             verified=verify_web_source(row,old,source,cover_hint,require_cover=True,errors=errors,strict=strict)
             inspected.append({'url':url,'verified':bool(verified)})
             if verified:
                 save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped})
                 return verified
+            if len(errors)==failures:rejected.add(url)  # A definite rejection, not a failed download.
         except ValueError as exc:errors.append(str(exc))
-    save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped})
+    save_evidence(row['path'],{'lead_verification':inspected,'lead_errors':errors,'wiki_leads_skipped':skipped,
+                               'lead_checks':{'context':context,'rejected':sorted(rejected)[-200:],'not_rechecked':not_rechecked[:50]}})
     if deferred:raise deferred
     return None
 
@@ -559,7 +584,7 @@ def general_lookup(row,old,cover_hint=None,strict=False):
     series,number=query_identity(row,old)
     # An unnumbered book (one-shot, graphic novel, collection) has no '#'.
     query=series+(' #'+number if number else '')+' comics'
-    # Ordinary browser engines share one budget and pacing gate, including Yandex.
+    # Ordinary browser engines (DuckDuckGo, then Bing) share one budget and pacing gate.
     # Cover hints still participate in the unchanged issue/source verifier.
     queries=[query]
     candidates=[];errors=[];sources=[];deferred=[];engines=[];fields={}

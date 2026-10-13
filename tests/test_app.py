@@ -13,9 +13,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
 
 
+def scratch_parent():
+    """Throwaway test folders; COMICS_META_TEST_SCRATCH moves them out of the checkout."""
+    return Path(os.environ.get('COMICS_META_TEST_SCRATCH') or Path(__file__).resolve().parents[1] / 'work' / 'test-runs')
+
+
 class LibraryTests(unittest.TestCase):
     def setUp(self):
-        scratch = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        scratch = scratch_parent()
         scratch.mkdir(parents=True, exist_ok=True)
         self.temp_path = scratch / str(uuid.uuid4())
         self.root = self.temp_path / 'comics'
@@ -25,9 +30,11 @@ class LibraryTests(unittest.TestCase):
 
     def tearDown(self):
         app.DATA = self.previous_data
-        intended = Path(__file__).resolve().parents[1] / 'work' / 'test-runs'
+        intended = scratch_parent()
         assert self.temp_path.resolve().parent == intended.resolve()
         shutil.rmtree(self.temp_path)
+        from test_worker import prune_scratch
+        prune_scratch(intended)
 
     def make(self, name='Example 001 (2024).cbz', xml=None):
         path = self.root / name

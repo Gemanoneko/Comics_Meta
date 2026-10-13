@@ -19,6 +19,22 @@ def progress(**updates):
     storage.save(target,current)
 
 
+RECENT_BATCHES = 200
+
+
+def keep_recent_batches(completed):
+    """progress.json is rewritten on every progress step; keep its batch list short.
+
+    Older batch summaries move, in order and unchanged, to data/progress-history.jsonl.
+    Write history itself is in the catalog and each batch's results.json."""
+    if len(completed)<=RECENT_BATCHES:return completed
+    older,recent=completed[:-RECENT_BATCHES],completed[-RECENT_BATCHES:]
+    app.DATA.mkdir(parents=True,exist_ok=True)
+    with (app.DATA/'progress-history.jsonl').open('a',encoding='utf-8') as archive:
+        for item in older:archive.write(json.dumps(item,ensure_ascii=False)+'\n')
+    return recent
+
+
 def digest(path):
     with app.filesystem_path(path).open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -68,12 +84,34 @@ def prepare(folder, reference):
     print('Actions:',[(Path(e['path']).name,e['action'],len(e.get('changes',{}))) for e in entries])
 
 
+def catalog_row(path,folder):
+    """The planned archive's catalog row, rescanning its folder only when the row is stale.
+
+    write_metadata compares the row with the file on disk, so an up-to-date row
+    needs no scan. A stale or missing row gets the same non-recursive folder scan
+    discovery uses; the planned file is always in that folder."""
+    stat=app.filesystem_path(path).stat()
+    def lookup():
+        with app.db() as con:
+            row=con.execute('SELECT * FROM comics WHERE path=?',(str(path),)).fetchone()
+        return dict(row) if row else None
+    row=lookup()
+    if row is None or [row['size'],row['mtime']]!=[stat.st_size,stat.st_mtime_ns]:
+        app.JOB.update(running=True,visited=0,changed=0,errors=0)
+        app.scan([folder],recursive=False)
+        row=lookup()
+    if row is None:
+        raise ValueError('File was not successfully inventoried.')
+    return row
+
+
 def apply(plan_path, remove_verified_backups=False):
     plan_path=Path(plan_path).resolve()
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
     result_path=plan_path.parent/'results.json'
     results=json.loads(result_path.read_text(encoding='utf-8')) if result_path.exists() else []
     finished={r['path']:r for r in results if r.get('metadata_readback_verified')}
+    skipped=[]
     progress(phase='Writing and verifying metadata',current_folder=Path(plan['folder']).name,
              total=len(plan['entries']),checked=len(plan['entries']),updated=len(results),
              detail='Each comic is checked after writing; its backup is removed only after verification.')
@@ -90,16 +128,20 @@ def apply(plan_path, remove_verified_backups=False):
                 raise ValueError('A completed archive changed before batch resume; inspect it before retrying.')
             continue
         if digest(path)!=entry['sha256']:
-            raise ValueError('Source changed after planning; regenerate plan.')
-        app.JOB.update(running=True,visited=0,changed=0,errors=0)
-        app.scan([plan['folder']])
-        with app.db() as con:
-            row=con.execute('SELECT * FROM comics WHERE path=?',(str(path),)).fetchone()
-            if row is None:
-                raise ValueError('File was not successfully inventoried.')
-            row=dict(row)
+            # Nothing was written to this archive. A plan can hold several comics, so a
+            # comic changed since planning is skipped rather than blocking the others;
+            # its new signature makes the next folder pass plan it again.
+            skipped.append({'path':str(path),'reason':'Source changed after planning; nothing written.','at':time.time()})
+            storage.save(plan_path.parent/'skipped.json',skipped)
+            print('Skipped, changed since planning:',path.name)
+            continue
+        row=catalog_row(path,plan['folder'])
         backup=app.write_metadata(row,entry['fields'],append_notes=True,
                                   overwrite_fields=set(entry['changes']))
+        if entry.get('source'):
+            # Provenance for writes without a Web URL, e.g. 'in-book:cover'.
+            with app.db() as con:
+                con.execute('UPDATE history SET source=? WHERE backup=?',(str(entry['source'])[:200],backup))
         actual,_,_=app.read_metadata(path)
         for key,change in entry['changes'].items():
             if actual.get(key)!=change['after']:
@@ -119,12 +161,13 @@ def apply(plan_path, remove_verified_backups=False):
         print('Updated and verified:',path.name)
         progress(updated=len(results),detail='Verified: '+path.name)
     app.JOB.update(running=True,visited=0,changed=0,errors=0)
-    app.scan([plan['folder']])
+    app.scan([plan['folder']],recursive=False)  # Subfolders are inventoried by their own passes.
     print('Repeat scan:',app.JOB)
     status=json.loads((app.BASE/'data'/'progress.json').read_text(encoding='utf-8'))
     completed=[b for b in status.get('completed',[]) if b.get('batch')!=plan_path.parent.name]
     completed.append({'batch':plan_path.parent.name,'folder':Path(plan['folder']).name,'updated':len(results),
                       'review':sum(e['action']=='review' for e in plan['entries'])})
+    completed=keep_recent_batches(completed)
     progress(phase='Folder complete',completed=completed,
              detail='Metadata readback and backup checks passed. Repeat scan completed.')
 

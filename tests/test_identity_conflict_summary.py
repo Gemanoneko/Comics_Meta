@@ -89,6 +89,9 @@ class ConflictSummaryDiscoveryTests(unittest.TestCase):
             archive.writestr('002.png',b'synthetic page two')
         stat=self.path.stat();self.signature=[stat.st_size,stat.st_mtime_ns]
         self.old={'Series':'Example','Number':'1','Year':'2020','Web':WEB,'Summary':''}
+        # v0.1.3 switches GetComics, general web and wiki off by default; their code is kept,
+        # so the strict routes are checked with every source switched back on.
+        (self.root/'config.json').write_text(json.dumps({'sources':{'disabled':[]}}),encoding='utf-8')
         import discovery_state
         with app.db() as con:
             discovery_state.initialize(con);cover_tasks.table(con)
