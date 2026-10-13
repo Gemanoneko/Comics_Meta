@@ -231,7 +231,10 @@ def external_plan(old,source_fields,replaceable,allow_replace):
     parent=imprints.parent_of(imprint,year)
     publisher=fields.get('Publisher') or old.get('Publisher')
     uncertain=imprints.research.normalize(imprint or '') in imprints.DATE_AWARE and not parent
-    if uncertain or (parent and publisher and imprints.publisher_key(parent,year)!=imprints.publisher_key(publisher,year)):
+    # An unmapped explicit brand can still have a verified source house. Do not
+    # attach it to a retained Publisher when that house differs or is absent.
+    house=parent or source_fields.get('Publisher')
+    if uncertain or (imprint and publisher and (not house or imprints.publisher_key(house,year)!=imprints.publisher_key(publisher,year))):
         fields.pop('Imprint',None)
         replaced.pop('Imprint',None)
     changes={k:{'before':old.get(k) if k in replaced else '','after':v} for k,v in fields.items()}

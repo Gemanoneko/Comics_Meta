@@ -84,6 +84,15 @@ class KromaTests(ReplacementHarness):
         self.assertEqual(set(entries[0]['changes']), {'Year'})  # Another program's Publisher and Imprint stay.
         self.assertEqual(self.metadata()['Publisher'], 'Skybound')
 
+    def test_unknown_source_brand_never_joins_retained_human_publisher(self):
+        self.save('<ComicInfo><Series>Amazing Spider-Man</Series><Number>1</Number><Publisher>DC Comics</Publisher></ComicInfo>')
+        self.metron.return_value=dict(METRON,fields={'Series':'Amazing Spider-Man','Number':'1','Year':'2022',
+                                                   'Publisher':'Marvel','Imprint':'NewMarvelBrand'})
+        entries=self.run_pass()
+        self.assertEqual(set(entries[0]['changes']),{'Year'})
+        self.assertEqual(self.metadata()['Publisher'],'DC Comics')
+        self.assertFalse(self.metadata().get('Imprint'))
+
     def later_pass(self):
         with app.db() as con:
             con.execute("UPDATE discovery_records SET value=json_set(value,'$.retry_at',0,'$.source_schedule',json('{}'))")

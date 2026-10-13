@@ -61,6 +61,26 @@ class ReviewFixTests(unittest.TestCase):
         for a,b in [('Batman','Batman Year One'),('Asterix','Astérix')]:
             self.assertTrue(provenance.disagrees('Series',a,b))
 
+    def test_unknown_imprint_requires_agreeing_source_house_when_publisher_remains(self):
+        old={'Publisher':'DC Comics'}
+        for allow_replace in (False,True):  # Shared manual and automatic planner ends.
+            for source in ({'Publisher':'Marvel','Imprint':'NewMarvelBrand'}, {'Imprint':'UnmappedBrand'}):
+                fields,changes,replaced=automatic.external_plan(old,source,{},allow_replace)
+                self.assertNotIn('Imprint',fields)
+                self.assertNotIn('Imprint',changes)
+                self.assertFalse(replaced)
+                self.assertEqual(old,{'Publisher':'DC Comics'})
+            fields,_,_=automatic.external_plan(old,{'Publisher':'DC Entertainment','Imprint':'NewDCBrand'},{},allow_replace)
+            self.assertEqual(fields,{'Imprint':'NewDCBrand'})
+        # Explicit unknown brands can stand alone; no parent is guessed.
+        self.assertEqual(automatic.external_plan({}, {'Imprint':'UnmappedBrand'}, {},True)[0],{'Imprint':'UnmappedBrand'})
+        # An approved replacement leaves the source house, so its brand agrees.
+        fields,_,_=automatic.external_plan(old,{'Publisher':'Marvel','Imprint':'NewMarvelBrand'},old,True)
+        self.assertEqual(fields,{'Publisher':'Marvel','Imprint':'NewMarvelBrand'})
+        # Populated human fields remain untouched even when the source differs.
+        self.assertEqual(automatic.external_plan({'Publisher':'DC Comics','Imprint':'HumanBrand'},
+                                                {'Publisher':'Marvel','Imprint':'NewMarvelBrand'},{},True)[0],{})
+
     def test_counts_cache_scans_once_until_catalog_commit(self):
         with scratch_directory() as directory,patch.object(app,'DATA',Path(directory)):
             cache=problems.CountsCache()
