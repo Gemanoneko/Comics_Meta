@@ -423,11 +423,26 @@ def remove_verified_backup(path, backup, original_sha256):
     except OSError: pass
 
 
-def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False):
+class ArchiveChanged(ValueError):
+    """The archive is no longer what the write was planned against; nothing was written
+    to it and any backup already made is kept. A plan skips the comic and plans it
+    again from what the archive holds now (v0.1.3 review F22)."""
+
+
+def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
+                   expected=None, history_source=None):
+    """Write fields into a CBZ's ComicInfo.xml with a backup, temporary-archive checks and readback.
+
+    expected: {field: value} the archive's ComicInfo must still hold, checked on the
+    archive as it is read for this write, before any backup or change. A plan decides
+    "empty" (or "this value") from an earlier read; a field changed since then, for
+    example tagged in another program during the pass, is never overwritten (F22).
+    history_source: provenance stored with the write history in the same transaction
+    (default: the written Web link), for example 'in-book:cover' (F27)."""
     path = filesystem_path(row['path'])
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
-        raise ValueError('File changed since scanning. Rescan first.')
+        raise ArchiveChanged('File changed since scanning. Rescan first.')
     if path.suffix.lower() != '.cbz':
         raise ValueError('Only CBZ writing is supported.')
     temporary = path.with_name(path.name + '.metadata-tmp')
@@ -442,7 +457,12 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
         names = [i.filename for i in infos if i.filename.lower() == 'comicinfo.xml']
         if len({i.filename for i in infos}) != len(infos) or len(names) > 1:
             raise ValueError('Duplicate ZIP entries require manual review.')
-        read_metadata(path)
+        present, _, _ = read_metadata(path)
+        if expected:
+            # Whitespace-only counts as empty, as it does for planning and the write below.
+            stale = sorted(key for key, value in expected.items() if (present.get(key) or '').strip() != (value or '').strip())
+            if stale:
+                raise ArchiveChanged('ComicInfo changed since planning (' + ', '.join(stale) + '); nothing written.')
         xml = metadata_xml(source.read(names[0])) if names else ET.Element('ComicInfo')
         expected_fields = {}
         for key, value in fields.items():
@@ -484,7 +504,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
                     raise ValueError('Temporary archive metadata verification failed for '+key)
         current = path.stat()
         if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
-            raise ValueError('Comic changed while preparing metadata. Original retained.')
+            raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -498,7 +518,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
         con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
                     (stat.st_size, stat.st_mtime_ns, json.dumps(metadata), row['id']))
         con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
-                    (str(path), str(backup), fields.get('Web', ''), time.time()))
+                    (str(path), str(backup), str(history_source)[:200] if history_source else fields.get('Web', ''), time.time()))
     if remove_verified_backups:
         remove_verified_backup(path, backup, original_sha256)
     return str(backup)

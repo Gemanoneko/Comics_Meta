@@ -156,13 +156,16 @@ class PassPlan:
     def full(self):
         return len(self)>=MAX_PLAN_ENTRIES
 
-    def add(self,path,changes,fields,method,**extra):
+    def add(self,path,changes,fields,method,signature=None,**extra):
+        """signature: the archive's [size, mtime] at the folder scan whose metadata decided
+        `changes`. batch.apply skips the comic when the archive no longer matches it (F22)."""
         if self.plan is None:
             # Plans live with the state (the state root once M1's code/state split lands).
             self.target=getattr(app,'STATE_ROOT',app.BASE)/'batches'/str(time.time_ns())/'plan.json'
             self.target.parent.mkdir(parents=True)
             self.plan={'folder':self.folder,'method':method,'entries':[]}
         entry=dict({'path':str(path),'action':'write','sha256':batch.digest(path),'changes':changes,'fields':fields,'method':method},**extra)
+        if signature is not None:entry['signature']=list(signature)
         self.plan['entries'].append(entry)
         if len({e.get('method') for e in self.plan['entries']})>1:self.plan['method']='Several methods; see each entry.'
         self.save()
@@ -177,7 +180,7 @@ def queue_in_book(plan,path,row,saved,signature,previous,book,record=True):
     """Plan the fields the comic itself supports, keep per-field evidence, end identity search."""
     import in_book,cover_tasks
     entry=in_book.entry(path,book,'')
-    entry=plan.add(path,entry['changes'],entry['fields'],entry['method'],source=entry['source'],evidence=entry['evidence'])
+    entry=plan.add(path,entry['changes'],entry['fields'],entry['method'],signature=signature,source=entry['source'],evidence=entry['evidence'])
     research.save_evidence(path,{'in_book':book['evidence']})
     cover_tasks.identified(row)  # The comic identified itself; a cover search is unnecessary.
     if not record:return entry  # The caller saves this comic's discovery record.
@@ -408,7 +411,7 @@ def discover(root,coverage_only=False):
                     if fields and not (conflict or hold):  # Strict lookups return only the approved exact-cover list.
                         changes = {k:{'before':'','after':v} for k,v in fields.items()}
                         fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
-                        entry = plan.add(path,changes,fields,'Publisher exact title; issue-wide fields only.')
+                        entry = plan.add(path,changes,fields,'Publisher exact title; issue-wide fields only.',signature=signature)
                         outcome = 'queued'
             except Exception as exc:
                 lookup_error = record_failure(lookup_error,provider_waits,'Publisher',exc)
@@ -493,7 +496,7 @@ def discover(root,coverage_only=False):
                 if fields:
                     changes = {k: {'before': '', 'after': v} for k, v in fields.items()}
                     fields['Notes'] = ('Automatic enrichment: existing ComicVine issue ID verified against embedded series and issue number.' if match else 'Automatic match: unique exact series and publisher, issue number, publication year and cover similarity agree.') + ' Existing populated values and synopsis retained.'
-                    entry = plan.add(path,changes,fields,'Verified existing issue ID; fill missing fields only.')
+                    entry = plan.add(path,changes,fields,'Verified existing issue ID; fill missing fields only.',signature=signature)
                     outcome = 'queued'
                 else:
                     outcome = 'current'
@@ -511,7 +514,7 @@ def discover(root,coverage_only=False):
             if fields:
                 changes={k:{'before':'','after':v} for k,v in fields.items()}
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])
-                entry=plan.add(path,changes,fields,'Verified issue-wide web fields.')
+                entry=plan.add(path,changes,fields,'Verified issue-wide web fields.',signature=signature)
                 outcome='queued'
         if not old.get('Summary') and not hold:  # A held pass writes no field, Summary included.
             import local_model
@@ -539,7 +542,7 @@ def discover(root,coverage_only=False):
                             entry['changes']['Summary']={'before':'','after':proposal['summary']}
                             plan.save()
                         else:
-                            entry=plan.add(path,{'Summary':{'before':'','after':proposal['summary']}},fields,'Exact publisher issue identity; internet-only synopsis with quote and spoiler checks.')
+                            entry=plan.add(path,{'Summary':{'before':'','after':proposal['summary']}},fields,'Exact publisher issue identity; internet-only synopsis with quote and spoiler checks.',signature=signature)
                         outcome = 'queued'
                 except Exception as exc:
                     if pause_control.requested():

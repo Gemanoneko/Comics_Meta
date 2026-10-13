@@ -66,5 +66,10 @@ def in_book_credits_creators():
 
 
 def in_book_publisher():
-    """Tier 1 also writes a canonical publisher named in full on the cover (on unless set false)."""
-    return section('in_book').get('publisher', True) is not False
+    """The in-book tiers also write a canonical publisher named in full in the reading (off unless set true).
+
+    Off by default since 2026-10-13, pending Sergei's decision (v0.1.3 review F21): the
+    local model's publisher reading disagreed with embedded or same-folder publishers
+    about 4-5% of the time, and a wrong value sticks because later sources fill only
+    empty fields. Series and Number are unaffected."""
+    return section('in_book').get('publisher', False) is True

@@ -57,6 +57,28 @@ class HoldRetryScheduleTests(unittest.TestCase):
         no_end = {'hold': {'count': 1, 'at': now - 100, 'wait_end': 0}}  # Empty (cached) answer or missing key.
         self.assertFalse(coverage_priority.comicvine_answered_since_hold(no_end, answered, now))  # Daily retry, no re-run per answer.
 
+    def test_carried_source_entries_do_not_bypass_the_hold_backoff(self):
+        # F24 (v0.1.3 review): later held passes never re-run these sources, so their
+        # entries from the first held pass must not make the comic due at every pass.
+        now = 10000.0
+        row = {'path': 'Library/Example/Example 001 (2024).cbz', 'size': 10, 'mtime': 1,
+               'metadata': json.dumps({'Web': 'https://comicvine.gamespot.com/example-1/4000-77/'})}
+        statuses = {'google_books': {'status': 'available'}}
+        held = {'version': automatic.MATCHER_VERSION, 'signature': [10, 1], 'outcome': 'needs_identity_lookup', 'retry_at': now + 1200,
+                'hold': {'count': 2, 'since': now - 900, 'at': now - 600, 'wait_end': now - 300},
+                'source_schedule': {'GCD': {'result': 'error', 'failures': 1, 'next_at': now - 60},
+                                    'Google Books': {'result': 'unavailable', 'failures': 0, 'next_at': now + 999}}}
+        def due(previous, at, signature=(10, 1)):
+            return coverage_priority.lookup_flags(dict(row, size=signature[0], mtime=signature[1]), previous, statuses,
+                                                  automatic.MATCHER_VERSION, {}, at)[0]
+        self.assertFalse(due(held, now))  # Before: due at every folder pass for as long as ComicVine stayed down.
+        self.assertTrue(due(held, now + 1200))  # The hold's own retry still makes it due.
+        self.assertTrue(due(held, now, signature=(11, 1)))  # A changed archive is due at once.
+        for name in ('GCD', 'Google Books'):  # Positive controls: without the hold, each entry alone makes it due.
+            unheld = {key: value for key, value in held.items() if key != 'hold'}
+            unheld['source_schedule'] = {name: held['source_schedule'][name]}
+            self.assertTrue(due(unheld, now), name)
+
 
 class Clock:
     def __init__(self):

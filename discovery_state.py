@@ -1,7 +1,11 @@
 """Per-file research state in SQLite, bounded by the folder being processed."""
 import json
+import time
 from pathlib import Path
 import app
+
+WRITE_RETRY_SECONDS = 86400  # The ordinary daily research retry.
+WRITE_NOT_DONE = ('write_skipped', 'write_failed')  # Outcomes of a planned write that did not happen.
 
 
 def initialize(con):
@@ -38,6 +42,25 @@ def save_one(path,value):
     with app.db() as con:
         initialize(con)
         con.execute('INSERT OR REPLACE INTO discovery_records VALUES(?,?)',(str(path),json.dumps(value,ensure_ascii=False)))
+
+
+def write_not_done(path, outcome, reason, now=None):
+    """A planned write did not happen, and nothing was written to the archive (v0.1.3 review F22, F23).
+
+    The comic's record keeps its archive signature and research state. Its outcome
+    says why, and it is offered again after the ordinary daily retry, or on the next
+    pass once the archive changes (its signature then differs). A comic with no
+    record (a manual reference plan) is left alone. Returns whether a record changed."""
+    now = time.time() if now is None else now
+    with app.db() as con:
+        initialize(con)
+        found = con.execute('SELECT value FROM discovery_records WHERE path=?', (str(path),)).fetchone()
+        if not found:
+            return False
+        record = json.loads(found['value'])
+        record.update(outcome=outcome, retry_at=now + WRITE_RETRY_SECONDS, write_error=str(reason)[:2000], write_at=now)
+        con.execute('UPDATE discovery_records SET value=? WHERE path=?', (json.dumps(record, ensure_ascii=False), str(path)))
+    return True
 
 
 def counts(root):

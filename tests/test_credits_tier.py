@@ -29,6 +29,9 @@ def judge(name, reading, old=None, creators=None):
 class CreditsJudgeTests(unittest.TestCase):
     def test_indicia_naming_series_and_issue_writes_identity_cover_date_and_publisher(self):
         book = judge('Spawn 001 (1992).cbz', SPAWN, creators=False)
+        self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1', 'Year': '1992', 'Month': '05'})  # F21: publisher off by default.
+        with patch.object(pipeline_config, 'in_book_publisher', return_value=True):
+            book = judge('Spawn 001 (1992).cbz', SPAWN, creators=False)
         self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1', 'Year': '1992', 'Month': '05', 'Publisher': 'Image Comics'})
         self.assertEqual(book['evidence']['source'], 'in-book:credits')
         entry = in_book.entry('Library/Spawn 001 (1992).cbz', book, 'digest')

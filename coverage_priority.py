@@ -54,12 +54,30 @@ def lookup_flags(row, previous, statuses, version, saved, now):
     new_leads = saved.get('reverse_image_signature') == signature and previous.get('cover_leads') != saved.get('reverse_image_matches')
     metron = (saved.get('verified_evidence') or {}).get('result', {})
     upgrade = metron.get('provider') == 'Metron' and metron.get('metadata_version', 0) < 2 and previous.get('metron_metadata_version', 0) < 2
+    if write_retry_waiting(previous, signature, now):
+        return False, new_leads, upgrade
     import in_book
+    # F24: a comic held for its ComicVine check on this archive and matcher is passed
+    # again only to ask ComicVine (automatic.discover wait_only; Metron too when its own
+    # schedule allows). Source entries carried from its first held pass are never re-run
+    # there, so an old error would make it due at every folder pass. Its hold retry,
+    # ComicVine answering and new cover leads still make it due.
+    schedule = previous
+    if isinstance(previous.get('hold'), dict) and previous.get('signature') == signature and previous.get('version') == version:
+        schedule = {key: value for key, value in previous.items() if key != 'source_schedule'}
     # A saved cover reading that agrees with the filename writes without waiting
     # for the comic's ordinary research retry.
     due = (upgrade or in_book.ready(row, saved, previous) or comicvine_answered_since_hold(previous, statuses, now)
-           or source_scheduling.due(previous, signature, version, statuses, new_leads, now))
+           or source_scheduling.due(schedule, signature, version, statuses, new_leads, now))
     return due, new_leads, upgrade
+
+
+def write_retry_waiting(previous, signature, now):
+    """F23: a planned write to this unchanged archive did not happen (it failed, or the
+    archive's ComicInfo had changed); the comic waits for its daily retry instead of
+    being planned again, and failing again, at every folder pass."""
+    return (previous.get('outcome') in discovery_state.WRITE_NOT_DONE and previous.get('signature') == signature
+            and previous.get('retry_at', 0) > now)
 
 
 def comicvine_answered_since_hold(previous, statuses, now):

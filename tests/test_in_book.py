@@ -34,6 +34,8 @@ def judge(name, hint, old=None):
 class AccuracyFixtureTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch.object(pipeline_config, 'in_book_cover', return_value=True))
+        # The publisher rule is measured with its switch on; it is off by default (F21, ConfigSwitchTests).
+        self.enterContext(patch.object(pipeline_config, 'in_book_publisher', return_value=True))
 
     def test_cover_and_filename_agree_writes_series_and_number_only(self):
         book = judge('Spawn 001 (1992) (digital).cbz', {'title': 'SPAWN', 'issue': '#1', 'publisher': 'Image Comics',
@@ -157,11 +159,15 @@ class ConfigSwitchTests(unittest.TestCase):
             self.assertTrue(pipeline_config.in_book_cover())  # On when not configured.
             (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'cover': False}}))
             self.assertFalse(pipeline_config.in_book_cover())
+            # F21 (v0.1.3 review): the cover reading's publisher is off unless config.json sets it true.
+            self.assertFalse(pipeline_config.in_book_publisher())
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': 'yes'}}))
+            self.assertFalse(pipeline_config.in_book_publisher())  # Only a literal true switches it on.
+            hint = {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'}
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint)['fields'], {'Series': 'Spawn', 'Number': '1'})
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': True}}))
             self.assertTrue(pipeline_config.in_book_publisher())
-            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': False}}))
-            with patch.object(app, 'BASE', Path(directory)):
-                book = judge('Spawn 001 (1992).cbz', {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'})
-            self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1'})
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint)['fields'], {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Image Comics'})
 
 
 class InBookPipelineTests(unittest.TestCase):
@@ -225,7 +231,8 @@ class InBookPipelineTests(unittest.TestCase):
         self.assertEqual(task, 'not_needed')  # The comic identified itself; no Lens search.
         self.assertTrue(worker.run_one())
         metadata, _, _ = app.read_metadata(path)
-        self.assertEqual((metadata['Series'], metadata['Number'], metadata['Publisher']), ('Spawn', '1', 'Image Comics'))
+        self.assertEqual((metadata['Series'], metadata['Number']), ('Spawn', '1'))
+        self.assertNotIn('Publisher', metadata)  # F21: the cover reading's publisher is off by default.
         self.assertNotIn('Writer', metadata)
         self.assertNotIn('Year', metadata)
         self.assertIn('In-book identification', metadata['Notes'])
@@ -276,7 +283,8 @@ class InBookIdentityRuleTests(unittest.TestCase):
         import source_scheduling
         now = time.time()
         waiting = {key: {'status': 'human_verification', 'retry_at': now + 5000} for key in source_scheduling.KEYS.values()}
-        for target, name, value in ((pipeline_config, 'in_book_cover', True), (worker.pause_control, 'requested', False),
+        for target, name, value in ((pipeline_config, 'in_book_cover', True), (pipeline_config, 'in_book_publisher', True),
+                                    (worker.pause_control, 'requested', False),
                                     (providers, 'statuses', waiting), (archive_conversion, 'one', False),
                                     (local_model, 'available', False), (metron, 'lookup', None), (providers, 'gcd_lookup', None),
                                     (providers, 'google_lookup', None), (open_library, 'lookup', None),

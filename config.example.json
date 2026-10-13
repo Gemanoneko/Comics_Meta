@@ -3,6 +3,6 @@
   "automatic": {"enabled": false, "root": "D:\\Comics"},
   "browser_search": {"enabled": false, "channel": "msedge", "interval_seconds": 60, "daily_request_limit": 100, "serpapi_fallback": true, "serpapi_monthly_limit": 250},
   "web_search": {"provider": "free", "daily_request_limit": 100},
-  "in_book": {"cover": true, "publisher": true, "credits_pages": false, "credits_creators": false},
+  "in_book": {"cover": true, "publisher": false, "credits_pages": false, "credits_creators": false},
   "sources": {"disabled": ["General free web", "Wikipedia/wiki", "Saved lead re-checks", "GetComics", "PREVIEWSworld"]}
 }
