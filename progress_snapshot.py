@@ -54,6 +54,9 @@ def collect(files):
     result['cover_research']=cover_tasks.status()
     result['browser_search']=browser_search.public(browser_search.status())
     result['providers']=providers.statuses()
+    import problems
+    try:result['problems']=problems.counts(result['live_root'])  # Failure-filter spec 9.1.
+    except Exception:pass  # Absent, never zero: the page then shows no problem lines.
     result['performance']=research_runtime.metrics()
     folder_state=files.read(app.DATA/'folders.json',None)
     if folder_state is not None:

@@ -12,6 +12,28 @@ import storage
 
 _owner = None
 PENDING = {'queued', 'opening', 'open', 'closing'}
+# Sergei 2026-10-13 (Futaba Q-5): once Sergei solves a Google check, Lens searching resumes
+# after a short pause instead of the rest of the one-hour hold an unsolved check sets.
+# Five minutes is five times the default 60 s search pacing: long enough for the solved
+# session to settle before the next upload, short enough that solving is worth it. A
+# check that comes back within two hours of the previous solve takes the next step;
+# after four steps the pause is the full hour again. Two quiet hours start over.
+SOLVED_WAITS = (300, 600, 1200, 2400)
+SOLVED_REPEAT_WINDOW = 2 * 3600
+UNSOLVED_HOLD = 3600
+
+
+def solved_hold(state, now):
+    """The Lens hold and solve streak after Sergei solves a check: {browser_retry_at, solved_checks}.
+
+    Never longer than the hold already running (an expired hold stays expired), and never
+    the daily cap, which keeps its own count."""
+    streak = state.get('solved_checks') if isinstance(state.get('solved_checks'), dict) else {}
+    count = streak.get('count', 0) + 1 if 0 <= now - streak.get('at', float('-inf')) <= SOLVED_REPEAT_WINDOW else 1
+    wait = SOLVED_WAITS[count - 1] if count <= len(SOLVED_WAITS) else UNSOLVED_HOLD
+    current = state.get('browser_retry_at', 0) or 0
+    return {'browser_retry_at': min(current, now + wait) if current > now else current,
+            'solved_checks': {'count': count, 'at': now, 'wait': wait}}
 
 
 def read(con):
@@ -195,8 +217,10 @@ def service(browser,options):
                 current.update(phase='failed',window=window,stage=stage,failure=failure,error_class=error_class,finished_at=time.time())
                 save(con,current)
     if success:
-        # A verified human session clears its challenge, never its quota/backoff.
-        search.status(human_verification=False,verification_state='verified',verification_window=window)
+        # A verified human session clears its challenge and shortens the unsolved hold
+        # (solved_hold, Sergei 2026-10-13); the daily search count is never reset.
+        search.status(human_verification=False,verification_state='verified',verification_window=window,
+                      **solved_hold(search.legacy_status(),time.time()))
     if fatal is not None:raise fatal
     return browser
 

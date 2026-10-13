@@ -204,7 +204,57 @@ def credits_reading(path,saved,signature):
     return reading
 
 
-def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False):
+def external_plan(old,source_fields,replaceable,allow_replace):
+    """(fields, changes, replaced) for a verified external result.
+
+    Empty fields are filled as before. Sergei 2026-10-13: a value the in-book tiers wrote,
+    untouched since (provenance.in_book_values), is replaced when the verified source
+    disagrees with it, unless an identity conflict or a ComicVine hold blocks field writes.
+    Its "before" is the in-book value, so batch.apply's F22 guard skips the comic if the
+    value changed after the folder scan. Values Sergei or another program wrote are never
+    in `replaceable`."""
+    import provenance,imprints
+    source_fields=imprints.split(source_fields)  # Sergei 2026-10-13: an imprint goes in Imprint, its parent in Publisher.
+    fields={k:v for k,v in source_fields.items() if not old.get(k)}
+    replaced={}
+    if allow_replace:
+        for k,v in source_fields.items():
+            if k in replaceable and provenance.disagrees(k,replaceable[k],v):
+                fields[k]=v
+                replaced[k]={'in_book':old.get(k),'external':v}
+    changes={k:{'before':old.get(k) if k in replaced else '','after':v} for k,v in fields.items()}
+    return fields,changes,replaced
+
+
+def replacement_record(provider,replaced):
+    """(plan-entry provenance, Notes sentence) for in-book values a verified source replaces.
+
+    The entry's source goes into the write history and ledger ('replaced-in-book:<provider>'),
+    so a replaced value is never treated as in-book again."""
+    if not replaced:return {},''
+    import provenance
+    note=('Replaced in-book values with '+provider+', a verified external source: '
+          +'; '.join(k+' "'+str(v['in_book'])+'" with "'+str(v['external'])+'"' for k,v in sorted(replaced.items()))+'.')
+    return {'source':(provenance.REPLACED_PREFIX+provider)[:200],'replaced':replaced},note
+
+
+def read_credits_for_publisher(path,row,old,saved,signature,previous):
+    """Publisher agreement (Sergei 2026-10-13, off by default): read the credits and indicia
+    pages once for a comic the cover tier can write, so both readings can be compared.
+    Returns the evidence to judge with. A failed reading only means no publisher this time."""
+    import in_book,pause_control
+    if not in_book.needs_credits_for_publisher(row,old,saved,signature,previous):return saved
+    try:
+        reading=credits_reading(path,saved,signature)
+    except pause_control.PauseRequested:
+        raise
+    except Exception as exc:
+        research.save_evidence(path,{'credits_reading_error':{'signature':signature,'error':type(exc).__name__,'at':time.time()}})
+        return saved
+    return dict(saved,credits_reading=reading,credits_signature=signature) if reading else saved
+
+
+def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False,replaceable=None):
     """Independent free attempts; a wiki series hit is still only a lead."""
     import source_scheduling,pipeline_config
     wiki_found=False
@@ -221,7 +271,7 @@ def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False):
                 with research_runtime.stage('Saved lead verification'):
                     result=research.resolve_leads(row,old,hint,strict=strict) if candidates else None
             completed(name,result,None)
-            if source_scheduling.useful(result,old):return result,wiki_found
+            if source_scheduling.useful(result,old,replaceable):return result,wiki_found
         except Exception as exc:
             import pause_control
             if isinstance(exc,pause_control.PauseRequested):raise
@@ -238,6 +288,8 @@ def discover(root,coverage_only=False):
     import archive_conversion
     if archive_conversion.one(root):return True  # Verify one conversion, then continue this folder.
     state = discovery_state.load(root)
+    import provenance
+    provenance.ensure_backfilled()  # Once per catalog: v0.1.3's writes enter the write ledger.
     import providers,source_scheduling
     source_statuses=providers.statuses()
     with app.db() as con:
@@ -268,7 +320,11 @@ def discover(root,coverage_only=False):
         if plan.full():
             return True  # Write this pass's plan; the folder continues in the next pass.
         old = json.loads(row['metadata'])
-        book=in_book.identify(row,old,saved,signature,previous) if language_eligible(row,old) else None  # None while the identity rules block it.
+        eligible=language_eligible(row,old)
+        if eligible:
+            try:saved=read_credits_for_publisher(path,row,old,saved,signature,previous)
+            except pause_control.PauseRequested:return True
+        book=in_book.identify(row,old,saved,signature,previous) if eligible else None  # None while the identity rules block it.
         if book:
             # In-book tier: the comic's own cover agrees with its filename. No external
             # source, so it does not count toward the bounded research checks below.
@@ -286,6 +342,10 @@ def discover(root,coverage_only=False):
         if not language_eligible(row,old):
             discovery_state.save_one(path,{'version':MATCHER_VERSION,'signature':signature,'outcome':'excluded_language','retry_at':time.time()+30*86400})
             continue
+        import provenance
+        # Sergei 2026-10-13: in-book values a verified external source may replace (provenance.py).
+        replaceable=provenance.in_book_values(row,old)
+        def useful(result):return source_scheduling.useful(result,old,replaceable)
         match = re.search(r'https?://(?:www\.)?comicvine\.gamespot\.com/[^\s]*4000-(\d+)', old.get('Web', ''))
         outcome = 'needs_identity_lookup'
         entry = None  # This comic's entry in the pass plan, once queued.
@@ -300,13 +360,13 @@ def discover(root,coverage_only=False):
         issue=saved.get('verified_evidence',{}).get('issue') if external else None
         if issue and match and str(issue.get('id'))!=match.group(1):issue=None  # Web now names another issue.
         issue_reused=bool(issue)
-        if external and not source_scheduling.useful(external,old):
+        if external and not useful(external):
             external=None
             reused_evidence=False  # A thin cached match must not block richer sources.
         attempts=[]
         def completed(name,result,exc):
             nonlocal lookup_error
-            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time())
+            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable)
             attempts.append({'provider':name,'result':source_schedule[name]['result']})
             if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
         import pipeline_config
@@ -316,7 +376,7 @@ def discover(root,coverage_only=False):
             if (pipeline_config.source_enabled('Metron')
                     and source_scheduling.ready('Metron',source_schedule.get('Metron',{}),source_statuses,time.time())):
                 metron_first=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None)]
-                try:external=research_runtime.first_verified(metron_first,row,old,completed,accept=lambda result:source_scheduling.useful(result,old))
+                try:external=research_runtime.first_verified(metron_first,row,old,completed,accept=useful)
                 except pause_control.PauseRequested:return True
                 if external:
                     research.save_evidence(path,external)
@@ -393,7 +453,7 @@ def discover(root,coverage_only=False):
                 elif source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):ready.append((name,lookup))
                 else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})
             batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
-            try:external=research_runtime.first_verified(ready,row,old,completed,accept=lambda result:source_scheduling.useful(result,old))
+            try:external=research_runtime.first_verified(ready,row,old,completed,accept=useful)
             except pause_control.PauseRequested:return True
             if external:
                 research.save_evidence(path,external)
@@ -407,11 +467,11 @@ def discover(root,coverage_only=False):
                     external = publisher
                     research.save_evidence(path,external)
                     outcome = 'publisher_issue_found'
-                    fields = {k:v for k,v in external['fields'].items() if not old.get(k)}
+                    fields,changes,replaced = external_plan(old,external['fields'],replaceable,not (conflict or hold))
                     if fields and not (conflict or hold):  # Strict lookups return only the approved exact-cover list.
-                        changes = {k:{'before':'','after':v} for k,v in fields.items()}
-                        fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'
-                        entry = plan.add(path,changes,fields,'Publisher exact title; issue-wide fields only.',signature=signature)
+                        extra,note = replacement_record(external.get('provider') or 'Publisher catalog',replaced)
+                        fields['Notes'] = 'Automatic publisher catalog lookup: '+external['sources'][0]['url']+'. Exact issue title; issue-wide missing fields only. Cover edition not verified; variant-specific facts excluded.'+(' '+note if note else '')
+                        entry = plan.add(path,changes,fields,'Publisher exact title; issue-wide fields only.',signature=signature,**extra)
                         outcome = 'queued'
             except Exception as exc:
                 lookup_error = record_failure(lookup_error,provider_waits,'Publisher',exc)
@@ -434,7 +494,7 @@ def discover(root,coverage_only=False):
                 except Exception as exc:
                     lookup_error=record_failure(lookup_error,provider_waits,'Web',exc)
                 if not external:
-                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed,strict=strict)
+                    external,wiki_found=free_fallback(row,old,hint,source_schedule,source_statuses,completed,strict=strict,replaceable=replaceable)
                     if wiki_found:outcome='wiki_candidates_found'
                     if external:
                         research.save_evidence(path,external)
@@ -448,7 +508,8 @@ def discover(root,coverage_only=False):
                 try:
                     reading=credits_reading(path,saved,signature)
                     import in_book
-                    book=in_book.judge_credits(row,old,reading,signature) if reading else None
+                    cover=hint if isinstance(hint,dict) and pipeline_config.in_book_cover() else None
+                    book=in_book.judge_credits(row,old,reading,signature,cover=cover) if reading else None
                 except Exception as exc:
                     if isinstance(exc,pause_control.PauseRequested):raise
                     lookup_error=record_failure(lookup_error,provider_waits,'In-book credits',exc)
@@ -462,7 +523,7 @@ def discover(root,coverage_only=False):
         issue_text=unescape(re.sub('<[^>]+>',' ',(found or {}).get('description') or ''))
         if found and not external and not old.get('Summary') and not source_scheduling.useful({'sources':[{'text':issue_text}]},old):
             # A verified API ID with no synopsis must not shadow free sources.
-            external,_=free_fallback(row,old,hint,source_schedule,source_statuses,completed)
+            external,_=free_fallback(row,old,hint,source_schedule,source_statuses,completed,replaceable=replaceable)
             if external:
                 research.save_evidence(path,external)
                 outcome='web_issue_found'
@@ -484,7 +545,7 @@ def discover(root,coverage_only=False):
                 fields.pop('Summary', None)
                 try:
                     with research_runtime.stage('ComicVine publisher'):
-                        volume = app.api('volume/4050-' + str(issue['volume']['id'])) if not old.get('Publisher') else {}
+                        volume = app.api('volume/4050-' + str(issue['volume']['id'])) if not old.get('Publisher') or 'Publisher' in replaceable else {}
                 except app.ComicVineNotFound:
                     volume = {}  # An answer, not a failure: the issue's own fields stay usable.
                 except Exception as exc:
@@ -492,11 +553,11 @@ def discover(root,coverage_only=False):
                     volume = {}  # Keep verified issue fields and synopsis evidence usable.
                 if (volume.get('publisher') or {}).get('name'):
                     fields['Publisher'] = volume['publisher']['name']
-                fields = {k: v for k, v in fields.items() if not old.get(k)}
+                fields, changes, replaced = external_plan(old, fields, replaceable, True)  # Identity agreed; no hold.
                 if fields:
-                    changes = {k: {'before': '', 'after': v} for k, v in fields.items()}
-                    fields['Notes'] = ('Automatic enrichment: existing ComicVine issue ID verified against embedded series and issue number.' if match else 'Automatic match: unique exact series and publisher, issue number, publication year and cover similarity agree.') + ' Existing populated values and synopsis retained.'
-                    entry = plan.add(path,changes,fields,'Verified existing issue ID; fill missing fields only.',signature=signature)
+                    extra, note = replacement_record('ComicVine', replaced)
+                    fields['Notes'] = ('Automatic enrichment: existing ComicVine issue ID verified against embedded series and issue number.' if match else 'Automatic match: unique exact series and publisher, issue number, publication year and cover similarity agree.') + (' Other existing populated values and synopsis retained. ' + note if note else ' Existing populated values and synopsis retained.')
+                    entry = plan.add(path,changes,fields,'Verified existing issue ID; fill missing fields only.',signature=signature,**extra)
                     outcome = 'queued'
                 else:
                     outcome = 'current'
@@ -510,11 +571,11 @@ def discover(root,coverage_only=False):
         if external and not reused_evidence:
             research_runtime.remember(path,row,old,external,MATCHER_VERSION,issue=issue if not issue_reused and issue and identity_matches(old if match else dict(Series=old.get('Series') or row['series'],Number=old.get('Number') or row['number']),issue) else None)
         if external and outcome == 'web_issue_found':
-            fields={k:v for k,v in external['fields'].items() if not old.get(k)}
+            fields,changes,replaced=external_plan(old,external['fields'],replaceable,not (conflict or hold))
             if fields:
-                changes={k:{'before':'','after':v} for k,v in fields.items()}
-                fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])
-                entry=plan.add(path,changes,fields,'Verified issue-wide web fields.',signature=signature)
+                extra,note=replacement_record(external.get('provider','web research'),replaced)
+                fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])+('\n'+note if note else '')
+                entry=plan.add(path,changes,fields,'Verified issue-wide web fields.',signature=signature,**extra)
                 outcome='queued'
         if not old.get('Summary') and not hold:  # A held pass writes no field, Summary included.
             import local_model
@@ -564,10 +625,16 @@ def discover(root,coverage_only=False):
             hold_record = {'count':held.get('count',0)+1,'since':held.get('since') or time.time(),'at':time.time(),
                            'wait_end':comicvine_wait.get('retry_at',0)}
             retry = hold_retry(retry,comicvine_wait.get('retry_at',0),hold_record['count'],time.time())
+            # Failure-filter spec R2: the dashboard's "next try around" time and cause, structured.
+            # next_try_at is the record's retry_at, saved with it; other code may later rewrite retry_at.
+            hold_record['next_try_at'] = retry
+            cause = comicvine_wait.get('cause') if comicvine_wait else (None if comicvine_failure else 'empty')
+            if cause:hold_record['cause'] = cause
         # A Summary-only plan during a conflict still leaves the comic unresolved.
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         if hold:state['checked'][str(path)]['hold'] = hold_record
         if dead_web:
+            state['checked'][str(path)]['dead_link'] = match.group(1)  # Failure-filter spec R1: ComicVine answered Object Not Found.
             state['checked'][str(path)]['detail'] = ('Web names ComicVine issue '+match.group(1)+', which ComicVine reports does not exist; check the Web link. '
                 + ('A conflict saved on an earlier pass still blocks field writes.' if conflict else 'Other sources are searched with strict verification.'))
         elif hold:
@@ -579,6 +646,10 @@ def discover(root,coverage_only=False):
             # The conflicting issue lets later passes keep the conflict without ComicVine.
             named = issue or saved_conflict
             state['checked'][str(path)]['conflict_issue'] = {'id':match.group(1),'volume':{'name':(named.get('volume') or {}).get('name')},'issue_number':named.get('issue_number')}
+            # Failure-filter spec R3: the same sentence the dashboard row opens with.
+            state['checked'][str(path)]['conflict_file'] = {'series':identity.get('Series') or '','number':identity.get('Number') or ''}
+            import problems
+            state['checked'][str(path)]['detail'] = problems.conflict_sentence(state['checked'][str(path)])
         discovery_state.save_one(path,state['checked'][str(path)])
         research_runtime.record_check(outcome)
     if len(plan):

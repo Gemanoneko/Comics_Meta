@@ -29,9 +29,17 @@ def judge(name, reading, old=None, creators=None):
 class CreditsJudgeTests(unittest.TestCase):
     def test_indicia_naming_series_and_issue_writes_identity_cover_date_and_publisher(self):
         book = judge('Spawn 001 (1992).cbz', SPAWN, creators=False)
-        self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1', 'Year': '1992', 'Month': '05'})  # F21: publisher off by default.
-        with patch.object(pipeline_config, 'in_book_publisher', return_value=True):
-            book = judge('Spawn 001 (1992).cbz', SPAWN, creators=False)
+        # Sergei 2026-10-13, after the pilot (23.5% of recent years right): no Year unless switched on.
+        self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1'})
+        with patch.object(pipeline_config, 'in_book_credits_year', return_value=True):
+            self.assertEqual(judge('Spawn 001 (1992).cbz', SPAWN, creators=False)['fields'],
+                             {'Series': 'Spawn', 'Number': '1', 'Year': '1992', 'Month': '05'})
+        cover = {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'}
+        with patch.object(pipeline_config, 'in_book_publisher_agreement', return_value=True):
+            alone = judge('Spawn 001 (1992).cbz', SPAWN, creators=False)
+            book = in_book.judge_credits({'path': 'Library/Spawn 001 (1992).cbz', 'size': 1, 'mtime': 1}, {}, SPAWN, [1, 1],
+                                         creators=False, cover=cover, year=True)
+        self.assertNotIn('Publisher', alone['fields'])  # Sergei 2026-10-13: the indicia alone is one reading.
         self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1', 'Year': '1992', 'Month': '05', 'Publisher': 'Image Comics'})
         self.assertEqual(book['evidence']['source'], 'in-book:credits')
         entry = in_book.entry('Library/Spawn 001 (1992).cbz', book, 'digest')
@@ -58,6 +66,8 @@ class CreditsJudgeTests(unittest.TestCase):
         self.assertIsNone(judge('Spawn 001 (1992).cbz', SPAWN, {'Series': 'Curse of the Spawn'}))
 
     def test_saved_reading_is_used_only_when_switched_on(self):
+        # A reading from another signature is checked against the write ledger (publisher agreement, on): isolated catalog.
+        self.enterContext(patch.object(app, 'DATA', Path(self.enterContext(scratch_directory())) / 'data'))
         row = {'path': 'Library/Spawn 001 (1992).cbz', 'size': 1, 'mtime': 1, 'metadata': '{}'}
         saved = {'credits_reading': SPAWN, 'credits_signature': [1, 1]}
         self.assertFalse(pipeline_config.in_book_credits_pages())
@@ -113,7 +123,7 @@ class CreditsDiscoveryTests(unittest.TestCase):
         plan = json.loads(Path(json.loads(next(worker.QUEUE.glob('*.json')).read_text())['plan']).read_text())
         entry = plan['entries'][0]
         self.assertEqual(entry['source'], 'in-book:credits')
-        self.assertEqual(entry['fields']['Year'], '1992')
+        self.assertNotIn('Year', entry['fields'])  # Sergei 2026-10-13: Year from credits needs its own switch.
         self.assertNotIn('Writer', entry['fields'])  # Creators need their own switch.
         self.assertEqual(research.read_evidence(self.path)['credits_signature'], [self.path.stat().st_size, self.path.stat().st_mtime_ns])
 
@@ -147,12 +157,13 @@ class PilotHarnessTests(unittest.TestCase):
             evidence = data / 'research' / ('evidence-' + hashlib.sha256(str(comic).encode()).hexdigest() + '.json')
             evidence.write_text(json.dumps({'path': str(comic), 'verified_evidence': {'result': {'provider': 'Metron', 'fields': metron}}}))
             before = {p: p.read_bytes() for p in [comic, evidence]}
-            target, report = pilot_credits.run(root / 'out', data, reader=lambda path: SPAWN)
+            target, report = pilot_credits.run(root / 'out', data, reader=lambda path: SPAWN,
+                                               cover_reader=lambda path: {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'})
             self.assertEqual({p: p.read_bytes() for p in before}, before)  # Archive and evidence untouched.
             self.assertEqual(sorted(p.name for p in data.rglob('*')), sorted(['research', evidence.name]))
             self.assertEqual((report['comics_read'], report['tier_fired']), (1, 1))
-            self.assertEqual(report['fields']['Number'], {'written': 1, 'agree': 1, 'disagree': 0, 'not_in_metron': 0})
-            self.assertEqual(report['fields']['Letterer']['not_in_metron'], 1)
+            self.assertEqual(report['fields']['Number'], {'written': 1, 'agree': 1, 'disagree': 0, 'not_in_source': 0})
+            self.assertEqual(report['fields']['Letterer']['not_in_source'], 1)
             self.assertTrue(target.is_file())
 
 

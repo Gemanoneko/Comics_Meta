@@ -100,6 +100,13 @@ def db():
             CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, value TEXT, fetched REAL);
             CREATE TABLE IF NOT EXISTS history(
                 id INTEGER PRIMARY KEY, path TEXT, backup TEXT, source TEXT, timestamp REAL);
+            CREATE INDEX IF NOT EXISTS history_path ON history(path);
+            -- v0.1.4 (Sergei 2026-10-13): which fields each verified write set, and the archive
+            -- signature before and after it, so a value the in-book tiers wrote can be told apart
+            -- from one Sergei or another program wrote since (provenance.py).
+            CREATE TABLE IF NOT EXISTS write_ledger(
+                history_id INTEGER PRIMARY KEY, path TEXT, source TEXT, writer TEXT, fields TEXT,
+                input_size INTEGER, input_mtime INTEGER, output_size INTEGER, output_mtime INTEGER, origin TEXT);
             CREATE TABLE IF NOT EXISTS api_requests(timestamp REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS api_state(id INTEGER PRIMARY KEY, last_attempt REAL, blocked_until REAL);
             INSERT OR IGNORE INTO api_state VALUES(1,0,0);
@@ -263,11 +270,11 @@ def reserve_request(now=None):
         state = con.execute('SELECT * FROM api_state WHERE id=1').fetchone()
         if state['blocked_until'] > now:
             minutes = max(1, int((state['blocked_until'] - now + 59) // 60))
-            raise ProviderDeferred(f'Metadata lookup is cooling down; retry in about {minutes} minutes.','comicvine',state['blocked_until'])
+            raise ProviderDeferred(f'Metadata lookup is cooling down; retry in about {minutes} minutes.','comicvine',state['blocked_until'],'cooldown')
         con.execute('DELETE FROM api_requests WHERE timestamp<=?', (now - 3600,))
         count = con.execute('SELECT COUNT(*) FROM api_requests').fetchone()[0]
         if count >= 180:
-            raise ProviderDeferred('Local hourly request budget reached. Pause and retry later; cached results remain available.','comicvine',con.execute('SELECT MIN(timestamp) FROM api_requests').fetchone()[0]+3600)
+            raise ProviderDeferred('Local hourly request budget reached. Pause and retry later; cached results remain available.','comicvine',con.execute('SELECT MIN(timestamp) FROM api_requests').fetchone()[0]+3600,'limit')
         delay = max(0, 20 - (now - state['last_attempt']))
         if delay:
             return delay
@@ -329,7 +336,7 @@ def api(resource, **params):
         # such as an identity conflict (F16).
         key = api_key()
         if not key:
-            raise ProviderDeferred('Set COMICVINE_API_KEY before starting the app to enable online lookup.','comicvine')
+            raise ProviderDeferred('Set COMICVINE_API_KEY to enable online lookup.','comicvine',0,'no_key')
         # Shared SQLite reservations survive restarts and coordinate app processes.
         delay = reserve_request()
         while delay:
@@ -351,18 +358,18 @@ def api(resource, **params):
                 if exc.code == 429:
                     cooldown()
                     comicvine_event('rate_limit_wait',http_status=429)
-                    raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600) from None
+                    raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600,'limit') from None
                 cooldown(300)
                 comicvine_event('access_rejected' if exc.code in (401,403) else 'connection_error',http_status=exc.code,retry_at=time.time()+300)
-                raise ProviderDeferred(f'Metadata service returned HTTP {exc.code}; try again later.','comicvine',time.time()+3600) from None
+                raise ProviderDeferred(f'Metadata service returned HTTP {exc.code}; try again later.','comicvine',time.time()+3600,'unreachable') from None
         except (urllib.error.URLError,TimeoutError,OSError,json.JSONDecodeError):
             cooldown(300)
             comicvine_event('connection_error',retry_at=time.time()+300)
-            raise ProviderDeferred('Cannot reach the metadata service. Check the connection and try again.','comicvine',time.time()+3600) from None
+            raise ProviderDeferred('Cannot reach the metadata service. Check the connection and try again.','comicvine',time.time()+3600,'unreachable') from None
         if payload.get('status_code') == 107:
             cooldown()
             comicvine_event('rate_limit_wait')
-            raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600)
+            raise ProviderDeferred('Comic Vine rate limit reached. Online lookup paused for one hour; cached results remain available.','comicvine',time.time()+3600,'limit')
         if payload.get('status_code') == 101:
             # ComicVine answered: this object does not exist. Remember the answer;
             # other requests are unaffected (F17).
@@ -374,7 +381,7 @@ def api(resource, **params):
         if payload.get('status_code') != 1:
             cooldown(300)
             comicvine_event('access_rejected',retry_at=time.time()+300)
-            raise ProviderDeferred('Metadata service did not accept the request.','comicvine',time.time()+300)
+            raise ProviderDeferred('Metadata service did not accept the request.','comicvine',time.time()+300,'rejected')
         result = payload['results']
         with db() as con:
             con.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)', (cache_key, json.dumps(result), time.time()))
@@ -430,7 +437,7 @@ class ArchiveChanged(ValueError):
 
 
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
-                   expected=None, history_source=None, attempt=None):
+                   expected=None, history_source=None, attempt=None, writer='manual'):
     """Write fields into a CBZ's ComicInfo.xml with a backup, temporary-archive checks and readback.
 
     expected: {field: value} the archive's ComicInfo must still hold, checked on the
@@ -442,7 +449,10 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
     attempt: an optional dict. Once this call's backup copy is complete its path is
     stored in attempt['backup'], so a caller whose write then fails knows exactly which
     backup this call made (v0.1.3 review F29). A backup name already in use is never
-    reused, so that path always names a file this call created."""
+    reused, so that path always names a file this call created.
+    writer: 'automatic' for the service's own plans, 'manual' (default) for anything Sergei
+    starts. The write ledger records it with the fields this call set and the archive
+    signature before and after, in the history transaction (provenance.py)."""
     path = filesystem_path(row['path'])
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
@@ -469,6 +479,7 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
                 raise ArchiveChanged('ComicInfo changed since planning (' + ', '.join(stale) + '); nothing written.')
         xml = metadata_xml(source.read(names[0])) if names else ET.Element('ComicInfo')
         expected_fields = {}
+        written = {}  # Fields this call sets (not Notes, not values it leaves in place).
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -478,6 +489,8 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
                     node.text += '\n\n' + value
             elif key in overwrite_fields or not (node.text or '').strip():
                 node.text = value
+                if key != 'Notes':
+                    written[key] = value or ''
             expected_fields[key] = node.text or ''
         # XML parsers normalize literal CR/CRLF to LF. Character references
         # preserve source text exactly, including Windows paragraph breaks.
@@ -521,12 +534,17 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
         for key, value in expected_fields.items():
             if metadata.get(key, '') != value:
                 raise ValueError('Readback verification failed for ' + key)
+    before = stat
     stat = path.stat()
+    source_text = str(history_source)[:200] if history_source else fields.get('Web', '')
     with db() as con:
         con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
                     (stat.st_size, stat.st_mtime_ns, json.dumps(metadata), row['id']))
-        con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
-                    (str(path), str(backup), str(history_source)[:200] if history_source else fields.get('Web', ''), time.time()))
+        history_id = con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
+                                 (str(path), str(backup), source_text, time.time())).lastrowid
+        con.execute('INSERT INTO write_ledger VALUES(?,?,?,?,?,?,?,?,?,?)',
+                    (history_id, str(row['path']), source_text, writer, json.dumps(written, ensure_ascii=False),
+                     before.st_size, before.st_mtime_ns, stat.st_size, stat.st_mtime_ns, 'write'))
     if remove_verified_backups:
         remove_verified_backup(path, backup, original_sha256)
     return str(backup)
@@ -612,17 +630,29 @@ class Handler(BaseHTTPRequestHandler):
                         'metadata_complete':descriptive+' AND '+summary,
                         'synopsis_only':'NOT ('+descriptive+') AND '+summary,
                     }
+                    import problems
                     if status in category:
                         where='WHERE '+scope+" AND path LIKE ? AND status IN ('embedded','tagged') AND "+category[status]
                         params=(*scope_args,'%'+search+'%')
+                    elif status in problems.CODES:
+                        # Failure-filter spec: comics whose current record holds this reason (one per comic).
+                        con.execute('CREATE TEMP TABLE IF NOT EXISTS problem_paths(path TEXT PRIMARY KEY)')
+                        con.execute('DELETE FROM temp.problem_paths')
+                        con.executemany('INSERT OR IGNORE INTO temp.problem_paths VALUES(?)',
+                                        [(p,) for p in problems.paths_with(con,live_root(),status,search)])
+                        where='WHERE path IN (SELECT path FROM temp.problem_paths)'
+                        params=()
                     else:
                         where = "WHERE "+scope+" AND path LIKE ? AND (?='' OR status=?)"
                         params = (*scope_args, '%' + search + '%', status, status)
                     rows = con.execute('SELECT * FROM comics ' + where + ' ORDER BY path LIMIT 100 OFFSET ?', (*params, offset)).fetchall()
                     total = con.execute('SELECT COUNT(*) FROM comics ' + where, params).fetchone()[0]
+                    found = problems.for_rows(con, rows)
                 result_rows = []
                 for r in rows:
                     item = dict(r)
+                    if item['path'] in found:
+                        item['problem'] = found[item['path']]
                     item['has_synopsis'] = bool(json.loads(item['metadata']).get('Summary','').strip())
                     metadata=json.loads(item['metadata'])
                     item['has_metadata']=any(str(metadata.get(key,'')).strip() for key in BIBLIOGRAPHIC_FIELDS)
@@ -670,6 +700,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Folder is unavailable. Check that the library drive is connected.')
                 os.startfile(str(folder))
                 return self.respond({'ok': True})
+            if self.path == '/api/try-again':
+                # Failure-filter spec R4. Allowed while paused: it only clears a stop flag in
+                # the comic's record; the one attempt runs at the next pass after Resume.
+                import problems
+                changed, problem = problems.try_again(int(body['comic']))
+                return self.respond({'ok': True, 'changed': changed, 'problem': problem})
             if pause_control.requested():
                 raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':
@@ -715,7 +751,8 @@ class Handler(BaseHTTPRequestHandler):
                     publisher = (volume.get('publisher') or {}).get('name')
                     if publisher:
                         fields['Publisher'] = publisher
-                return self.respond(fields)
+                import imprints
+                return self.respond(imprints.split(fields))  # What Approve writes: an imprint in Imprint.
             if self.path == '/api/apply':
                 with LOCK:
                     if JOB['running']:
@@ -728,7 +765,8 @@ class Handler(BaseHTTPRequestHandler):
                         volume = api('volume/4050-' + str(int(volume_id)), field_list='publisher')
                         if (volume.get('publisher') or {}).get('name'):
                             fields['Publisher'] = volume['publisher']['name']
-                    backup = write_metadata(comic(int(body['comic'])), fields, remove_verified_backups=True)
+                    import imprints
+                    backup = write_metadata(comic(int(body['comic'])), imprints.split(fields), remove_verified_backups=True)
                 return self.respond({'ok': True, 'backup': backup, 'backup_removed_after_verification': True})
             self.respond({'error': 'Not found'}, 404)
         except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):

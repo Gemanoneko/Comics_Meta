@@ -172,6 +172,9 @@ def apply(plan_path, remove_verified_backups=False):
         storage.save(plan_path.parent/name,items)
         discovery_state.write_not_done(path,outcome,reason)
         print('Skipped, changed since planning:' if outcome=='write_skipped' else 'Not written, retried later:',path.name,'-',reason)
+    # A reference plan (batch.py prepare) is one Sergei reviewed by hand; the write
+    # ledger counts its values as his (provenance.py: never replaced automatically).
+    writer='manual' if plan.get('reference') else 'automatic'
     progress(phase='Writing and verifying metadata',current_folder=Path(plan['folder']).name,
              total=len(plan['entries']),checked=len(plan['entries']),updated=len(results),
              detail='Each comic is checked after writing; its backup is removed only after verification.')
@@ -204,7 +207,7 @@ def apply(plan_path, remove_verified_backups=False):
                 # the write history in the same transaction (F27).
                 backup=app.write_metadata(row,entry['fields'],append_notes=True,overwrite_fields=set(entry['changes']),
                                           expected={k:c.get('before','') for k,c in entry['changes'].items()},
-                                          history_source=entry.get('source'),attempt=attempt)
+                                          history_source=entry.get('source'),attempt=attempt,writer=writer)
         except pause_control.PauseRequested:
             raise
         except app.ArchiveChanged as exc:

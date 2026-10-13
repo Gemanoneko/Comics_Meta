@@ -152,12 +152,13 @@ def read_credits(path,ask=None):
     return {'indicia':str(result.get('indicia') or '')[:4000],'credits':str(result.get('credits') or '')[:4000],'pages':names,'model':MODEL}
 
 
-def identify_cover(path):
+def identify_cover(path,ask=None):
+    """ask: the read-only pilot's own model call (no pause gate, no stage timing)."""
     import reverse_image
     raw,_,_ = reverse_image.cover(path,0)
     with Image.open(io.BytesIO(raw)) as image:
         image=image.convert('RGB');image.thumbnail((1400,1800))
         output=io.BytesIO();image.save(output,format='JPEG',quality=90)
-    result = chat('Transcribe visible identification text on this comic COVER only. Return {"title":string,"issue":string,"publisher":string,"creators":list,"search_query":string}. Leave illegible fields blank. No story summary, no invented facts, and no knowledge beyond the visible text. All output is search evidence, not a verified catalog match.',[base64.b64encode(output.getvalue()).decode()])
+    result = (ask or chat)('Transcribe visible identification text on this comic COVER only. Return {"title":string,"issue":string,"publisher":string,"creators":list,"search_query":string}. Leave illegible fields blank. No story summary, no invented facts, and no knowledge beyond the visible text. All output is search evidence, not a verified catalog match.',[base64.b64encode(output.getvalue()).decode()])
     return {k:result.get(k) for k in ('title','issue','publisher','creators','search_query')}
 

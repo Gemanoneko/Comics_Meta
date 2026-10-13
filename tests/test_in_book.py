@@ -25,9 +25,12 @@ import worker
 from test_worker import scratch_directory
 
 
-def judge(name, hint, old=None):
+def judge(name, hint, old=None, indicia=None):
+    """indicia: a credits/indicia reading of the same pages (publisher agreement, Sergei 2026-10-13)."""
     row = {'path': 'Library/Series/' + name, 'size': 10, 'mtime': 1, 'metadata': json.dumps(old or {})}
     saved = {'cover_identification': hint, 'cover_signature': [10, 1]}
+    if indicia is not None:
+        saved.update(credits_reading={'indicia': indicia, 'credits': ''}, credits_signature=[10, 1])
     return in_book.identify(row, old or {}, saved)
 
 
@@ -35,11 +38,14 @@ class AccuracyFixtureTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch.object(pipeline_config, 'in_book_cover', return_value=True))
         # The publisher rule is measured with its switch on; it is off by default (F21, ConfigSwitchTests).
-        self.enterContext(patch.object(pipeline_config, 'in_book_publisher', return_value=True))
+        self.enterContext(patch.object(pipeline_config, 'in_book_publisher_agreement', return_value=True))
+        # With it on, a reading from another signature is checked against the write ledger: an isolated catalog.
+        self.enterContext(patch.object(app, 'DATA', Path(self.enterContext(scratch_directory())) / 'data'))
 
     def test_cover_and_filename_agree_writes_series_and_number_only(self):
         book = judge('Spawn 001 (1992) (digital).cbz', {'title': 'SPAWN', 'issue': '#1', 'publisher': 'Image Comics',
-                                                        'creators': ['Todd McFarlane'], 'search_query': 'Spawn 1'})
+                                                        'creators': ['Todd McFarlane'], 'search_query': 'Spawn 1'},
+                     indicia='SPAWN #1. Published by Image Comics, Inc.')
         self.assertEqual(book['fields'], {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Image Comics'})
         self.assertEqual(book['evidence']['fields']['Series']['agreement'], 'exact')
         self.assertEqual(book['evidence']['not_taken_from_cover'], ['creators', 'year'])
@@ -69,13 +75,14 @@ class AccuracyFixtureTests(unittest.TestCase):
         self.assertIsNone(judge('The Walking Dead #105 [rus].cbz', {'title': 'THE WALKING DEAD', 'issue': '105', 'publisher': 'Image Comics'}))
         self.assertIsNone(judge('Spawn 001 (fr).cbz', {'title': 'SPAWN', 'issue': '1'}))
 
-    def test_disagreeing_or_unread_cover_writes_nothing(self):
+    def test_disagreeing_cover_writes_nothing(self):
+        # An unread number ({'issue': ''}, or none at all) writes from the filename since
+        # Sergei 2026-10-13: FilenameNumberTests.
         for hint in ({'title': 'SPAWN', 'issue': '2'},             # different number
-                     {'title': 'SPAWN', 'issue': ''},              # unread number
                      {'title': 'SPAWN', 'issue': 'VOL. 2 #3'},     # not one plain number
-                     {'title': 'SPAWN'},                           # no number at all
                      {'title': 'SUPERMAN', 'issue': '1'},          # different title
-                     {'title': '', 'issue': '1'}):                 # unread title
+                     {'title': '', 'issue': '1'},                  # unread title
+                     {'title': '', 'issue': ''}):                  # nothing read
             self.assertIsNone(judge('Spawn 001 (1992).cbz', hint), hint)
         # A cover title longer than the filename series means the filename may be missing words.
         self.assertIsNone(judge('Batman 001 (2018).cbz', {'title': 'BATMAN DAMNED', 'issue': '1'}))
@@ -107,20 +114,24 @@ class AccuracyFixtureTests(unittest.TestCase):
         self.assertIsNone(judge('Previews 0315 (2015).cbz', {'title': 'PREVIEWS', 'issue': ''}))
 
     def test_publisher_only_canonical_and_named_in_full(self):
-        def publisher(value):
-            return judge('Spawn 001 (1992).cbz', {'title': 'SPAWN', 'issue': '1', 'publisher': value})['fields'].get('Publisher')
-        self.assertEqual(publisher('Marvel Comics Group'), 'Marvel')
-        self.assertEqual(publisher('DARK HORSE BOOKS'), 'Dark Horse Comics')
-        self.assertEqual(publisher('Vertigo DC Comics'), 'DC Comics')
+        # Each reading is held to the v0.1.3 canonical full-name rule; both must name the same publisher.
+        def publisher(value, indicia=None):
+            indicia = value if indicia is None and isinstance(value, str) else indicia
+            return judge('Spawn 001 (1992).cbz', {'title': 'SPAWN', 'issue': '1', 'publisher': value},
+                         indicia=indicia or '')['fields'].get('Publisher')
+        self.assertEqual(publisher('Marvel Comics Group', 'Published by Marvel Comics Group'), 'Marvel')
+        self.assertEqual(publisher('DARK HORSE BOOKS', 'Dark Horse Books, a division of Dark Horse Comics'), 'Dark Horse Comics')
+        self.assertEqual(publisher('Vertigo DC Comics', 'Published by DC Comics. Vertigo is a trademark'), 'DC Comics')
         for partial in ('MARVEL', 'Image', 'Dark', 'Marvel Knights', 'Kitchen Sink Press', ['Image Comics'], None,
                         'DC DARK HORSE COMICS', 'DARK HORSE COMICS DYNAMITE'):  # Ambiguous: two publishers named.
             self.assertIsNone(publisher(partial), partial)
 
     def test_never_overwrites_and_needs_embedded_identity_to_agree(self):
         hint = {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'}
-        self.assertEqual(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn'})['fields'], {'Number': '1', 'Publisher': 'Image Comics'})
-        self.assertEqual(judge('Spawn 001 (1992).cbz', hint, {'Series': 'The Spawn', 'Number': '001'})['fields'], {'Publisher': 'Image Comics'})
-        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Other'}))
+        indicia = 'SPAWN #1. Image Comics, Inc.'
+        self.assertEqual(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn'}, indicia)['fields'], {'Number': '1', 'Publisher': 'Image Comics'})
+        self.assertEqual(judge('Spawn 001 (1992).cbz', hint, {'Series': 'The Spawn', 'Number': '001'}, indicia)['fields'], {'Publisher': 'Image Comics'})
+        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Other'}, indicia))
         self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Curse of the Spawn'}))
         self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Number': '2'}))
         self.assertIsNone(judge('Watchmen (1987).cbz', {'title': 'WATCHMEN'}, {'Number': '1'}))
@@ -140,8 +151,10 @@ class AccuracyFixtureTests(unittest.TestCase):
         web = 'https://comicvine.gamespot.com/spawn-1/4000-123/'
         self.assertIsNotNone(judge('Spawn 001 (1992).cbz', hint))  # Positive control: no Web id, no conflict.
         self.assertIsNotNone(judge('Spawn 001 (1992).cbz', hint, {'Web': 'https://metron.cloud/issue/1/'}))  # Not a ComicVine issue.
-        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Web': web}))  # Before: Series, Number and Publisher.
-        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn', 'Number': '1', 'Web': web}))  # Before: Publisher.
+        indicia = 'SPAWN #1. Image Comics, Inc.'
+        self.assertIsNotNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn', 'Number': '1'}, indicia))  # Publisher only.
+        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Web': web}, indicia))  # Before: Series, Number and Publisher.
+        self.assertIsNone(judge('Spawn 001 (1992).cbz', hint, {'Series': 'Spawn', 'Number': '1', 'Web': web}, indicia))  # Before: Publisher.
         row = {'path': 'Spawn 001 (1992).cbz', 'size': 10, 'mtime': 1, 'metadata': '{}'}
         saved = {'cover_identification': hint, 'cover_signature': [10, 1]}
         conflict = {'id': '123', 'volume': {'name': 'Another Series'}, 'issue_number': '7'}
@@ -159,15 +172,24 @@ class ConfigSwitchTests(unittest.TestCase):
             self.assertTrue(pipeline_config.in_book_cover())  # On when not configured.
             (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'cover': False}}))
             self.assertFalse(pipeline_config.in_book_cover())
-            # F21 (v0.1.3 review): the cover reading's publisher is off unless config.json sets it true.
-            self.assertFalse(pipeline_config.in_book_publisher())
-            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': 'yes'}}))
-            self.assertFalse(pipeline_config.in_book_publisher())  # Only a literal true switches it on.
+            # Sergei 2026-10-13: publisher only when the cover and credits/indicia readings agree,
+            # under its own switch, on since the pilot (164 of 165 agreed with Metron).
             hint = {'title': 'SPAWN', 'issue': '1', 'publisher': 'Image Comics'}
+            indicia = 'SPAWN #1. Published by Image Comics.'
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {}}))
+            self.assertTrue(pipeline_config.in_book_publisher_agreement())  # On when not configured.
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint, indicia=indicia)['fields'],
+                             {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Image Comics'})
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint)['fields'], {'Series': 'Spawn', 'Number': '1'})  # Cover alone.
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher_agreement': False}}))
+            self.assertFalse(pipeline_config.in_book_publisher_agreement())
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint, indicia=indicia)['fields'], {'Series': 'Spawn', 'Number': '1'})
+            # The v0.1.3 one-reading switch is retired. Before: Publisher "Image Comics" from the cover alone.
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': True, 'publisher_agreement': False}}))
             self.assertEqual(judge('Spawn 001 (1992).cbz', hint)['fields'], {'Series': 'Spawn', 'Number': '1'})
-            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher': True}}))
-            self.assertTrue(pipeline_config.in_book_publisher())
-            self.assertEqual(judge('Spawn 001 (1992).cbz', hint)['fields'], {'Series': 'Spawn', 'Number': '1', 'Publisher': 'Image Comics'})
+            self.assertEqual(judge('Spawn 001 (1992).cbz', hint, indicia=indicia)['fields'], {'Series': 'Spawn', 'Number': '1'})
+            (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'publisher_agreement': 'no'}}))
+            self.assertTrue(pipeline_config.in_book_publisher_agreement())  # Only a literal false switches it off.
 
 
 class InBookPipelineTests(unittest.TestCase):
@@ -283,7 +305,7 @@ class InBookIdentityRuleTests(unittest.TestCase):
         import source_scheduling
         now = time.time()
         waiting = {key: {'status': 'human_verification', 'retry_at': now + 5000} for key in source_scheduling.KEYS.values()}
-        for target, name, value in ((pipeline_config, 'in_book_cover', True), (pipeline_config, 'in_book_publisher', True),
+        for target, name, value in ((pipeline_config, 'in_book_cover', True), (pipeline_config, 'in_book_publisher_agreement', True),
                                     (worker.pause_control, 'requested', False),
                                     (providers, 'statuses', waiting), (archive_conversion, 'one', False),
                                     (local_model, 'available', False), (metron, 'lookup', None), (providers, 'gcd_lookup', None),
@@ -313,7 +335,9 @@ class InBookIdentityRuleTests(unittest.TestCase):
             discovery_state.initialize(con)
             row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(path),)).fetchone())
         research.save_evidence(path, {'cover_identification': {'title': 'SPAWN', 'issue': '#1', 'publisher': 'Image Comics'},
-                                      'cover_signature': [row['size'], row['mtime']], 'status': 'search_hint_only'})
+                                      'cover_signature': [row['size'], row['mtime']], 'status': 'search_hint_only',
+                                      'credits_reading': {'indicia': 'SPAWN #1. Published by Image Comics, Inc.', 'credits': ''},
+                                      'credits_signature': [row['size'], row['mtime']]})
         return path, row
 
     def discover(self, answer):

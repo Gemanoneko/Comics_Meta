@@ -229,7 +229,10 @@ class DeadWebIdDiscoveryTests(ComicVineWorld):
         self.assertEqual(record['outcome'],'identity_conflict')
         self.assertEqual(record['conflict_issue']['id'],'999')
         self.assertLessEqual(self.paused_until(),time.time())  # Before: a ComicVine pause.
-        self.assertIn('conflict saved on an earlier pass',record['detail'])
+        # Failure-filter spec R1 and R3 (Sergei 2026-10-13): the dead number is marked, and the
+        # conflict sentence replaces the dead-link detail (the conflict decides what the comic needs).
+        self.assertEqual(record['dead_link'],'999')
+        self.assertEqual(record['detail'],'ComicVine issue 999 is Another Series #7; the file says Dead #1.')
 
     def test_outage_still_holds_and_says_why(self):
         self.good_comic()

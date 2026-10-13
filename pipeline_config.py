@@ -65,11 +65,28 @@ def in_book_credits_creators():
     return section('in_book').get('credits_creators', False) is True
 
 
-def in_book_publisher():
-    """The in-book tiers also write a canonical publisher named in full in the reading (off unless set true).
+def in_book_publisher_agreement():
+    """The in-book tiers write Publisher only when the cover reading and the credits/indicia
+    reading of the same pages both name the same publisher (Sergei 2026-10-13). On unless set
+    false: Sergei switched it on after Futaba's pilot (2026-10-13: when both readings agreed,
+    Metron agreed 164 of 165 times; the one miss was the imprint Skybound for Image Comics).
 
-    Off by default since 2026-10-13, pending Sergei's decision (v0.1.3 review F21): the
-    local model's publisher reading disagreed with embedded or same-folder publishers
-    about 4-5% of the time, and a wrong value sticks because later sources fill only
-    empty fields. Series and Number are unaffected."""
-    return section('in_book').get('publisher', False) is True
+    It reads the credits/indicia pages with the local model (about 2.7 s per comic, once) for
+    comics whose cover names a publisher, even when "credits_pages" is off. The v0.1.3
+    "publisher" key (a publisher from one reading) is retired: on its own it writes nothing
+    (v0.1.3 review F21: one reading disagreed with known publishers about 4-5% of the time)."""
+    return section('in_book').get('publisher_agreement', True) is not False
+
+
+def in_book_credits_year():
+    """With the credits tier on, also write Year and Month from a cover date printed after the
+    issue number (off unless set true). The pilot (2026-10-13) found 23.5% of those years right
+    on 2024-2026 books; Sergei: keep it off."""
+    return section('in_book').get('credits_year', False) is True
+
+
+def in_book_filename_number():
+    """A numbered file whose cover number could not be read gets Series and Number from the
+    filename, when the cover title agrees with the filename series (Sergei 2026-10-13).
+    On unless set false."""
+    return section('in_book').get('filename_number', True) is not False

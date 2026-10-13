@@ -31,8 +31,8 @@ def locked():
 
 
 # Dashboard text while a search is held (Judy's string review, 2026-10-12).
-# A human check shows the cooldown text too: solving it clears the check, not
-# the one-hour hold, and the dashboard's verification control names the check.
+# A human check shows the cooldown text too; solving it clears the check and
+# shortens the one-hour hold to a few minutes (lens_verification.solved_hold).
 HELD_COOLING_DOWN='Google Lens is cooling down. Queued covers keep their place; searching resumes automatically.'
 HELD_DAILY_LIMIT='Daily Google Lens search limit reached. Queued covers keep their place; searching resumes when the limit resets.'
 FALLBACK_FAILED='SerpApi request failed; check account availability.'
@@ -168,6 +168,20 @@ def verification_request(browser,options):
     return browser
 
 
+def solved_at():
+    return (search.legacy_status().get('solved_checks') or {}).get('at')
+
+
+def after_solve(next_search_at,solved_before):
+    """The next search time once a check was just solved: no later than the shortened hold.
+
+    The worker sleeps out a held search (up to an hour); without this it would keep that
+    sleep after the hold was cut to minutes. Unchanged when nothing was solved."""
+    if solved_at() in (None,solved_before):return next_search_at
+    left=max(0,search.legacy_status().get('browser_retry_at',0)-time.time())
+    return min(next_search_at,time.monotonic()+left)
+
+
 def harvest_verified_page(browser):
     """Give the post-check results page to the search that hit the check."""
     leads=getattr(browser,'verified_leads',None)
@@ -218,7 +232,9 @@ def main(once=False):
                 search.status(state='disabled',detail='Browser cover research is disabled.')
                 if once:return
                 time.sleep(5);continue
+            solved_before=solved_at()
             browser=verification_request(browser,options)
+            next_search_at=after_solve(next_search_at,solved_before)
             if time.monotonic()<next_search_at:
                 wait_for_work(next_search_at-time.monotonic());continue
             row=cover_tasks.claim()
