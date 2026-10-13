@@ -30,7 +30,11 @@ def select(root,now=None,on_progress=None,with_mode=False):
     root=Path(root).resolve()
     if not root.is_dir():raise ValueError('Library root unavailable.')
     changed=state.get('root')!=str(root)
-    if changed or (not state.get('inventory_pending') and now-state.get('inventoried_at',0)>600):
+    # A whole-library walk rereads every directory of a large drive; it used to
+    # restart 10 minutes after the last one finished. Known folders keep their own
+    # delta scans; the walk only finds new folders (default every 6 hours).
+    import pipeline_config
+    if changed or (not state.get('inventory_pending') and now-state.get('inventoried_at',0)>pipeline_config.inventory_interval()):
         prefix=str(root).rstrip('\\/')+os.sep
         state['folders']={p:v for p,v in state['folders'].items() if p.casefold().startswith(prefix.casefold()) or p==str(root)}
         state.update(root=str(root),inventory_pending=[str(root)],inventory_seen=[],inventory_visited=0,inventory_errors=[])

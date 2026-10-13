@@ -101,7 +101,7 @@ def product_url(url,name):
     return bool(re.fullmatch(r'/Catalog/[A-Z0-9]+/?',p.path,re.I))
 
 
-def verify(row,old,source,name):
+def verify(row,old,source,name,strict=False):
     import research,providers,web_search,reverse_image,automatic
     if not product_url(source['url'],name):return None
     known=old.get('Publisher','')
@@ -113,7 +113,9 @@ def verify(row,old,source,name):
         year=str(old.get('Year') or row.get('year') or '')
         date=re.search(r'(?:Release date|Publication Date|Originally Published|In Shops)\s*:?\s*([^|\n]{0,100}?\b(?:19|20)\d{2}\b)',source['identity_text'],re.I)
         if year and (not date or not re.search(r'\b'+re.escape(year)+r'\b',date[1])):return None
-        return research.verify_web_source(row,identity,source,require_cover=True)
+        return research.verify_web_source(row,identity,source,require_cover=True,strict=strict)
+    # During an identity conflict a book also needs a named creator and an agreeing cover.
+    if strict:return research.verify_web_source(row,identity,source,strict=True)
     title=old.get('Title') or old.get('Series') or row.get('series','')
     if not any(title_key(h)==title_key(title) for h in source['headings']):return None
     year=str(old.get('Year') or row.get('year') or '')
@@ -133,7 +135,7 @@ def verify(row,old,source,name):
     return {'provider':NAMES[name],'fields':{'Publisher':expected},'sources':[dict(source,scope='Exact collected-edition title, available release year and ISBN or cover verified')],'status':'web_issue_found'}
 
 
-def lookup(row,old,name):
+def lookup(row,old,name,strict=False):
     import research,web_search,getcomics
     series,number=research.query_identity(row,old)
     expected={'darkhorse_catalog':'darkhorse','image_catalog':'image'}.get(name)
@@ -158,4 +160,4 @@ def lookup(row,old,name):
     candidates=list(dict.fromkeys(r['url'] for r in links if product_url(r['url'],name) and
         (title_key(r['title'])==title_key(old.get('Title') or series) if book else research.product_matches(r['title'],series,number))))
     if len(candidates)!=1:return None
-    return verify(row,old,web_search.source(candidates[0]),name)
+    return verify(row,old,web_search.source(candidates[0]),name,strict)

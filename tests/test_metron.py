@@ -52,14 +52,21 @@ class MetronTests(unittest.TestCase):
     def test_year_candidates_share_one_network_query_for_rejected_covers(self):
         items=[{'id':i,'series':{'name':'Example'},'number':str(i),'cover_date':'2024-01-01','image':'https://static.metron.cloud/'+str(i)+'.jpg'} for i in (1,2,3)]
         payload={'count':3,'next':None,'results':items}
-        with patch.object(metron,'token',return_value='synthetic'),patch.object(metron,'verified_cover',return_value=False),patch.object(metron.urllib.request,'build_opener') as opener:
-            response=io.BytesIO(json.dumps(payload).encode());response.headers={}
-            opener.return_value.open.return_value=response
+        def respond(request,timeout):
+            # v0.1.3: a candidate whose primary cover differs has its variant covers
+            # checked, which needs that candidate's detail page.
+            url=request.full_url
+            detail=next((dict(i,variants=[]) for i in items if url.endswith('/api/issue/'+str(i['id'])+'/')),None)
+            response=io.BytesIO(json.dumps(detail or payload).encode());response.headers={}
+            return response
+        with patch.object(metron,'token',return_value='synthetic'),patch.object(metron,'verified_cover',return_value=False),patch.object(metron.urllib.request,'build_opener') as opener,patch('pause_control.sleep'):
+            opener.return_value.open.side_effect=respond
             for i in (1,2,3):
                 self.assertIsNone(metron.lookup({'path':'x.cbz','series':'Example','number':str(i),'year':'2024'},{}))
-            self.assertEqual(opener.return_value.open.call_count,1)
+            urls=[call.args[0].full_url for call in opener.return_value.open.call_args_list]
+            self.assertEqual(sum('series_name=' in url for url in urls),1)  # One shared year list.
             with app.db() as con:
-                keys=[r['key'] for r in con.execute("SELECT key FROM cache WHERE key LIKE 'metron:%'")]
+                keys=[r['key'] for r in con.execute("SELECT key FROM cache WHERE key LIKE 'metron:%series_name=%'")]
             self.assertEqual(len(keys),1)
             self.assertNotIn('number=',keys[0])
 

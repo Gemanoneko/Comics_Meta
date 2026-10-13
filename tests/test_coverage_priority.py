@@ -1,11 +1,13 @@
 """Isolated catalog/queue fixtures; no real archives, providers or models."""
 import json
 import os
+import shutil
 import unittest
 import uuid
 from pathlib import Path
 from unittest.mock import patch
 import app
+from test_worker import scratch_directory
 import automatic
 import coverage_priority as coverage
 import discovery_state
@@ -16,11 +18,13 @@ import worker
 
 class CoveragePriorityTests(unittest.TestCase):
     def setUp(self):
-        moved = os.environ.get('COMICS_META_TEST_SCRATCH')
-        container = Path(os.environ.get('COMICS_TEST_SCRATCH') or (Path(moved) / 'coverage-priority' if moved else
-                         app.BASE / 'scratch' / 'coverage-priority-2026-10-10'))
+        # Fixtures live in a removed-after-use scratch folder (or under an
+        # explicit COMICS_TEST_SCRATCH) and are deleted after each test.
+        explicit = os.environ.get('COMICS_TEST_SCRATCH')
+        container = Path(explicit) if explicit else Path(self.enterContext(scratch_directory()))
         self.fixture = container / ('fixture-' + uuid.uuid4().hex)
         self.fixture.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, self.fixture, ignore_errors=True)
         self.root = self.fixture / 'library'
         self.root.mkdir()
         self.enterContext(patch.object(app, 'DATA', self.fixture / 'data'))
@@ -105,6 +109,8 @@ class CoveragePriorityTests(unittest.TestCase):
         self.assertEqual(record, self.waiting())
 
     def test_provider_wait_is_preserved_and_new_availability_reopens_coverage(self):
+        import pipeline_config
+        self.enterContext(patch.object(pipeline_config, 'disabled_sources', return_value=set()))  # GetComics switched on.
         self.row('A', 'refine.cbz', written=True)
         previous = self.waiting(source_schedule={'GetComics': {'result': 'unavailable', 'next_at': 2000}})
         self.row('Z', 'new.cbz', previous=previous)

@@ -4,12 +4,17 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
+import app
 import archive_conversion as conversion
 from test_worker import scratch_directory
 
 
 @unittest.skipUnless(conversion.SEVEN_ZIP.exists(),'7-Zip unavailable')
 class ConversionTests(unittest.TestCase):
+    def setUp(self):
+        # Conversion records go to an isolated catalog, never the checkout's data/.
+        self.enterContext(patch.object(app,'DATA',Path(self.enterContext(scratch_directory()))/'data'))
+
     def fixture(self,root):
         folder=Path(root)/'input';folder.mkdir()
         Image.new('RGB',(20,20),'red').save(folder/'001.png')

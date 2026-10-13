@@ -15,6 +15,18 @@ def scratch_parent():
     return Path(os.environ.get('COMICS_META_TEST_SCRATCH') or Path(__file__).resolve().parents[1] / 'work' / 'test-runs')
 
 
+def prune_scratch(intended):
+    """Leave no empty work/test-runs behind in the checkout once the last test folder is gone.
+
+    Only the default location is pruned; a folder named by COMICS_META_TEST_SCRATCH
+    belongs to whoever set it."""
+    if os.environ.get('COMICS_META_TEST_SCRATCH'):return
+    for folder in (intended, intended.parent):
+        if folder.name not in ('test-runs', 'work'):return
+        try:folder.rmdir()
+        except OSError:return  # Not empty (another test folder or other work), or already gone.
+
+
 @contextmanager
 def scratch_directory():
     intended = scratch_parent()
@@ -25,6 +37,7 @@ def scratch_directory():
     finally:
         assert root.resolve().parent == intended.resolve()
         shutil.rmtree(root)
+        prune_scratch(intended)
 
 
 class QueueTests(unittest.TestCase):

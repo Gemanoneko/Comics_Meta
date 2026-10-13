@@ -143,8 +143,45 @@ def metadata_fields(detail):
     return {key:str(value) for key,value in fields.items() if isinstance(value,(str,int)) and str(value).strip()}
 
 
+VOLUME_TAIL = re.compile(r'[\s,(-]+(?:vol(?:ume)?\.?\s*|v)(\d+)\)?\s*$', re.I)
+MAX_VARIANT_COVERS = 8
+
+
+def name_variants(series):
+    """(search name, expected series key, required series volume) in search order.
+
+    The name as filed, then " - " and ": " swapped (Metron's name search is
+    literal; the identity key ignores punctuation), then without a trailing
+    "Vol. N" / "vN", which must then match Metron's series volume when it has one."""
+    import research
+    key = research.series_key(series)
+    names = [(series, key, None)]
+    if ' - ' in series:
+        names.append((series.replace(' - ', ': '), key, None))
+    elif ': ' in series:
+        names.append((series.replace(': ', ' - '), key, None))
+    tail = VOLUME_TAIL.search(series)
+    base = series[:tail.start()].strip(' -:,') if tail else ''
+    if base:
+        names.append((base, research.series_key(base), int(tail[1])))
+    return names
+
+
+def same_series(item, key, volume):
+    import research
+    series = item.get('series') or {}
+    if research.series_key(series.get('name')) != key:
+        return False
+    found = series.get('volume')
+    return volume is None or found in (None, '') or str(found).strip() == str(volume)
+
+
 def lookup(row, old):
-    """Accept a unique exact series/number/year candidate only after cover agreement."""
+    """Accept a unique exact series/number/year candidate only after cover agreement.
+
+    The series name is also searched in its punctuation and volume variants, and
+    a candidate whose primary cover differs is checked against its variant covers
+    before it is rejected; a variant match drops the primary cover's barcode."""
     import research
     import automatic
     import reverse_image
@@ -152,29 +189,43 @@ def lookup(row, old):
     year = old.get('Year') or row.get('year')
     if not token() or not series or not number or not year:
         return None
-    payload = candidates(series,research.issue_number(number),year)
-    # A truncated candidate list cannot establish uniqueness.
-    if payload.get('next'):
+    for name, key, volume in name_variants(series):
+        payload = candidates(name,research.issue_number(number),year)
+        # A truncated candidate list cannot establish uniqueness.
+        if payload.get('next'):
+            return None
+        named = [i for i in payload.get('results', []) if same_series(i, key, volume)]
+        if named:
+            break  # This name is the series; other spellings are not tried.
+    else:
         return None
-    matches = [i for i in payload.get('results', []) if research.series_key((i.get('series') or {}).get('name'))==research.series_key(series)
-               and research.issue_number(i.get('number'))==research.issue_number(number)
+    matches = [i for i in named if research.issue_number(i.get('number'))==research.issue_number(number)
                and str(i.get('cover_date') or '').startswith(str(year)+'-')]
     if len(matches)!=1:
         return None
     candidate=matches[0]
     preview=candidate.get('image') or ''
-    if preview and not verified_cover(row['path'],preview):return None
+    primary=not preview or verified_cover(row['path'],preview)
     import research_runtime
     with research_runtime.stage('Metron issue details'):
         detail = request('issue/'+str(int(candidate['id']))+'/')
-    if (detail.get('id')!=candidate['id'] or research.series_key((detail.get('series') or {}).get('name')) != research.series_key(series)
+    if (detail.get('id')!=candidate['id'] or not same_series(detail, key, volume)
         or research.issue_number(detail.get('number')) != research.issue_number(number)
         or not str(detail.get('cover_date') or '').startswith(str(year)+'-')):
         return None
     url = detail.get('image') or ''
-    if (not preview or url!=preview) and not verified_cover(row['path'],url):return None
+    if primary and (not preview or url!=preview):primary=verified_cover(row['path'],url)
+    variant=None
+    if not primary:
+        # The comic may carry a variant cover of this exact issue.
+        for item in [v for v in detail.get('variants') or [] if isinstance(v,dict) and v.get('image')][:MAX_VARIANT_COVERS]:
+            if verified_cover(row['path'],item['image']):
+                variant=item;break
+        if not variant:return None
     language=(detail.get('series') or {}).get('language')
     if language and str(language).lower() not in ('en','eng','english'):return None
     fields=metadata_fields(detail)
+    if variant:fields.pop('GTIN',None)  # The detail's barcode belongs to the primary cover.
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
-    return {'provider':'Metron','metadata_version':2,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':'Exact issue identity and cover verified','retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    scope='Exact issue identity and '+('variant cover ('+str(variant.get('name') or 'unnamed')+')' if variant else 'cover')+' verified'
+    return {'provider':'Metron','metadata_version':2,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}

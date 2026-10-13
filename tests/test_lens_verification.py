@@ -53,7 +53,8 @@ class LensTests(unittest.TestCase):
         self.assertIs(lens.service(self.browser,{}),self.browser)
         self.browser.close.assert_not_called()
         self.assertEqual(lens.status()['window'],'minimized');self.assertFalse(lens.status()['human_verification'])
-        self.assertEqual(search.legacy_status()['browser_retry_at'],4102444800)
+        # Sergei 2026-10-13 (Q-5): the solved check shortens the hold to minutes (was: the full hold kept).
+        self.assertAlmostEqual(search.legacy_status()['browser_retry_at'],time.time()+300,delta=5)
         with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM image_search_requests').fetchone()[0],1)
 
     def test_later_challenge_is_actionable_after_success(self):

@@ -17,6 +17,10 @@ class FreeResearchTests(unittest.TestCase):
         self.enterContext(patch.object(app,'BASE',self.root))
         self.enterContext(patch.object(app,'STATE_ROOT',self.root))
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
+        import pipeline_config
+        # These fixtures cover the free web and Wikipedia code kept behind the
+        # v0.1.3 source switches, so every source is switched on here.
+        self.enterContext(patch.object(pipeline_config,'disabled_sources',return_value=set()))
         self.now=100000
         self.enterContext(patch.object(web.time,'time',return_value=self.now))
         self.options={'provider':'brave','daily_request_limit':100,'free_daily_request_limit':100}
@@ -400,8 +404,8 @@ class FreeResearchTests(unittest.TestCase):
         def search(query,free_only=False,engine=None):
             queries.append((query,engine));return [{'url':wrong['url'] if engine=='ddg' else exact['url']}]
         actual=research.verify_web_source
-        def verify(row,old,source,cover_hint=None):
-            covers.append(cover_hint);return actual(row,old,source,cover_hint)
+        def verify(row,old,source,cover_hint=None,**options):
+            covers.append(cover_hint);return actual(row,old,source,cover_hint,**options)
         hint={'search_query':'Keep this hint for matching; do not submit another query'}
         with patch.object(web,'search',side_effect=search),patch.object(web,'source',side_effect=lambda url:wrong if url==wrong['url'] else exact),patch.object(research,'verify_web_source',side_effect=verify):
             self.assertIsNotNone(research.general_lookup(self.row,self.old,hint))

@@ -61,11 +61,16 @@ class BrowserCooldownTests(unittest.TestCase):
         self.reserve.assert_called_once()
         self.browser.search.assert_called_once()
 
-    def test_budget_refusal_starts_wait_without_browser_search(self):
+    def test_budget_refusal_holds_until_the_limit_resets_without_a_cooldown(self):
+        # The daily cap is not a browser failure: before the fix it set a fresh
+        # one-hour cooldown (3700) and the generic could-not-finish error.
         self.state['browser_retry_at']=99
         self.reserve.side_effect=ValueError('browser request limit reached.')
-        worker.process(self.row,self.browser,self.options)
-        self.assertEqual(self.state['browser_retry_at'],3700)
+        hold=worker.process(self.row,self.browser,self.options)
+        self.assertEqual(self.state['browser_retry_at'],99)
+        self.assertNotIn('browser_error',self.state)
+        self.assertEqual(hold,86400)  # Next UTC day, when the count resets.
+        self.assertEqual(self.state['detail'],worker.HELD_DAILY_LIMIT)
         self.browser.search.assert_not_called()
 
     def test_cached_leads_remain_usable_during_longer_cooldown(self):

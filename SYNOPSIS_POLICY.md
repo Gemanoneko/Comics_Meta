@@ -5,7 +5,7 @@ User-approved project requirement: when a comic has no usable synopsis, create a
 ## Source order
 
 1. Preserve a usable existing synopsis.
-2. Prefer an issue-specific publisher synopsis, then a reliable catalog or other issue-specific source. Check that it describes the correct edition. Review sourced text for spoilers too.
+2. Prefer an issue-specific publisher synopsis, then a reliable catalog or other issue-specific source. Check that it describes the correct edition. Review sourced text for spoilers too. Which web pages count as describing this exact issue or book is defined once, in [source connectors](SOURCE_CONNECTORS.md) § Lead resolution and cover research; series, other-issue, part, volume and other-edition pages never supply a synopsis.
 3. User correction: research the story on the internet (publisher, databases, wikis, Reddit and other sources). Do not infer or reconstruct a story from archive pages. A local model may use cover/credits text for identification and queries, and rewrite internet evidence into a teaser.
 4. If evidence is insufficient, leave the synopsis blank and queue it for review. Do not fabricate a premise.
 

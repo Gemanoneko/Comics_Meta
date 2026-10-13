@@ -204,7 +204,7 @@ class VerificationTests(unittest.TestCase):
 
     def test_yandex_cache_and_hold_identity_cannot_alias_existing_engines(self):
         self.assertEqual(web.free_state_id('yandex'),4)
-        self.assertEqual(len({web.cached('Fixture',True,e)[0] for e in web.FREE_ENGINES}),3)
+        self.assertEqual(len({web.cached('Fixture',True,e)[0] for e in web.SUPPORTED_ENGINES}),3)
         with patch.object(web,'free_browser_search',return_value=[{'url':'https://example.org/issue','title':'Fixture #1'}]) as search:
             result=web.search('Fixture',True,'yandex');self.assertEqual(result[0]['engine'],'yandex')
             self.challenge();self.assertEqual(web.search('Fixture',True,'yandex'),result)
@@ -236,6 +236,7 @@ class VerificationTests(unittest.TestCase):
         self.assertTrue(source_scheduling.ready('General free web',attempt,status,self.now+3600))
 
     def test_endpoint_rejects_untrusted_origin_pause_and_arbitrary_url(self):
+        self.enterContext(patch.object(verification,'active',return_value=True))  # Kept code, switched back on.
         self.challenge()
         handler=object.__new__(app.Handler);handler.server=SimpleNamespace(server_port=8765)
         handler.path='/api/yandex-verification';handler.respond=Mock()

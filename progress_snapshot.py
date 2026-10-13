@@ -1,6 +1,7 @@
-"""One progress aggregation at a time, with complete backwards-compatible data.
+"""One progress aggregation at a time, with backwards-compatible data.
 
-Only immutable parsed values are cached. File identity detects atomic replace;
+The payload lists the PAYLOAD_BATCHES most recent write batches; completed_total
+counts every batch in progress.json. Only immutable parsed values are cached. File identity detects atomic replace;
 removed queue files are evicted. No history, queue, plan or archive is rewritten.
 """
 import copy
@@ -10,9 +11,26 @@ import threading
 import time
 import app
 
+PAYLOAD_BATCHES = 100
+
 
 class Files:
-    def __init__(self):self.values={}
+    def __init__(self):
+        import problems
+        self.values={};self.problem_counts=problems.CountsCache()
+
+    def close(self):
+        self.problem_counts.close()
+
+    def __enter__(self):return self
+
+    def __exit__(self,*args):self.close()
+
+    def __del__(self):
+        # Direct collect(Files()) callers also release SQLite immediately, rather
+        # than leaving the connection's internal cycles for a later GC pass.
+        try:self.close()
+        except Exception:pass
 
     def read(self,path,default):
         try:stat=path.stat()
@@ -36,6 +54,9 @@ def collect(files):
     import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime
     result=dict(files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]}))
     completed=result.get('completed',[])
+    # The dashboard lists recent batches; older summaries stay on disk, not in every poll.
+    result['completed_total']=len(completed)
+    completed=result['completed']=completed[-PAYLOAD_BATCHES:]
     result['completed_revision']=hashlib.sha256(json.dumps(completed,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     queue_dir=app.DATA/'queue';tickets=files.queue(queue_dir)
     heartbeat=files.read(queue_dir/'heartbeat',{})
@@ -46,8 +67,11 @@ def collect(files):
     result['research']=discovery_state.counts(result['live_root'])
     result['control']=pause_control.status()
     result['cover_research']=cover_tasks.status()
-    result['browser_search']=browser_search.status()
+    result['browser_search']=browser_search.public(browser_search.status())
     result['providers']=providers.statuses()
+    import problems
+    try:result['problems']=files.problem_counts.get(result['live_root'])  # Failure-filter spec 9.1.
+    except Exception:pass  # Absent, never zero: the page then shows no problem lines.
     result['performance']=research_runtime.metrics()
     folder_state=files.read(app.DATA/'folders.json',None)
     if folder_state is not None:
@@ -89,3 +113,4 @@ class Snapshot:
 
     def close(self):
         with self.lock:self.closed=True
+        self.files.close()

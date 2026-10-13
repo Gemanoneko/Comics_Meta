@@ -7,6 +7,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 import app
+import discovery_state
 import storage
 import pause_control
 
@@ -18,6 +19,22 @@ def progress(**updates):
     current.update(updates)
     current['timestamp']=datetime.now(timezone.utc).isoformat()
     storage.save(target,current)
+
+
+RECENT_BATCHES = 200
+
+
+def keep_recent_batches(completed):
+    """progress.json is rewritten on every progress step; keep its batch list short.
+
+    Older batch summaries move, in order and unchanged, to data/progress-history.jsonl.
+    Write history itself is in the catalog and each batch's results.json."""
+    if len(completed)<=RECENT_BATCHES:return completed
+    older,recent=completed[:-RECENT_BATCHES],completed[-RECENT_BATCHES:]
+    app.DATA.mkdir(parents=True,exist_ok=True)
+    with (app.DATA/'progress-history.jsonl').open('a',encoding='utf-8') as archive:
+        for item in older:archive.write(json.dumps(item,ensure_ascii=False)+'\n')
+    return recent
 
 
 def digest(path):
@@ -69,12 +86,96 @@ def prepare(folder, reference):
     print('Actions:',[(Path(e['path']).name,e['action'],len(e.get('changes',{}))) for e in entries])
 
 
+def catalog_row(path,folder):
+    """The planned archive's catalog row, rescanning its folder only when the row is stale.
+
+    write_metadata compares the row with the file on disk, so an up-to-date row
+    needs no scan. A stale or missing row gets the same non-recursive folder scan
+    discovery uses; the planned file is always in that folder."""
+    stat=app.filesystem_path(path).stat()
+    def lookup():
+        with app.db() as con:
+            row=con.execute('SELECT * FROM comics WHERE path=?',(str(path),)).fetchone()
+        return dict(row) if row else None
+    row=lookup()
+    if row is None or [row['size'],row['mtime']]!=[stat.st_size,stat.st_mtime_ns]:
+        app.JOB.update(running=True,visited=0,changed=0,errors=0)
+        app.scan([folder],recursive=False)
+        row=lookup()
+    if row is None:
+        raise ValueError('File was not successfully inventoried.')
+    return row
+
+
+def changed_since_planning(path,entry):
+    """Why the entry's archive is no longer the one planned, or '' (F22).
+
+    The digest is taken when the comic joins the plan; the signature, when present,
+    is the archive's [size, mtime] at the folder scan whose metadata decided the plan."""
+    if not app.filesystem_path(path).is_file():
+        return 'Archive no longer present; nothing written.'
+    if digest(path)!=entry['sha256']:
+        return 'Source changed after planning; nothing written.'
+    signature=entry.get('signature')
+    if signature:
+        stat=app.filesystem_path(path).stat()
+        if [stat.st_size,stat.st_mtime_ns]!=list(signature):
+            return 'Archive changed after the folder scan that planned it; nothing written.'
+    return ''
+
+
+def unchanged(path,sha256):
+    """The archive still holds exactly the planned bytes."""
+    try:
+        return digest(path)==sha256
+    except OSError:
+        return False
+
+
+def discard_failed_backup(path,backup,sha256):
+    """Remove the backup a failed write made, and nothing else (v0.1.3 review F29).
+
+    Call only after unchanged() has confirmed that the archive still holds exactly the
+    planned bytes: the backup is then a second copy of an archive that is still in
+    place. backup is the one path write_metadata reported for this attempt.
+    remove_verified_backup removes it only from the comic's own backup folder and only
+    when its SHA-256 is the planned digest. Returns '' once it is removed, or why it was kept."""
+    try:
+        app.remove_verified_backup(path,backup,sha256)
+    except Exception as exc:
+        return 'Backup kept: '+(str(exc) or type(exc).__name__)
+    return ''
+
+
 def apply(plan_path, remove_verified_backups=False):
+    """Write a reviewed plan, one comic at a time, each with its own checks.
+
+    - A comic whose archive changed since planning (F22) is skipped (skipped.json).
+    - A comic whose write failed with its archive untouched (F23) is recorded
+      (failed.json) and offered again later (discovery_state.write_not_done: the wait
+      grows, then automatic retries stop until the archive changes); the rest are written.
+      The backup that attempt made is removed once the archive is confirmed to hold
+      exactly the planned bytes (F29); no other backup is touched.
+    - An archive that may have been written but did not verify stops the plan; the
+      ticket needs attention, and its backup is kept.
+    Nothing is written to a skipped or failed comic, and a skipped comic's backup is kept."""
     plan_path=Path(plan_path).resolve()
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
     result_path=plan_path.parent/'results.json'
     results=json.loads(result_path.read_text(encoding='utf-8')) if result_path.exists() else []
     finished={r['path']:r for r in results if r.get('metadata_readback_verified')}
+    skipped=[]
+    failed=[]
+    def not_written(path,outcome,reason,**extra):
+        """Record a comic left unwritten; its discovery record waits for its retry."""
+        items,name=(skipped,'skipped.json') if outcome=='write_skipped' else (failed,'failed.json')
+        items.append({'path':str(path),'reason':reason,'at':time.time(),**extra})
+        storage.save(plan_path.parent/name,items)
+        discovery_state.write_not_done(path,outcome,reason)
+        print('Skipped, changed since planning:' if outcome=='write_skipped' else 'Not written, retried later:',path.name,'-',reason)
+    # A reference plan (batch.py prepare) is one Sergei reviewed by hand; the write
+    # ledger counts its values as his (provenance.py: never replaced automatically).
+    writer='manual' if plan.get('reference') else 'automatic'
     progress(phase='Writing and verifying metadata',current_folder=Path(plan['folder']).name,
              total=len(plan['entries']),checked=len(plan['entries']),updated=len(results),
              detail='Each comic is checked after writing; its backup is removed only after verification.')
@@ -90,17 +191,50 @@ def apply(plan_path, remove_verified_backups=False):
             if finished[str(path)].get('output_signature')!=[stat.st_size,stat.st_mtime_ns]:
                 raise ValueError('A completed archive changed before batch resume; inspect it before retrying.')
             continue
-        if digest(path)!=entry['sha256']:
-            raise ValueError('Source changed after planning; regenerate plan.')
-        app.JOB.update(running=True,visited=0,changed=0,errors=0)
-        app.scan([plan['folder']])
-        with app.db() as con:
-            row=con.execute('SELECT * FROM comics WHERE path=?',(str(path),)).fetchone()
-            if row is None:
-                raise ValueError('File was not successfully inventoried.')
-            row=dict(row)
-        backup=app.write_metadata(row,entry['fields'],append_notes=True,
-                                  overwrite_fields=set(entry['changes']))
+        writing=False  # Set once write_metadata may have touched the archive.
+        changed=''
+        attempt={}  # write_metadata reports the backup this attempt made here (F29).
+        try:
+            # A plan can hold several comics, so one comic changed since planning is
+            # skipped rather than blocking the others; its new signature makes the next
+            # folder pass plan it again from what it holds now.
+            changed=changed_since_planning(path,entry)
+            if not changed:
+                row=catalog_row(path,plan['folder'])
+                writing=True
+                # F22: the archive's ComicInfo must still hold each planned field's "before"
+                # value when it is read for this write; an edit made since the scan is kept.
+                # Provenance for writes without a Web URL (e.g. 'in-book:cover') goes into
+                # the write history in the same transaction (F27).
+                backup=app.write_metadata(row,entry['fields'],append_notes=True,overwrite_fields=set(entry['changes']),
+                                          expected={k:c.get('before','') for k,c in entry['changes'].items()},
+                                          history_source=entry.get('source'),attempt=attempt,writer=writer)
+        except pause_control.PauseRequested:
+            raise
+        except app.ArchiveChanged as exc:
+            changed=str(exc)
+        except Exception as exc:
+            if writing and not unchanged(path,entry['sha256']):
+                raise  # The archive may have been replaced: keep the ticket and its backups for inspection.
+            # F23: nothing was written to this archive (duplicate ZIP entries, a leftover
+            # temporary file, a page with a bad CRC, a failed temporary-archive check, a
+            # replace refused because another program has the comic open). The other
+            # comics are still written; this one is offered again later.
+            reason=str(exc)[:1000] or type(exc).__name__
+            extra={}
+            if writing and attempt.get('backup'):
+                # F29: write_metadata ran (so `writing` is set) and unchanged() has just
+                # confirmed the archive holds exactly the planned bytes, so the backup this
+                # attempt made is a redundant copy. Without this, every retry of a damaged
+                # comic left one more full copy of it in the library folder.
+                kept=discard_failed_backup(path,attempt['backup'],entry['sha256'])
+                if kept:reason+=' '+kept
+                extra={'backup':attempt['backup'],'backup_removed_after_verification':not kept}
+            not_written(path,'write_failed',reason,**extra)
+            continue
+        if changed:
+            not_written(path,'write_skipped',changed)
+            continue
         actual,_,_=app.read_metadata(path)
         for key,change in entry['changes'].items():
             if actual.get(key)!=change['after']:
@@ -120,12 +254,13 @@ def apply(plan_path, remove_verified_backups=False):
         print('Updated and verified:',path.name)
         progress(updated=len(results),detail='Verified: '+path.name)
     app.JOB.update(running=True,visited=0,changed=0,errors=0)
-    app.scan([plan['folder']])
+    app.scan([plan['folder']],recursive=False)  # Subfolders are inventoried by their own passes.
     print('Repeat scan:',app.JOB)
     status=json.loads((app.DATA/'progress.json').read_text(encoding='utf-8'))
     completed=[b for b in status.get('completed',[]) if b.get('batch')!=plan_path.parent.name]
     completed.append({'batch':plan_path.parent.name,'folder':Path(plan['folder']).name,'updated':len(results),
                       'review':sum(e['action']=='review' for e in plan['entries'])})
+    completed=keep_recent_batches(completed)
     progress(phase='Folder complete',completed=completed,
              detail='Metadata readback and backup checks passed. Repeat scan completed.')
 

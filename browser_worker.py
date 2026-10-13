@@ -31,6 +31,71 @@ def locked():
     return handle
 
 
+# Dashboard text while a search is held (Judy's string review, 2026-10-12).
+# A human check shows the cooldown text too; solving it clears the check and
+# shortens the one-hour hold to a few minutes (lens_verification.solved_hold).
+HELD_COOLING_DOWN='Google Lens is cooling down. Queued covers keep their place; searching resumes automatically.'
+HELD_DAILY_LIMIT='Daily Google Lens search limit reached. Queued covers keep their place; searching resumes when the limit resets.'
+FALLBACK_FAILED='SerpApi request failed; check account availability.'
+# Explicit search outcomes. A search that never ran is a Held value, not a result.
+SEARCHED='searched'  # Ran; its result, even an empty one, counts.
+FAILED='failed'      # Started and broke; the usual one-day wait applies.
+SEARCHABLE=('searching','pending','retry_wait','leads_unverified')
+
+
+class Held:
+    """A search that never ran: the task keeps its state, queue place and wait."""
+    def __init__(self,reason,dashboard,until):
+        self.reason=reason;self.dashboard=dashboard;self.until=until
+
+
+def next_utc_day(now):
+    """Start of the next UTC day, when the daily search count resets."""
+    return (int(now//86400)+1)*86400
+
+
+def lens_attempt(row,browser,data,options):
+    """One Google Lens search: (SEARCHED, leads), (FAILED, None) or (Held, None)."""
+    state=search.status()
+    retry_at=state.get('browser_retry_at',0)
+    if retry_at>time.time():
+        # Observing an existing cooldown is not another failed request.
+        reason='Google Lens needs human verification.' if state.get('human_verification') else 'Google Lens is cooling down.'
+        return Held(reason,HELD_COOLING_DOWN,retry_at),None
+    try:
+        try:search.reserve('browser',int(options.get('daily_request_limit',100)),datetime.now(timezone.utc).strftime('%Y-%m-%d'))
+        except ValueError:
+            # The daily cap is not a browser failure: no cooldown, no error text.
+            return Held('Daily Google Lens search limit reached.',HELD_DAILY_LIMIT,next_utc_day(time.time())),None
+        leads=browser.search(data)
+    except pause_control.PauseRequested:raise
+    except search.HumanVerification as exc:
+        until=time.time()+3600
+        # The comic whose search hit the check receives the results page
+        # Google loads once the check is solved. Never exposed by the API.
+        search.status(human_verification=True,verification_state='required',verification_url=exc.url,
+                      verification_task={'path':row['path'],'size':row['size'],'mtime':row['mtime']},browser_retry_at=until)
+        return Held('Google Lens asked for human verification.',HELD_COOLING_DOWN,until),None
+    except Exception:
+        # Only a new failure starts the usual wait.
+        search.status(browser_retry_at=time.time()+3600,browser_error='Browser search could not finish; retrying after a cooldown.')
+        return FAILED,None
+    search.status(human_verification=False,verification_url='',verification_task={},browser_retry_at=0,browser_error='')
+    return SEARCHED,leads
+
+
+def fallback_attempt(data,options):
+    """Optional SerpApi search: (SEARCHED, leads), or (reason, None) when it could not run."""
+    try:leads=search.serpapi_search(data,options)
+    except ValueError as exc:
+        search.status(fallback_detail=str(exc));return str(exc),None
+    except Exception:
+        # A local failure (locked database, unreadable key file) is not a search either.
+        search.status(fallback_detail=FALLBACK_FAILED);return FALLBACK_FAILED,None
+    search.status(fallback_detail='')
+    return SEARCHED,leads
+
+
 def process(row,browser,options):
     if pause_control.requested():
         cover_tasks.finish(row,'pending','Paused; search remains queued.');return
@@ -47,35 +112,18 @@ def process(row,browser,options):
     if task and task[0]=='not_needed':return
     search.status(state='searching',current=path.name,detail='Searching the cover; candidate links will be verified before any metadata write.')
     data=search.cover_bytes(path);key,leads=search.cached(data)
-    provider='cache'
+    provider='cache';lens=None;fallback=None
     if leads is None:
-        state=search.status()
         provider='browser'
-        try:
-            if state.get('browser_retry_at',0)>time.time():raise ValueError('Browser search is cooling down.')
-            search.reserve('browser',int(options.get('daily_request_limit',100)),datetime.now(timezone.utc).strftime('%Y-%m-%d'))
-            leads=browser.search(data)
-            search.status(human_verification=False,verification_url='',browser_retry_at=0,browser_error='')
+        try:lens,leads=lens_attempt(row,browser,data,options)
         except pause_control.PauseRequested:
             cover_tasks.finish(row,'pending','Paused; search remains queued.');return
-        except search.HumanVerification as exc:
-            search.status(human_verification=True,verification_state='required',verification_url=exc.url,browser_retry_at=time.time()+3600)
-            leads=None
-        except Exception:
-            # Observing an existing cooldown is not another failed request.
-            # Retain its deadline; only a new failure starts the usual wait.
-            retry_at=state.get('browser_retry_at',0)
-            if retry_at<=time.time():retry_at=time.time()+3600
-            search.status(browser_retry_at=retry_at,browser_error='Browser search could not finish; retrying after a cooldown.')
-            leads=None
         if not leads and options.get('serpapi_fallback'):
             if pause_control.requested():
                 cover_tasks.finish(row,'pending','Paused; search remains queued.');return
             provider='serpapi'
-            try:
-                leads=search.serpapi_search(data,options)
-                search.status(fallback_detail='')
-            except ValueError as exc:search.status(fallback_detail=str(exc))
+            fallback,found=fallback_attempt(data,options)
+            if fallback==SEARCHED:leads=found
         if leads:search.save_cache(key,leads)
     # Archive bytes may have changed while the browser was running.
     stat=path.stat()
@@ -85,11 +133,21 @@ def process(row,browser,options):
         task=con.execute('SELECT state FROM cover_tasks WHERE path=?',(row['path'],)).fetchone()
     if task and task[0]=='not_needed':return
     if leads:
-        cover_tasks.record(row,leads)
+        # The state check and the write share one transaction: a source that
+        # verified identity meanwhile is never overwritten.
+        if not cover_tasks.record(row,leads,states=SEARCHABLE):return
         search.status(state='candidates_saved',provider=provider,detail=str(len(leads))+' candidate links saved for automatic identity verification.')
-    else:
+    elif SEARCHED in (lens,fallback):
         cover_tasks.finish(row,'retry_wait','No usable cover-search candidates; retry after one day.')
         search.status(state='waiting',detail='No usable candidates for this cover. Continuing with other comics.')
+    elif not isinstance(lens,Held):
+        cover_tasks.finish(row,'retry_wait','Cover search could not finish; retry after one day.')
+        search.status(state='waiting',detail='Cover search could not finish. Continuing with other comics.')
+    else:
+        unavailable=' SerpApi fallback unavailable: '+fallback if fallback else ''
+        cover_tasks.release(row,lens.reason+unavailable+' Not searched; kept in its queue place until this clears.')
+        search.status(state='waiting',detail=lens.dashboard)
+        return max(lens.until,time.time())
 
 
 def wait_for_work(seconds):
@@ -101,7 +159,41 @@ def wait_for_work(seconds):
 
 
 def verification_request(browser,options):
-    return lens_verification.service(browser,options)
+    browser=lens_verification.service(browser,options)
+    if browser is not None:
+        try:harvest_verified_page(browser)
+        except Exception:
+            # Never let saving optional leads stop the worker; the comic's
+            # search stays queued and runs again normally.
+            pass
+    return browser
+
+
+def solved_at():
+    return (search.legacy_status().get('solved_checks') or {}).get('at')
+
+
+def after_solve(next_search_at,solved_before):
+    """The next search time once a check was just solved: no later than the shortened hold.
+
+    The worker sleeps out a held search (up to an hour); without this it would keep that
+    sleep after the hold was cut to minutes. Unchanged when nothing was solved."""
+    if solved_at() in (None,solved_before):return next_search_at
+    left=max(0,search.legacy_status().get('browser_retry_at',0)-time.time())
+    return min(next_search_at,time.monotonic()+left)
+
+
+def harvest_verified_page(browser):
+    """Give the post-check results page to the search that hit the check."""
+    leads=getattr(browser,'verified_leads',None)
+    if not isinstance(leads,list) or not leads:return 0
+    browser.verified_leads=[]
+    task=search.legacy_status().get('verification_task') or {}
+    search.status(verification_task={})
+    saved=cover_tasks.record_verified_page(task,leads)
+    if saved:
+        search.status(state='candidates_saved',provider='browser',detail=str(saved)+' candidate links saved for automatic identity verification.')
+    return saved
 
 
 def main(once=False):
@@ -153,7 +245,9 @@ def main(once=False):
                 search.status(state='disabled',detail='Browser cover research is disabled.')
                 if once:return
                 time.sleep(5);continue
+            solved_before=solved_at()
             browser=verification_request(browser,options)
+            next_search_at=after_solve(next_search_at,solved_before)
             if time.monotonic()<next_search_at:
                 wait_for_work(next_search_at-time.monotonic());continue
             row=cover_tasks.claim()
@@ -161,9 +255,10 @@ def main(once=False):
                 search.status(state='waiting',detail='Watching for unresolved covers.')
                 if once:return
                 wait_for_work(5);continue
+            hold=None
             try:
                 if not browser:browser=search.LensBrowser(options)
-                process(row,browser,options)
+                hold=process(row,browser,options)
             except Exception:
                 # Exceptions from browsers can contain URLs or user data; keep UI errors generic.
                 cover_tasks.finish(row,'retry_wait','Cover search failed; a later retry is scheduled.')
@@ -173,7 +268,11 @@ def main(once=False):
                     except Exception:pass
                     browser=None
             if once:return
-            next_search_at=time.monotonic()+max(30,int(options.get('interval_seconds',60)))
+            pacing=max(30,int(options.get('interval_seconds',60)))
+            # A blocked search left its task in place; claiming again before the
+            # hold ends would only re-read the same queue head. Re-check hourly.
+            if hold:pacing=max(pacing,min(hold-time.time(),3600))
+            next_search_at=time.monotonic()+pacing
             wait_for_work(next_search_at-time.monotonic())
     finally:
         stop.set()

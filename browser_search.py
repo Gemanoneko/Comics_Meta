@@ -19,6 +19,14 @@ import storage
 import threading
 
 VERIFICATION_LOCK=threading.Lock()
+# Worker-only state: the challenge URL and the comic whose search hit it.
+# Neither may enter a dashboard/API response.
+PRIVATE_KEYS=('verification_url','verification_task')
+
+
+def public(state):
+    """Copy of cover status that is safe for the local HTTP API."""
+    return {key:value for key,value in dict(state).items() if key not in PRIVATE_KEYS}
 
 
 class HumanVerification(Exception):
@@ -108,6 +116,35 @@ LENS_VISIBLE = '''nodes => nodes.slice(0,20).some(element => {
 })'''
 
 
+RESULT_LINKS="nodes => nodes.filter(a => a.querySelector('img')).map(a => ({url:a.href,title:a.innerText || a.getAttribute('aria-label') || a.querySelector('img')?.alt || ''}))"
+
+
+def result_leads(page):
+    """Linked result cards only, excluding navigation/footer links."""
+    return normalize_links(page.locator('a[href]').evaluate_all(RESULT_LINKS))
+
+
+# A post-solve redirect settles within seconds. Errors that keep coming for
+# longer than this are a broken page, reported with their error class.
+TRANSIENT_ERROR_LIMIT=30
+TRANSIENT_ERROR_SECONDS=60
+
+
+def transient_page_error(page,exc):
+    """A page read interrupted by navigation, not a failed verification.
+
+    After a solved check Google redirects to the original results; reads made
+    while that document is replaced can time out or lose their context.
+    A closed window is never transient.
+    """
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+    except ImportError:return False
+    if not isinstance(exc,PlaywrightError):return False
+    try:return not page.is_closed()
+    except Exception:return False
+
+
 def verification_complete(page):
     """Only a usable Google search page proves the human challenge ended."""
     p=urllib.parse.urlparse(page.url)
@@ -150,6 +187,7 @@ def save_cache(key,leads):
 class LensBrowser:
     def __init__(self,options):
         self.runtime=None;self.context=None;self.options=options;self.leased=False
+        self.verified_leads=[]
 
     def open(self,visible=False,admitted=lambda:None):
         from playwright.sync_api import sync_playwright
@@ -186,9 +224,7 @@ class LensBrowser:
             if pause_control.requested():raise pause_control.PauseRequested()
             self.page.wait_for_timeout(1000);self.check()
             if '/search' not in self.page.url:continue
-            # Capture only linked result cards, excluding navigation/footer links.
-            items=self.page.locator('a[href]').evaluate_all("nodes => nodes.filter(a => a.querySelector('img')).map(a => ({url:a.href,title:a.innerText || a.getAttribute('aria-label') || a.querySelector('img')?.alt || ''}))")
-            leads=normalize_links(items)
+            leads=result_leads(self.page)
             if leads:return leads
         return []
 
@@ -202,13 +238,50 @@ class LensBrowser:
         admitted();observation('load')
         self.page.goto(url,wait_until='domcontentloaded',timeout=45_000)
         admitted();observation('observe')
+        self.verified_leads=[]
         deadline=time.monotonic()+600
+        errors=0;first_error=None
         while time.monotonic()<deadline:
             admitted();self.page.wait_for_timeout(500);admitted()
-            if verification_complete(self.page):
+            try:done=verification_complete(self.page)
+            except Exception as exc:
+                # The post-solve redirect can interrupt a probe; keep observing.
+                if not transient_page_error(self.page,exc):raise
+                errors+=1
+                if first_error is None:first_error=time.monotonic()
+                if errors>=TRANSIENT_ERROR_LIMIT or time.monotonic()-first_error>=TRANSIENT_ERROR_SECONDS:raise
+                continue
+            errors=0;first_error=None
+            if done:
                 # Keep the browser the user just verified, including its session.
+                self.verified_leads=self.verified_page_leads(admitted)
                 return True
         return False
+
+    def verified_page_leads(self,admitted,seconds=20):
+        """Read the results page Google loads after a solved check.
+
+        These are the original Lens results for the search that hit the check.
+        A failure here never turns a completed verification into a failed one.
+        """
+        deadline=time.monotonic()+seconds
+        while True:
+            admitted()
+            try:
+                if urllib.parse.urlparse(self.page.url).path.rstrip('/')!='/search':return []
+                leads=result_leads(self.page)
+                if leads or time.monotonic()>=deadline:return leads
+                self.page.wait_for_timeout(1000)
+            except Exception as exc:
+                import pause_control
+                if isinstance(exc,pause_control.PauseRequested):raise
+                if not transient_page_error(self.page,exc) or time.monotonic()>=deadline:return []
+                time.sleep(.5)  # Let the redirect settle instead of re-reading at once.
+
+    def alive(self):
+        """The browser window is still open; the user may have closed it."""
+        try:return self.context is not None and getattr(self,'page',None) is not None and not self.page.is_closed()
+        except Exception:return False
 
     def minimize(self):
         """Keep the verified browser session intact while hiding its window."""

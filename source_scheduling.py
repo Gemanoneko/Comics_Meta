@@ -10,9 +10,16 @@ KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library 
 FREE_SOURCES={'General free web','Wikipedia/wiki'}
 
 
-def useful(result,old):
+def useful(result,old,replaceable=None):
+    """The result adds something: an empty field, a synopsis source, or (Sergei 2026-10-13) a
+    verified value that disagrees with one the in-book tiers wrote (provenance.in_book_values)."""
     if not result:return False
-    if any(value and not old.get(key) for key,value in result.get('fields',{}).items()):return True
+    import imprints
+    fields=imprints.split(result.get('fields',{}))  # As it would be written: an imprint in Imprint.
+    if any(value and not old.get(key) for key,value in fields.items()):return True
+    if replaceable:
+        import provenance
+        if any(key in replaceable and provenance.disagrees(key,replaceable[key],value) for key,value in fields.items()):return True
     return not old.get('Summary') and any(len(s.get('text','').split())>=20 for s in result.get('sources',[]))
 
 
@@ -42,7 +49,9 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
     if previous.get('retry_at',0)<=now:return True
-    attempts=previous.get('source_schedule',{})
+    import pipeline_config
+    # A source switched off in config.json never makes a comic due again.
+    attempts={name:a for name,a in previous.get('source_schedule',{}).items() if pipeline_config.source_enabled(name)}
     if any(available_free_alternative(name,attempt,statuses,now) for name,attempt in attempts.items()):return True
     if any(a.get('result')=='error' and a.get('next_at',0)<=now and
            (name not in FREE_SOURCES or not blocked(attempt_status(name,a,statuses),now))
@@ -53,7 +62,7 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
            not blocked(attempt_status(name,a,statuses),now) for name,a in attempts.items()):return True
     return any(attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready')
                and not blocked(attempt_status(name,attempt,statuses),now)
-               for name,attempt in previous.get('source_schedule',{}).items())
+               for name,attempt in attempts.items())
 
 
 def ready(name,attempt,statuses,now):
@@ -64,14 +73,14 @@ def ready(name,attempt,statuses,now):
     return attempt.get('next_at',0)<=now
 
 
-def record(previous,result,error,old,now):
+def record(previous,result,error,old,now,replaceable=None):
     if isinstance(error,ProviderDeferred):
         value={'result':'unavailable','failures':0,'next_at':error.retry_at if error.retry_at>now else now+3600}
         if getattr(error,'engine',None) in ('ddg','bing','yandex'):value['engine']=error.engine
         return value
     failures=previous.get('failures',0)+1
     if error:return {'result':'error','failures':failures,'next_at':now+min(3600*2**min(failures-1,3),6*3600)}
-    if useful(result,old):return {'result':'verified','failures':0,'next_at':now+86400}
+    if useful(result,old,replaceable):return {'result':'verified','failures':0,'next_at':now+86400}
     return {'result':'verified_no_new_data' if result else 'no_verified_match','failures':failures,
             'next_at':now+min(86400*2**min(failures-1,3),7*86400)}
 

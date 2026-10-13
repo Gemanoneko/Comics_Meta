@@ -33,6 +33,8 @@ class LibraryTests(unittest.TestCase):
         intended = scratch_parent()
         assert self.temp_path.resolve().parent == intended.resolve()
         shutil.rmtree(self.temp_path)
+        from test_worker import prune_scratch
+        prune_scratch(intended)
 
     def make(self, name='Example 001 (2024).cbz', xml=None):
         path = self.root / name
