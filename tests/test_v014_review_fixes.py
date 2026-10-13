@@ -78,6 +78,24 @@ class ReviewFixTests(unittest.TestCase):
                     self.assertEqual(scan.call_count,2)
             finally:cache.close()
 
+    def test_progress_files_close_and_reconfiguration_release_catalog(self):
+        import progress_snapshot
+        with scratch_directory() as directory:
+            root=Path(directory);first=root/'first';second=root/'second';first.mkdir();second.mkdir()
+            with patch.object(app,'DATA',first),progress_snapshot.Files() as files:
+                files.problem_counts.get('')
+                with patch.object(app,'DATA',second):files.problem_counts.get('')
+                # Reconfiguration closes the old connection, so Windows permits removal.
+                (first/'catalog.sqlite').unlink()
+            (second/'catalog.sqlite').unlink()  # Public Files.close closes its active connection.
+
+    def test_discarded_direct_collector_releases_owned_connection(self):
+        import progress_snapshot
+        with scratch_directory() as directory,patch.object(app,'DATA',Path(directory)):
+            files=progress_snapshot.Files();files.problem_counts.get('')
+            del files
+            (Path(directory)/'catalog.sqlite').unlink()
+
     def test_credits_reject_timeout_and_overlong_text(self):
         with patch.object(local_model,'credits_pages',return_value=(['image'],['page'])):
             self.assertIsNone(local_model.read_credits('fixture',ask=lambda *a,**k:{'indicia':'x'*4001,'credits':''}))

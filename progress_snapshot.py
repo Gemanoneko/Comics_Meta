@@ -19,6 +19,19 @@ class Files:
         import problems
         self.values={};self.problem_counts=problems.CountsCache()
 
+    def close(self):
+        self.problem_counts.close()
+
+    def __enter__(self):return self
+
+    def __exit__(self,*args):self.close()
+
+    def __del__(self):
+        # Direct collect(Files()) callers also release SQLite immediately, rather
+        # than leaving the connection's internal cycles for a later GC pass.
+        try:self.close()
+        except Exception:pass
+
     def read(self,path,default):
         try:stat=path.stat()
         except FileNotFoundError:
@@ -100,4 +113,4 @@ class Snapshot:
 
     def close(self):
         with self.lock:self.closed=True
-        self.files.problem_counts.close()
+        self.files.close()

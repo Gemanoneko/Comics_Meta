@@ -44,7 +44,8 @@ class ApiRedactionTests(unittest.TestCase):
         self.assert_private_absent(result)
 
     def test_progress_endpoint_omits_challenge_url(self):
-        result=progress_snapshot.collect(progress_snapshot.Files())
+        with progress_snapshot.Files() as files:
+            result=progress_snapshot.collect(files)
         self.assertTrue(result['browser_search']['human_verification'])
         self.assert_private_absent(result)
 

@@ -256,7 +256,7 @@ class PilotPublisherTests(unittest.TestCase):
             for name, cover, printed, verified, provider in (
                     ('Spawn 001 (1992).cbz', 'Image Comics', 'Published by Image Comics', 'Image', 'Metron'),
                     ('Hellboy 001 (1994).cbz', 'Dark Horse Comics', 'Dark Horse Comics, Inc.', 'Dark Horse', 'GCD'),
-                    ('Sandman 001 (1989).cbz', 'DC Comics', 'Published by DC Comics', 'Vertigo', 'Metron'),     # wrong
+                    ('Sandman 001 (1989).cbz', 'DC Comics', 'Published by DC Comics', 'Vertigo', 'Metron'),     # same house
                     ('Saga 001 (2012).cbz', 'Image Comics', 'Published by Dark Horse Comics', 'Image', 'Metron')):  # differ
                 comic = root / 'library' / name
                 with zipfile.ZipFile(comic, 'w') as archive:
@@ -275,15 +275,15 @@ class PilotPublisherTests(unittest.TestCase):
             self.assertEqual({p: p.read_bytes() for p in before}, before)  # Archives and evidence untouched.
             agreement = report['publisher_agreement']
             self.assertEqual((agreement['comics'], agreement['both_same'], agreement['both_different']), (4, 3, 1))
-            self.assertEqual(agreement['would_write'], {'agree': 2, 'disagree': 1, 'not_in_source': 0})
-            self.assertEqual(agreement['cover_alone'], {'agree': 3, 'disagree': 1, 'not_in_source': 0})
+            self.assertEqual(agreement['would_write'], {'agree': 3, 'disagree': 0, 'not_in_source': 0})
+            self.assertEqual(agreement['cover_alone'], {'agree': 4, 'disagree': 0, 'not_in_source': 0})
             self.assertEqual(report['publisher_gate']['checked_writes'], 3)
-            self.assertFalse(report['publisher_gate']['passed'])  # One wrong publisher: the gate fails.
+            self.assertTrue(report['publisher_gate']['passed'])  # Vertigo agrees with its parent DC.
             self.assertEqual(report['sources'], {'GCD': 1, 'Metron': 3})
             self.assertEqual(report['seconds_per_comic']['credits_reading']['n'], 4)
             self.assertEqual(report['seconds_per_comic']['cover_reading']['n'], 4)
             sandman = next(c for c in report['comics'] if 'Sandman' in c['path'])
-            self.assertEqual(sandman['publisher']['verdict'], 'disagree')
+            self.assertEqual(sandman['publisher']['verdict'], 'agree')
             _, passing = pilot_credits.run(root / 'out', data, reader=lambda path: readings[path],
                                            cover_reader=lambda path: covers[path], min_writes=3, max_disagreements=1)
             self.assertTrue(passing['publisher_gate']['passed'])

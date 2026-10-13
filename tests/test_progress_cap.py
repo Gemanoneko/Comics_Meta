@@ -29,7 +29,8 @@ class ProgressPayloadTests(unittest.TestCase):
         with patch('discovery_state.counts', return_value={}), patch('cover_tasks.status', return_value={}), \
                 patch('browser_search.status', return_value={}), patch('providers.statuses', return_value={}), \
                 patch('research_runtime.metrics', return_value={}), patch('pause_control.status', return_value={}):
-            payload = progress_snapshot.collect(progress_snapshot.Files())
+            with progress_snapshot.Files() as files:
+                payload = progress_snapshot.collect(files)
         self.assertEqual(payload['completed'], rows[-100:])  # Before: all 6000 on every poll.
         self.assertEqual(payload['completed_total'], 6000)
 

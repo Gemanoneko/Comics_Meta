@@ -334,7 +334,8 @@ class DashboardReadTests(World):
     def test_counts_one_reason_per_current_live_comic(self):
         counts = problems.counts(str(self.root))
         self.assertEqual(counts, {'write_stopped': 2, 'dead_link': 1, 'conflict': 1, 'write_failed': 1, 'held': 1, 'limit': 5})
-        snapshot = progress_snapshot.collect(progress_snapshot.Files())
+        with progress_snapshot.Files() as files:
+            snapshot = progress_snapshot.collect(files)
         self.assertEqual(snapshot['problems'], counts)
 
     def test_each_filter_lists_its_comics_with_their_problem(self):

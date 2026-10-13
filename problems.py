@@ -144,6 +144,10 @@ class CountsCache:
             if self.connection is not None:self.connection.close()
             self.connection=None;self.key=None;self.closed=True
 
+    def __del__(self):
+        try:self.close()
+        except Exception:pass
+
 
 def paths_with(con, root, code, search=''):
     return [path for path, record, signature in candidates(con, root, search)
