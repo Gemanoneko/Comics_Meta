@@ -23,13 +23,43 @@ def table(con):
     con.execute('CREATE TABLE IF NOT EXISTS processing_control(id INTEGER PRIMARY KEY,paused INTEGER,generation INTEGER,model_unloaded INTEGER,unload_attempt REAL,error TEXT)')
     con.execute("INSERT OR IGNORE INTO processing_control VALUES(1,0,0,0,0,'')")
     con.execute('CREATE TABLE IF NOT EXISTS processing_ack(worker TEXT PRIMARY KEY,generation INTEGER,timestamp REAL)')
+    con.execute('CREATE TABLE IF NOT EXISTS processing_shell_pause(id INTEGER PRIMARY KEY,until REAL NOT NULL)')
+
+
+def _effective(con):
+    """A short renewed shell lease pauses workers without changing the user's choice.
+
+    Monotonic time is shared across Windows processes. Expired/crashed shells
+    cannot leave the next launch durably paused."""
+    row = con.execute('SELECT until FROM processing_shell_pause WHERE id=1').fetchone()
+    user = bool(con.execute('SELECT paused FROM processing_control WHERE id=1').fetchone()[0])
+    if row and row[0] <= time.monotonic():
+        con.execute('DELETE FROM processing_shell_pause WHERE id=1')
+        if not user:
+            con.execute("UPDATE processing_control SET generation=generation+1,model_unloaded=0,unload_attempt=0,error='' WHERE id=1")
+        row = None
+    return user or bool(row)
+
+
+def shell_pause(paused):
+    """The authenticated owning shell renews its temporary pause every three seconds."""
+    with app.db() as con:
+        table(con)
+        before = _effective(con)
+        if paused:
+            con.execute('INSERT OR REPLACE INTO processing_shell_pause VALUES(1,?)', (time.monotonic()+15,))
+        else:
+            con.execute('DELETE FROM processing_shell_pause WHERE id=1')
+        if before != _effective(con):
+            con.execute("UPDATE processing_control SET generation=generation+1,model_unloaded=0,unload_attempt=0,error='' WHERE id=1")
+    return status()
 
 
 def requested():
     """Pause is saved, or this process has been asked to quit."""
     with app.db() as con:
         table(con)
-        return bool(con.execute('SELECT paused FROM processing_control WHERE id=1').fetchone()[0]) or _stopping(con)
+        return _effective(con) or _stopping(con)
 
 
 def _stop_generation(con):
@@ -116,13 +146,14 @@ def change(paused):
 def status():
     with app.db() as con:
         table(con)
+        effective = _effective(con)
         row=dict(con.execute('SELECT * FROM processing_control WHERE id=1').fetchone())
         ack={r['worker'] for r in con.execute('SELECT worker FROM processing_ack WHERE generation=?',(row['generation'],))}
         stopping=_stopping(con)
     phase='running'
-    if row['paused']:phase='paused' if {'metadata','browser'}<=ack else 'pausing'
-    return {'requested':bool(row['paused']),'phase':phase,'gpu_released':bool(row['model_unloaded']),
-            'waiting_for':sorted({'metadata','browser'}-ack) if row['paused'] else [],'error':row['error'],
+    if effective:phase='paused' if {'metadata','browser'}<=ack else 'pausing'
+    return {'requested':effective,'user_requested':bool(row['paused']),'phase':phase,'gpu_released':bool(row['model_unloaded']),
+            'waiting_for':sorted({'metadata','browser'}-ack) if effective else [],'error':row['error'],
             'stopping':stopping}
 
 
@@ -141,8 +172,9 @@ def checkpoint(worker):
     now=time.time()
     with app.db() as con:
         table(con)
+        effective = _effective(con)
         row=dict(con.execute('SELECT * FROM processing_control WHERE id=1').fetchone())
-        if not row['paused']:
+        if not effective:
             con.execute('DELETE FROM processing_ack WHERE worker=?',(worker,))
             return False
         con.execute('INSERT OR REPLACE INTO processing_ack VALUES(?,?,?)',(worker,row['generation'],now))
@@ -154,7 +186,8 @@ def checkpoint(worker):
         except Exception:
             success=0;error='Workers paused, but Gemma GPU release could not be confirmed. Retrying.'
         with app.db() as con:
-            con.execute('UPDATE processing_control SET model_unloaded=?,error=? WHERE id=1 AND generation=? AND paused=1',(success,error,row['generation']))
+            if _effective(con):
+                con.execute('UPDATE processing_control SET model_unloaded=?,error=? WHERE id=1 AND generation=?',(success,error,row['generation']))
     return True
 
 

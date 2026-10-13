@@ -12,6 +12,7 @@ module), so it runs before anything imports app:
 
 COMICS_META_TEST_SCRATCH moves the throwaway folders out of the checkout.
 """
+import json
 import atexit
 import os
 import shutil
@@ -50,6 +51,10 @@ _local = os.environ.get('LOCALAPPDATA')
 PROTECTED = [CODE / 'data', CODE / 'batches', CODE / 'config.json', CODE / '.env']
 if _local:
     PROTECTED.append(Path(_local) / 'ComicsMeta')  # Real lock folder and packaged state root.
+for value in json.loads(os.environ.get('COMICS_META_TEST_PROTECTED_ROOTS', '[]')):
+    if not isinstance(value, str) or not Path(value).is_absolute():
+        raise RuntimeError('Additional live-state guard roots must be absolute paths')
+    PROTECTED.append(Path(value))
 _PROTECTED = [_normal(path) for path in PROTECTED]
 VIOLATIONS = []
 _expected = []

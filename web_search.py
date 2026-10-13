@@ -35,14 +35,8 @@ def config():
     return app.load_config().get('web_search',{})
 
 def key():
-    value=os.environ.get('BRAVE_SEARCH_API_KEY','')
-    if value:return value.strip()
-    for path in app.env_files():
-        if path.exists():
-            for line in path.read_text(encoding='utf-8-sig').splitlines():
-                if line.strip().startswith('BRAVE_SEARCH_API_KEY='):
-                    return line.strip().split('=',1)[1].strip().strip('\"\'')
-    return ''
+    import credential_store
+    return credential_store.setting('BRAVE_SEARCH_API_KEY')
 
 def validate_url(url):
     parsed=urllib.parse.urlparse(url)

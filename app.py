@@ -1,4 +1,5 @@
 """Local comic metadata pilot. Python standard library only."""
+import secrets
 import argparse
 import hashlib
 import json
@@ -60,33 +61,9 @@ def scope_filter(root):
 
 
 def api_key():
-    value = os.environ.get('COMICVINE_API_KEY', '').strip()
-    if value:
-        return value
-    for path in env_files():
-        if not path.is_file():
-            continue
-        raw = path.read_text(encoding='utf-8-sig').strip()
-        for line in raw.splitlines():
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if line.startswith('export '):
-                line = line[7:].strip()
-            if '=' in line:
-                name, candidate = line.split('=', 1)
-                if name.strip() != 'COMICVINE_API_KEY':
-                    continue
-                candidate = candidate.strip()
-                if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in {'"', "'"}:
-                    candidate = candidate[1:-1]
-                else:
-                    candidate = candidate.split(' #', 1)[0].strip()
-                if candidate:
-                    return candidate
-            elif re.fullmatch(r'[a-fA-F0-9]{40}', line):
-                return line
-    return ''
+    from credential_store import setting
+    return setting('COMICVINE_API_KEY')
+
 
 
 class Connection(sqlite3.Connection):
@@ -637,8 +614,20 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path in ('/reverse-image.js','/lens-control.js'):
+            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
+            if url.path == '/api/shell/status':
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                import pause_control, browser_search, lens_verification
+                verification = lens_verification.status()
+                cover = browser_search.public(browser_search.legacy_status())
+                return self.respond({'owned': True, 'version': self.server.loaded_version,
+                                     'control': pause_control.status(),
+                                     'verification': bool(verification.get('human_verification') or cover.get('human_verification')),
+                                     'job_running': bool(JOB.get('running')),
+                                     'setup': self.server.setup_status()})
             if url.path == '/api/state':
                 with db() as con:
                     root = live_root()
@@ -737,6 +726,24 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
             import pause_control
+            if self.path == '/api/shell/setup':
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                import setup_state
+                try:
+                    with self.server._setup_mutex:
+                        if self.server._quitting:raise setup_state.SetupError('save_failed')
+                        result = setup_state.save(body.get('folder'), body.get('keys', {}))
+                        self.server.activate_setup()
+                    return self.respond(result)
+                except setup_state.SetupError as exc:
+                    return self.respond({'error': exc.code, 'field': getattr(exc, 'field', None)}, 400)
+            if self.path in ('/api/shell/pause', '/api/shell/cancel-pause'):
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                return self.respond(pause_control.shell_pause(self.path == '/api/shell/pause'))
             if self.path in ('/api/pause','/api/resume'):
                 return self.respond(pause_control.change(self.path=='/api/pause'))
             if self.path == '/api/quit':
@@ -759,6 +766,8 @@ class Handler(BaseHTTPRequestHandler):
                 import problems
                 changed, problem = problems.try_again(int(body['comic']))
                 return self.respond({'ok': True, 'changed': changed, 'problem': problem})
+            if getattr(self.server, 'setup_required', False):
+                return self.respond({'error': 'Finish setup before starting processing.'}, 403)
             if pause_control.requested():
                 raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':
@@ -846,6 +855,11 @@ class LocalServer(ThreadingHTTPServer):
             value=(BASE/'VERSION').read_text(encoding='utf-8').strip()
             self.loaded_version=value if re.fullmatch(r'v?\d+\.\d+\.\d+',value) else ''
         except (OSError,UnicodeError):self.loaded_version=''
+        self.setup_required=False
+        self._setup_mutex=threading.Lock()
+        if os.environ.get('COMICS_META_SHELL_TOKEN'):
+            import setup_state
+            self.setup_required = not setup_state.status()['configured']
         self.supervisor_stop=None
         self.worker_leases={}
         self._quit_mutex=threading.Lock()
@@ -855,6 +869,18 @@ class LocalServer(ThreadingHTTPServer):
         yandex_verification.server_started()
         lens_verification.server_started()
         self.progress_snapshot=progress_snapshot.Snapshot()
+
+    def setup_status(self):
+        if not os.environ.get('COMICS_META_SHELL_TOKEN'):return {'configured': True}
+        import setup_state
+        return setup_state.status()
+
+    def activate_setup(self):
+        if not self.setup_required:return
+        import library_lock, supervisor
+        library_lock.claim_configured('dashboard')
+        self.supervisor_stop=supervisor.start(BASE)
+        self.setup_required=False
 
     def server_close(self):
         if hasattr(self,'progress_snapshot'):self.progress_snapshot.close()
@@ -898,13 +924,14 @@ def main(argv=None):
         pass
     import library_lock, pause_control, supervisor
     pause_control.begin_run()
+    if os.environ.get('COMICS_META_SHELL_TOKEN'):pause_control.shell_pause(False)
     try:
         library_lock.claim_configured('dashboard')
     except library_lock.LibraryBusy as exc:
         print(str(exc), file=sys.stderr, flush=True)
         return library_lock.EXIT_LIBRARY_BUSY
     server = LocalServer(('127.0.0.1', options.port), Handler)
-    supervisor_stop = server.supervisor_stop = supervisor.start(BASE)
+    supervisor_stop = server.supervisor_stop = threading.Event() if server.setup_required else supervisor.start(BASE)
     address = f'http://127.0.0.1:{options.port}'
     print(f'Comic metadata pilot: {address}\nKeep this window open. Ctrl+C stops the app.')
     if not options.no_browser:

@@ -91,6 +91,15 @@ class StateFilesTests(unittest.TestCase):
         self.assertEqual(app.live_root(), 'X:\\Comics')
         self.assertEqual(web_search.config(), {'provider': 'free'})
 
+    def test_pipeline_switches_read_selected_state_and_refresh_changes(self):
+        import pipeline_config
+        (self.code / 'config.json').write_text(json.dumps({'sources': {'disabled': ['Code only']}}), encoding='utf-8')
+        config = self.state / 'config.json'
+        config.write_text(json.dumps({'sources': {'disabled': ['State only']}}), encoding='utf-8')
+        self.assertEqual(pipeline_config.disabled_sources(), {'State only'})
+        config.write_text(json.dumps({'sources': {'disabled': []}}), encoding='utf-8')
+        self.assertEqual(pipeline_config.disabled_sources(), set())
+
     def test_env_file_setting_relative_to_state_root_or_absolute(self):
         (self.state / '.env').unlink(missing_ok=True)
         (self.state / 'config.json').write_text(json.dumps({'env_file': 'secrets/keys.env'}), encoding='utf-8')

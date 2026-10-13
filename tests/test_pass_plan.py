@@ -28,7 +28,7 @@ def make_comic(path, page=b'page'):
 class PassPlanDiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
-        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root),
+        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root), (app, 'STATE_ROOT', self.root),
                                     (research, 'CACHE', self.root / 'research'), (worker, 'QUEUE', self.root / 'queue')):
             self.enterContext(patch.object(target, name, value))
         self.folder = self.root / 'Example'
@@ -92,6 +92,8 @@ class MultiComicApplyTests(unittest.TestCase):
         self.root = Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
         self.enterContext(patch.object(app, 'BASE', self.root))
+
+        self.enterContext(patch.object(app, 'STATE_ROOT', self.root))
         (self.root / 'data').mkdir()
         self.enterContext(patch.object(batch.pause_control, 'requested', return_value=False))
         self.folder = self.root / 'Example'

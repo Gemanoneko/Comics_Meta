@@ -1,5 +1,4 @@
 """Reversible pipeline switches from config.json. Switching something off keeps its code."""
-import json
 import app
 
 # Sources with no verified write in the 2026-10-12 throughput review. They are off
@@ -7,22 +6,10 @@ import app
 # 'Saved lead re-checks' covers re-fetching a saved lead already rejected for this
 # archive and identity; new leads are always checked.
 DEFAULT_DISABLED_SOURCES = ('General free web', 'Wikipedia/wiki', 'Saved lead re-checks', 'GetComics', 'PREVIEWSworld')
-_cache = {}
 
 
 def load():
-    loader = getattr(app, 'load_config', None)  # Present once config moves to the state root.
-    if loader:
-        return loader()
-    path = app.BASE / 'config.json'
-    try:
-        stat = path.stat()
-    except FileNotFoundError:
-        return {}
-    key = (str(path), stat.st_mtime_ns, stat.st_size)
-    if _cache.get('key') != key:
-        _cache.update(key=key, value=json.loads(path.read_text(encoding='utf-8')))
-    return _cache['value']
+    return app.load_config()
 
 
 def section(name):

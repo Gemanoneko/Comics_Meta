@@ -80,7 +80,7 @@ class CreditsJudgeTests(unittest.TestCase):
 class CreditsDiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
-        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root),
+        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root), (app, 'STATE_ROOT', self.root),
                                     (research, 'CACHE', self.root / 'research'), (worker, 'QUEUE', self.root / 'queue')):
             self.enterContext(patch.object(target, name, value))
         self.folder = self.root / 'Spawn'

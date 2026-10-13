@@ -19,15 +19,8 @@ HOSTS={'gcd':'www.comics.org','google_books':'www.googleapis.com'}
 BUDGETS={'gcd':1000,'google_books':500}
 
 def setting(name):
-    if os.environ.get(name):return os.environ[name].strip()
-    for path in app.env_files():
-        if path.is_file():
-            for line in path.read_text(encoding='utf-8-sig').splitlines():
-                key,sep,value=line.strip().removeprefix('export ').partition('=')
-                if sep and key.strip()==name:
-                    value=value.strip()
-                    return value[1:-1] if len(value)>1 and value[0]==value[-1] and value[0] in ('\"',"'") else value
-    return ''
+    import credential_store
+    return credential_store.setting(name)
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):raise ValueError('Source redirect refused.')

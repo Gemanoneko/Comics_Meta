@@ -47,7 +47,7 @@ class SuiteIsolationTests(unittest.TestCase):
             data,cache=self.setup_only(case)
             self.assert_isolated(data)
         self.assert_isolated(cache)
-        self.assertEqual(Path(app.DATA).resolve(),Path(app.BASE).resolve()/'data')  # Patches are undone.
+        self.assertEqual(Path(app.DATA).resolve(),Path(app.STATE_ROOT).resolve()/'data')  # Patches restore the suite's isolated state root.
 
     def test_coverage_priority_fixtures_are_removed(self):
         import test_coverage_priority

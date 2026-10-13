@@ -367,7 +367,7 @@ class MissingKeyTests(unittest.TestCase):
 
     def test_api_key_and_status_follow_the_env_file(self):
         import providers
-        with scratch_directory() as directory, patch.object(app, 'BASE', Path(directory) / 'app'), \
+        with scratch_directory() as directory, patch.object(app, 'STATE_ROOT', Path(directory) / 'app'), \
                 patch.object(app, 'DATA', Path(directory) / 'app' / 'data'), patch.dict(os.environ, {'COMICVINE_API_KEY': ''}):
             (Path(directory) / 'app').mkdir()
             self.assertEqual(app.api_key(), '')

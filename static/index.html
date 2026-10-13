@@ -211,4 +211,4 @@ state=singleFlight(state);progress=singleFlight(progress);
 const loadOnce=singleFlight(load);
 load=async()=>{const wanted=inventoryURL();await loadOnce();if(wanted!==inventoryURL())await loadOnce()};
 state();load();progress();verification();setInterval(()=>{state();progress();verification()},2000);
-</script><script src="/reverse-image.js"></script></html>
+</script><script src="/reverse-image.js"></script><script src="/shell-ui.js"></script></html>

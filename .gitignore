@@ -22,3 +22,8 @@ TRIAL_RESULTS.md
 external-source-evidence.json
 threshold-13-evidence.json
 LIVE_SOURCE_VALIDATION.json
+
+# Isolated desktop packaging outputs
+node_modules/
+build/
+dist/

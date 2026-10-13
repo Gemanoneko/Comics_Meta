@@ -1,0 +1,23 @@
+{
+  "name": "comic-metadata",
+  "productName": "Comic Metadata",
+  "version": "0.1.4",
+  "description": "Personal comic metadata organizer",
+  "main": "desktop/main.cjs",
+  "private": true,
+  "scripts": {
+    "check:python": "node scripts/check-python.mjs",
+    "check:shell": "node --test desktop/tests/*.test.cjs",
+    "check": "npm run check:python && npm run check:shell",
+    "prepare:runtime": "node scripts/packaging/prepare-runtime.mjs",
+    "pack": "node scripts/build-installer.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "electron": "43.7.9",
+    "electron-builder": "26.15.3",
+    "7zip-bin": "5.2.0"
+  }
+}

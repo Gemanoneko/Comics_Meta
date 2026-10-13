@@ -16,15 +16,8 @@ STATE = app.DATA / 'metron-status.json'
 LOCK = threading.Lock()
 
 def token():
-    if os.environ.get('METRON_API_TOKEN'):
-        return os.environ['METRON_API_TOKEN'].strip()
-    for path in app.env_files():
-        if path.is_file():
-            for line in path.read_text(encoding='utf-8-sig').splitlines():
-                name, separator, value = line.strip().removeprefix('export ').partition('=')
-                if separator and name.strip() == 'METRON_API_TOKEN':
-                    return value.strip().strip('\"\'')
-    return ''
+    import credential_store
+    return credential_store.setting('METRON_API_TOKEN')
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):

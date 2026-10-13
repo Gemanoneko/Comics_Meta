@@ -80,6 +80,7 @@ class ConflictSummaryDiscoveryTests(unittest.TestCase):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',self.root/'data'))
         self.enterContext(patch.object(app,'BASE',self.root))
+        self.enterContext(patch.object(app,'STATE_ROOT',self.root))
         self.enterContext(patch.object(app,'live_root',return_value=str(self.root)))
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
         self.folder=self.root/'Example';self.folder.mkdir()

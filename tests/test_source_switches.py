@@ -73,6 +73,8 @@ class SourceSwitchTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app, 'BASE', self.root))
+
+        self.enterContext(patch.object(app, 'STATE_ROOT', self.root))
         self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
         self.enterContext(patch.object(research, 'CACHE', self.root / 'evidence'))
         self.now = time.time()
@@ -167,6 +169,8 @@ class SavedLeadRecheckTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app, 'BASE', self.root))
+
+        self.enterContext(patch.object(app, 'STATE_ROOT', self.root))
         self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
         self.enterContext(patch.object(research, 'CACHE', self.root / 'evidence'))
         self.row = {'path': str(self.root / 'Example 001 (2024).cbz'), 'series': 'Example', 'number': '1', 'year': '2024', 'size': 10, 'mtime': 1}

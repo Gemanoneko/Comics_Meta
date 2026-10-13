@@ -40,15 +40,8 @@ def settings():
 
 
 def api_key():
-    value=os.environ.get('SERPAPI_API_KEY','').strip()
-    if value:return value
-    for path in app.env_files():
-        if not path.is_file():continue
-        for line in path.read_text(encoding='utf-8-sig').splitlines():
-            name,sep,value=line.partition('=')
-            if sep and name.strip().upper()=='SERPAPI_API_KEY':return value.strip().strip('\"\'')
-    return ''
-
+    import credential_store
+    return credential_store.setting('SERPAPI_API_KEY')
 
 def legacy_status(**changes):
     path=app.DATA/'browser-search.json'

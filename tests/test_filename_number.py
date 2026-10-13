@@ -150,7 +150,7 @@ class FilenameNumberTests(unittest.TestCase):
 
     def test_switch_and_identity_rules(self):
         hint = {'title': 'SPAWN', 'issue': ''}
-        with scratch_directory() as directory, patch.object(app, 'BASE', Path(directory)):
+        with scratch_directory() as directory, patch.object(app, 'STATE_ROOT', Path(directory)):
             self.assertTrue(pipeline_config.in_book_filename_number())  # On when not configured.
             (Path(directory) / 'config.json').write_text(json.dumps({'in_book': {'filename_number': False}}))
             self.assertFalse(pipeline_config.in_book_filename_number())
@@ -169,7 +169,7 @@ class FilenameNumberPipelineTests(unittest.TestCase):
 
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
-        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root),
+        for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root), (app, 'STATE_ROOT', self.root),
                                     (research, 'CACHE', self.root / 'research'), (worker, 'QUEUE', self.root / 'queue')):
             self.enterContext(patch.object(target, name, value))
         self.enterContext(patch.object(worker.pause_control, 'requested', return_value=False))

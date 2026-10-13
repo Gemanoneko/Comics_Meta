@@ -1,0 +1,20 @@
+'use strict';
+const el=id=>document.getElementById(id);let initialized=false;
+el('cancel').onclick=()=>window.comicDesktop.action('cancelStop');el('force').onclick=()=>window.comicDesktop.action('forceQuit');
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el('cancel').disabled)window.comicDesktop.action('cancelStop');});
+window.comicDesktop.onState(state=>{const s=state.stopping;if(!s)return;const install=s.mode==='install',gpu=s.stage==='gpu',closing=s.stage==='closing';
+el('title').textContent=install?'Installing v'+state.update.version:'Quitting Comic Metadata';
+let text='Pausing — finishing the current operation. Progress is saved.';
+if(gpu)text=s.gpuElapsed>=30000?'Still releasing Gemma from GPU.':'Paused. Releasing Gemma from GPU…';
+if(!gpu&&s.elapsed>=60000)text='Still pausing. A comic write or search is taking longer than usual.';
+if(closing)text=(s.control.error?'GPU release not confirmed.':'Gemma released from GPU.')+(install?' The app restarts to install.':' Closing…');
+if(el('status').textContent!==text)el('status').textContent=text;
+const waiting=(s.control.waiting_for||[]).map(name=>name==='metadata'?'comic processing':'browser search');
+let detail=s.elapsed>=5000&&waiting.length?'Waiting for: '+waiting.join(' · '):'';
+if(!install&&s.elapsed>=60000&&!gpu)detail+=' Quit now exits without waiting. An interrupted write keeps its recovery backup.';
+if(!install&&gpu&&s.gpuElapsed>=30000)detail+=' Quit now exits without waiting. Gemma may stay on GPU.';
+if(el('detail').textContent!==detail)el('detail').textContent=detail;
+el('cancel').textContent=install?'Cancel install':'Cancel quit';el('cancel').title=install?'Stop the install. Processing resumes unless you had paused it.':'Stop quitting. Processing resumes unless you had paused it.';
+el('force').hidden=install;el('force').title=gpu?'Exit without waiting. Gemma may stay on GPU.':'Exit without waiting. An interrupted write keeps its recovery backup.';
+el('cancel').disabled=closing;el('force').disabled=closing;if(!initialized){initialized=true;el('cancel').focus();}
+});

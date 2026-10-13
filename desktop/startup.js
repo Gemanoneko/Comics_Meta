@@ -1,0 +1,6 @@
+'use strict';
+const started=Date.now();const status=document.getElementById('status'),detail=document.getElementById('detail'),actions=document.getElementById('actions');
+const messages={PORT_BUSY:'Another app is using the local service port. Close the other copy, then try again.',RUNTIME_MISSING:'Some app files are missing. Reinstall Comic Metadata.',LIBRARY_BUSY:'Another Comics Meta copy is using this library. Close that copy, then try again.',START_TIMEOUT:'The local service did not start. Try again or open the log folder.',RESTART_EXHAUSTED:'The local service keeps stopping. Open the log folder for details.'};
+for(const [id,name] of [['retry','retryService'],['logs','openLogs'],['quit','quit']])document.getElementById(id).onclick=()=>window.comicDesktop.action(name);
+window.comicDesktop.onState(state=>{const failed=state.service==='failed';actions.hidden=!failed;status.textContent=failed?'Could not start the local service.':'Starting local service…';detail.textContent=failed?(messages[state.failure]||'Try again or open the log folder for details.'):Date.now()-started>=10000?'This can take a few seconds on first launch.':'';});
+setTimeout(()=>{if(actions.hidden)detail.textContent='This can take a few seconds on first launch.';},10000);

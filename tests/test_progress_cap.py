@@ -16,6 +16,8 @@ class ProgressPayloadTests(unittest.TestCase):
         self.root = Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
         self.enterContext(patch.object(app, 'BASE', self.root))
+
+        self.enterContext(patch.object(app, 'STATE_ROOT', self.root))
         (self.root / 'data').mkdir()
 
     def batches(self, count):
@@ -58,6 +60,8 @@ class InventoryIntervalTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app, 'BASE', self.root))
+
+        self.enterContext(patch.object(app, 'STATE_ROOT', self.root))
         self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
         self.enterContext(patch.object(scheduler, 'STATE', self.root / 'folders.json'))
         self.library = self.root / 'library'

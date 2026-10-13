@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "platform": "win32-x64",
+  "python": {
+    "version": "3.14.8",
+    "filename": "python-3.14.8-embed-amd64.zip",
+    "url": "https://www.python.org/ftp/python/3.14.8/python-3.14.8-embed-amd64.zip",
+    "sha256": "a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310",
+    "source": "https://www.python.org/downloads/release/python-3148/"
+  },
+  "sevenZip": {
+    "version": "26.04",
+    "filename": "7z2604-x64.exe",
+    "url": "https://github.com/ip7z/7zip/releases/download/26.04/7z2604-x64.exe",
+    "sha256": "d54bf805f9f3704d1e8db2fa3498ae7ef2df0312b40b558e7c71c734430a665d",
+    "source": "https://api.github.com/repos/ip7z/7zip/releases/tags/26.04"
+  },
+  "wheels": [
+    {
+      "name": "Pillow",
+      "version": "12.2.0",
+      "filename": "pillow-12.2.0-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/cd/8b/601e6566b957ca50e28725cb6c355c59c2c8609751efbecd980db44e0349/pillow-12.2.0-cp314-cp314-win_amd64.whl",
+      "sha256": "4e6c62e9d237e9b65fac06857d511e90d8461a32adcc1b9065ea0c0fa3a28150"
+    },
+    {
+      "name": "playwright",
+      "version": "1.63.0",
+      "filename": "playwright-1.63.0-py3-none-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/76/eb/d6b8d92658038e260dbc7dd69fb3fdbe245aac283953de8b50b02bfe5f61/playwright-1.63.0-py3-none-win_amd64.whl",
+      "sha256": "2f9a707a6c6c91157ed77bff2b8caeb04b3c8d46e70d585fc134298cbe4b5cc6"
+    },
+    {
+      "name": "greenlet",
+      "version": "3.5.6",
+      "filename": "greenlet-3.5.6-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/c9/9e/019642432e6ae283301df1361227d47610709d2dc69a38f95edef266d713/greenlet-3.5.6-cp314-cp314-win_amd64.whl",
+      "sha256": "f8f0bd690e1a41294ac87905e8121c81a3761ec2583c768f13467428606c8c7a"
+    },
+    {
+      "name": "pyee",
+      "version": "13.0.1",
+      "filename": "pyee-13.0.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/a0/c4/b4d4827c93ef43c01f599ef31453ccc1c132b353284fc6c87d535c233129/pyee-13.0.1-py3-none-any.whl",
+      "sha256": "af2f8fede4171ef667dfded53f96e2ed0d6e6bd7ee3bb46437f77e3b57689228"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    }
+  ]
+}
