@@ -1,5 +1,27 @@
 # Changelog
 
+## [v0.1.3] - 2026-10-13
+
+### Added
+
+- Comics are identified from their own covers: Series and Number when the cover reading agrees with the filename, and whole books by Series. This applies to empty fields only, with provenance recorded. The publisher-from-cover switch is off by default.
+- Multi-comic write plans per pass, with a per-comic edit guard and failure isolation.
+- Metron name variants and variant covers.
+- Yield ordering of lookups.
+- A credits-page reader is built but off.
+
+### Changed
+
+- Folder selection is much faster.
+- Yandex is removed; zero-yield sources are switched off by default (reversible in config).
+- Held comics back off without repeating work.
+- A failed write removes only its own backup, and write retries are capped (1/2/4/7 days, stop after 5 until the file changes).
+- The progress payload is capped; the library walk runs every 6 h.
+
+### Validation
+
+- Futaba GO and Senua RELEASE CLEAR on d3e9723. This entry records the release only; it does not claim the running service has been restarted or updated.
+
 ## [v0.1.2] - 2026-10-13
 
 ### Fixed
