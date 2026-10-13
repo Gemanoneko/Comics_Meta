@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| Version | 0.1.3 (`VERSION`; tag `v0.1.3`, 2026-10-13) |
+| Version | 0.1.4 candidate (VERSION; release tag and deployment pending, 2026-10-13) |
 | Repo | https://github.com/Gemanoneko/Comics_Meta.git, branch `main` |
 | Phase | Daily Use (confirmed by Sergei 2026-10-12) |
 | Stack | Python 3.11+ on Windows; local web dashboard (stdlib `ThreadingHTTPServer`) on http://127.0.0.1:8765; Pillow; Playwright driving installed Microsoft Edge; local catalog and state in `data/` (gitignored). Optional: Ollama `gemma3:4b`, 7-Zip (CBR/CB7 conversion), SerpApi key |

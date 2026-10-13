@@ -1,5 +1,35 @@
 # Changelog
 
+## [v0.1.4] - 2026-10-13
+
+### Added
+
+- Publisher writes require agreement between cover and credits readings; Imprint uses an explicit parent map with date-aware WildStorm and Archaia ownership.
+- Filename issue numbers may fill unread cover numbers when the cover title agrees.
+- A per-field write ledger permits verified external values to replace the tool's own in-book values while preserving human edits, letter case and punctuation-only Series differences.
+- Failure filters show counts, reasons, Details and a one-attempt Try again action, with a missing-key message.
+
+### Changed
+
+- Google Lens resumes five minutes after a solved check and backs off 10/20/40/60 minutes after repeated challenges.
+- Failure counts use a revision-aware cache; credits readings have length and time limits.
+- Narrow action buttons stack; Details has clear error spacing; retry copy reports cumulative attempts without a misleading limit.
+
+### Fixed
+
+- Series spelling preserves meaningful trailing punctuation and requires corroborated accent changes.
+- Fractional filename numbers retain their leading zero; a one-time idempotent catalog refresh repairs affected rows.
+- Publisher aliases retain canonical names, and imprint writes respect existing publisher and date evidence.
+- The credits pilot compares imprint parents; the worker accepts library_root without a root key.
+
+### Removed
+
+- Public pilot JSONL files containing library paths from the current branch; earlier public history remains unchanged.
+
+### Validation
+
+- Candidate version prepared for fresh QA and code review. Release tagging and live deployment remain pending; this entry does not claim current GO, RELEASE CLEAR or a service restart.
+
 ## [v0.1.3] - 2026-10-13
 
 ### Added
