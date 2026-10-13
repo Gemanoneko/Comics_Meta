@@ -1,3 +1,24 @@
+# Code Review — Comics Meta Organizer v0.1.4: current Round 2
+
+## Current header
+
+```
+Reviewer: Senua (Code Reviewer)
+Date: 2026-10-13
+Tool: Comics Meta Organizer
+Release: v0.1.4
+Commit range: eb64759cba3d4563650b6b157a69fac90c8353c8..319202243fe7296f985c318a7b08cb5a0f05d140
+Files changed: 33 files, +1842 / -470
+Complete release coverage: 1c34df251749aed9703f9689fe119a995a4f77fe..319202243fe7296f985c318a7b08cb5a0f05d140
+Complete release diff: 46 files, +5387 / -207
+Worktree: WIP/Comics Meta Organizer-v014; feat/v0.1.4-in-book-rules
+Candidate VERSION: 0.1.4; clean at both independent handoffs
+Stand-down dimensions: none; Electron-specific checks are inapplicable to this Python/local web tool
+```
+
+Round 1 below certifies the preceding range `1c34df2..eb64759`; Round 2 certifies the accumulated changes since that review. The current verdict is the single machine-readable line in the final section. Historical conclusions about unresolved decisions and deployment are superseded. Live deployment still requires Sergei’s separate approval. Evidence-only reporting commits may follow this candidate; any further executable source, test, version, or verification-harness change needs a fresh check.
+
+## Historical Round 1 — preserved evidence
 # Code Review — Comics Meta Organizer v0.1.4
 
 ## Header
@@ -308,7 +329,7 @@ One process pattern is new: generated pilot data reached a public repository (F3
 - Closed this range: F20, F21
 - Safety-floor violations in `1c34df2..eb64759`: 0
 
-**Verdict:** RELEASE CLEAR
+**Historical Round 1 verdict (superseded):** RELEASE CLEAR
 
 This clearance covers `1c34df2..eb64759` plus Sully's version/changelog-only bump commit. Any other code or test change needs a fresh look.
 
@@ -364,3 +385,83 @@ Futaba's behaviour verdict is separate.
 - **Not verified:**
   - the covers of the two "MONTH NN" cases (answer 3);
   - the cause of the 7 px scroll.
+
+---
+
+## Current Round 2 summary
+
+Reviewed all changed executable/source/test paths against the previous reviewed end, including Series normalization, fractional filename parsing and one-time catalog repair, date-aware imprints, publisher aliases, final-field imprint compatibility on both automatic and manual paths, case/punctuation preservation, count-cache lifetime, credits resource limits, pilot comparison, worker library-root lookup, and the failure-filter dashboard changes. F32–F38 are closed. The new F39 unknown-imprint boundary was found, fixed, and checked before the final candidate. No new open Critical, Major, or Minor finding remains; prior out-of-range Minors remain advisory.
+
+## Current nine-dimension rubric
+
+Severity and the safety floor follow `Team/Docs/ProcessRules.md` § Severity definitions.
+
+### 1. Security
+
+- Status: Pass. No new unquoted shell interpolation, external command, credential logging, XSS, unsafe delete, or request-guard regression in the release source. Credits HTTP uses one held loopback socket; timeout closes that owned socket only. Verification shell commands use fixed reviewed arguments and owned Jobs; this is separate task-local tooling, not a generic deployment grant.
+
+### 2. Correctness & Logic
+
+- Status: Concerns only for unchanged prior Minors outside this round. The requested fixes and four Sergei decisions hold. The F39 source-house fallback also covers an unmapped explicit brand without overwriting human fields.
+
+### 3. Crash / Stability Safety
+
+- Status: Pass. Failed/malformed/oversize/expired credits replies are unusable readings. The watchdog expiry event also refuses a response after an early timer wake. Public `Files.close()`/context ownership, reconfiguration close, and discard fallback release the SQLite count-cache connection.
+
+### 4. Performance
+
+- Status: Pass. Same-root counts reuse a retained connection’s `data_version` cache until a commit changes its identity. Filtered list queries still scan on demand. Credits requests enforce 1024 generated tokens, 32000 response bytes, 4000 characters per text field, and a total 30-second owned socket deadline including headers/body.
+
+### 5. State & Data Safety
+
+- Status: Pass. Fraction migration changes catalog filename-number rows only when they still equal the old parse, in a one-time transaction; embedded metadata/archives stay untouched. Human Publisher/Imprint/Year are retained. Existing archive signature/ComicInfo checks, backup verification, and write ledger remain in place. No live catalog or archive was changed during this review.
+
+### 6. Input Handling
+
+- Status: Pass. Unknown/invalid dates do not establish a date-sensitive parent. Case-only and punctuation-only Series differences preserve the existing string; different words/accents remain eligible. Malformed model envelopes and incompatible/unsupported new imprints fail closed.
+
+### 7. Maintainability
+
+- Status: Pass. The shared `external_plan()` guard serves automatic plans and manual preview/apply; public cache cleanup has one ownership route. New tests include positive controls and a real provider-to-plan boundary, not only the predicate.
+
+### 8. Doc/Code Drift
+
+- Status: Concerns: previously carried F28 remains outside the fixes, including historical README/Brief wording noted in Round 1. Current decision docs describe case/punctuation/date-aware behavior accurately. Historical QA/review content below is explicitly superseded; final execution audit records actual current hashes and limits.
+
+### 9. Build & Release Hygiene
+
+- Status: Pass. VERSION/CHANGELOG were prepared before final QA. Both pilot JSONL files are absent from the candidate tree in the authorized new commit; earlier public history remains by Sergei’s decision. No installer/build/package step is declared. Two independent reviewed manual handoffs bind full source/harness/runtime/dependency manifests and report actual unittest success.
+
+## Current finding dispositions
+
+| Finding | Disposition | Evidence |
+|---|---|---|
+| F32 | Closed | `in_book.py:380`: terminal title dots/ellipses retained, punctuation-sensitive apostrophe corroboration, accents require both readings; negative Mr_T and positive contractions tested |
+| F33 | Closed | `imprints.py:46`, `automatic.py:207`, `app.py:792`: WildStorm 1999/Archaia 2013 boundaries, missing-date uncertainty, retained effective Year on automatic and manual ends |
+| F34 | Closed | `provenance.py:111`: case/punctuation-only preservation; different wording and accents positive controls |
+| F35 | Closed in code | `app.py:122`, `:148`: fractional leading zero retained, exact-old-parse transactional catalog refresh; no live refresh executed before deployment approval |
+| F36 | Closed for current tree | Both public pilot JSONL files removed by new commit; prior public history deliberately remains |
+| F37 | Closed | `problems.py:108`, `progress_snapshot.py:17`: cached counts, commit invalidation, explicit/fallback connection lifetime; Windows removal regressions pass |
+| F38 | Closed | `local_model.py:23`, `:58`: generation/byte/text caps, total owned-socket watchdog, explicit expiry flag, malformed-response rejection |
+| F39 | Found and closed this round | `automatic.py:233`: unknown explicit Imprint requires matching verified source house when Publisher remains; absent house suppresses it; human fields and matching/no-Publisher cases preserved |
+
+## Current validation and limits
+
+- Independently inspected both sender and receiver retained before/after identity JSON: byte-identical within each run and across the two agents. Independently derived receipt strings match exactly. Full candidate: `319202243fe7296f985c318a7b08cb5a0f05d140`, VERSION `0.1.4`, dirty `false`.
+- Sender: 682 tests, 67.999 seconds, OK, 47 DOM skips. Receiver: 682 tests, 67.643 seconds, OK, 47 DOM skips. Each complete identity-before → suite → identity-after graph used one startup-inclusive 600000ms owned Job deadline; these are actual runs, not copied mock receipts.
+- Source digest: `1cae84149648282b9edfcd091524a269b3ba9a160c8deeb2bec8f0f101a57092`. Harness/runtime/dependency digests, exact versions, seven containment probes, and scoped execution limitations are in `ComicsMetaOrganizer_TestExecutionAudit_2026-10-13.md`.
+- Earlier failed graphs are not clearance: setup/runtime failures and one lease stop happened before a usable receipt; a 678-test candidate exposed cache lifetime and stale pilot expectations, both repaired before the final two runs. Intermediate 8e19 receipts remain historical evidence only.
+- Futaba’s separate custom QA completed 67 tests without skips, including all 47 DOM checks, real-buffering deadlines, F39 planner cases and 30 narrow renders. Its final repeated-manual-retry fixture remains a separately audited final check; its own report must establish GO. This construction verdict does not substitute for that GO.
+- No live server, library archive, live database, account, fresh Ollama read, native browser UI zoom, or deployment was exercised here. Native UI zoom must not be confused with headless CSS zoom or equivalent viewport/device-scale checks.
+
+## Current verdict
+
+- Total Critical: 0
+- Total Major: 0
+- Total Minor: 12 carried, 0 new open (F11–F15, F19, F25–F28, F30, F31)
+- Closed this round: F32–F39
+- Safety-floor violations: 0
+
+**Verdict:** RELEASE CLEAR
+
+Clearance certifies the exact ranges above. Futaba GO and Sully’s release work are separate; the running v0.1.3 app and live deployment remain under Sergei’s approval gate.

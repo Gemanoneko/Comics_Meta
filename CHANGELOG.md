@@ -28,7 +28,7 @@
 
 ### Validation
 
-- Candidate version prepared for fresh QA and code review. Release tagging and live deployment remain pending; this entry does not claim current GO, RELEASE CLEAR or a service restart.
+- Futaba GO and Senua RELEASE CLEAR on 319202243fe7296f985c318a7b08cb5a0f05d140. Independent sender and receiver each passed 682 tests; the 47 DOM checks skipped there passed in the separate 67-check QA run, with repeated manual retries also checked. The release commit changes documentation only. Live deployment remains pending approval; the running service is still v0.1.3.
 
 ## [v0.1.3] - 2026-10-13
 
