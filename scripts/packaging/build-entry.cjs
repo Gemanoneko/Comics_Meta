@@ -16,7 +16,10 @@ async function main(){
   if(!['qa','production'].includes(c.profile))throw new Error('Unknown build profile');
   const parts=version.split('.').map(Number);
   if(c.profile==='production'&&(parts[0]===0&&parts[1]<2))throw new Error('First production installer requires Sully minor version bump');
-  for(const name of ['electronDist','builderCache','nsisRoot','nsisPlugins','rcedit'])if(!c[name]||!path.isAbsolute(c[name]))throw new Error('Missing authenticated offline native tool '+name);
+  for(const name of ['electronDist','builderCache','nsisRoot','nsisPlugins','rcedit','sevenZip'])if(!c[name]||!path.isAbsolute(c[name]))throw new Error('Missing authenticated offline native tool '+name);
+  const sevenZipBytes=await fs.readFile(c.sevenZip);
+  if(hash(sevenZipBytes)!==c.sevenZipSha256)throw new Error('Held offline 7za identity changed');
+  process.env.ELECTRON_BUILDER_7ZIP_PATH=c.sevenZip;
   process.env.ELECTRON_BUILDER_CACHE=c.builderCache;
   process.env.ELECTRON_BUILDER_NSIS_DIR=c.nsisRoot;
   process.env.ELECTRON_BUILDER_NSIS_RESOURCES_DIR=c.nsisPlugins;

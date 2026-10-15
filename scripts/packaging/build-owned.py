@@ -103,6 +103,9 @@ with HeldPaths() as held, ExitStack() as lifetime:
         if not p.is_relative_to(native_root):raise RuntimeError('Native path outside held closure')
     for p in (Path(c['electronDist'])/'electron.exe',Path(c['nsisRoot'])/'Bin/makensis.exe',Path(c['rcedit'])/'rcedit-x64.exe'):
         if not p.is_file():raise RuntimeError('Required offline native executable absent')
+    seven_zip=held.hold(c['sevenZip'])
+    if seven_zip!=modules/'7zip-bin/win/x64/7za.exe' or digest(seven_zip.read_bytes())!=c['sevenZipSha256']:
+        raise RuntimeError('Exact held offline 7za executable differs')
     npm_runtime=manifest(c['npmRuntimeManifest'],c['npmRuntimeManifestSha256'])
     npm_root=Path(c['nodeExecutable']).parent/'node_modules/npm'
     if npm_runtime['schema']!=1 or npm_runtime['root']!=str(npm_root) or npm_runtime['version']!='11.20.0':
@@ -194,6 +197,7 @@ with HeldPaths() as held, ExitStack() as lifetime:
         'NPM_CONFIG_CACHE':str(npm_cache),'NPM_CONFIG_PREFIX':str(jobroot/'npm-prefix'),
         'NPM_CONFIG_OFFLINE':'true','NPM_CONFIG_IGNORE_SCRIPTS':'true','NPM_CONFIG_AUDIT':'false',
         'NPM_CONFIG_FUND':'false','NPM_CONFIG_UPDATE_NOTIFIER':'false'})
+    env['ELECTRON_BUILDER_7ZIP_PATH']=str(seven_zip)
     node=held.hold(c['nodeExecutable'])
     if digest(node.read_bytes())!=c['nodeSha256']:raise RuntimeError('Node identity differs')
     # The broker services finite owned-file requests from the existing lease
