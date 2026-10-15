@@ -21,9 +21,17 @@ def digest(raw):return hashlib.sha256(raw).hexdigest()
 def safe_rel(value):
     if not isinstance(value,str) or not value or any(p in ('','..','.') for p in value.split('/')) or '\\' in value or ':' in value:raise RuntimeError('Unsafe contract member')
     return value
-def inventory(root):
+def inventory(root,excluded_top=()):
     files=[];dirs=[]
     for current,names,leaves in os.walk(root,followlinks=False):
+        # Clone-input scope excludes these declared mutable outputs BEFORE any
+        # descendant entry or byte is read. Final inventories pass no exclusions.
+        if Path(current)==root and excluded_top:
+            if tuple(excluded_top)!=('build','dist'):raise RuntimeError('Unsupported clone output scope')
+            for name in excluded_top:
+                p=root/name
+                if p.lstat().st_file_attributes&0x400 or not p.is_dir():raise RuntimeError('Declared clone output is not a real directory')
+            names[:]=[name for name in names if name not in excluded_top]
         for name in names:
             p=Path(current)/name
             if p.lstat().st_file_attributes&0x400 or not p.is_dir():raise RuntimeError('Reparse/non-directory tree member')
@@ -186,9 +194,7 @@ with HeldPaths() as held, ExitStack() as lifetime:
         if directory.is_dir() and directory.name not in ('build','dist'):
             held.seal_tree(directory)
     def cloned_inputs():
-        value=inventory(snapshot)
-        def selected(name):return name.split('/')[0] not in ('build','dist')
-        return {'files':[item for item in value['files'] if selected(item['path'])],'directories':[name for name in value['directories'] if selected(name)]}
+        return inventory(snapshot,excluded_top=('build','dist'))
     clone_identity=cloned_inputs()
     env={'SystemRoot':r'C:\Windows','WINDIR':r'C:\Windows','ComSpec':r'C:\Windows\System32\cmd.exe','PATH':r'C:\Program Files\nodejs;C:\Windows\System32','HOME':str(jobroot),'USERPROFILE':str(jobroot),'LOCALAPPDATA':str(jobroot),'APPDATA':str(jobroot),'TEMP':str(jobroot),'TMP':str(jobroot),'COMICS_META_HELD_BUILD':'1','COMICS_META_BUILD_CONTRACT':str(contract_path),'COMICS_META_BUILD_CONTRACT_SHA256':sys.argv[2],'COMICS_META_STAGED_MANIFEST_SHA256':digest(staged_path.read_bytes())}
     # Upstream dependency collection invokes only npm prefix/list. Its entire
