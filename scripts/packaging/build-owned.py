@@ -102,6 +102,10 @@ with HeldPaths() as held:
     licenses=held.mkdir(stage/'licenses',True)
     copy_file(runtime/'runtime/python/LICENSE.txt',licenses/'Python-LICENSE.txt')
     copy_file(source/'scripts/packaging/runtime-lock.json',licenses/'runtime-lock.json')
+    # No temporary output anchor may become authenticated runtime content.
+    # Overlap real-child holds before retiring each owned anchor; an empty
+    # stage directory fails explicitly instead of being filtered from inventory.
+    held.retire_anchors(stage)
     python_prefix='runtime/python/'
     python_identity=inventory(stage/'runtime/python')
     authenticated_python={'files':sorted([{'path':item['path'][len(python_prefix):],'sha256':item['sha256']} for item in runtime_manifest['files'] if item['path'].startswith(python_prefix)],key=lambda x:x['path']),'directories':sorted([name[len(python_prefix):] for name in runtime_manifest['directories'] if name.startswith(python_prefix)])}
@@ -116,6 +120,17 @@ with HeldPaths() as held:
     with staged_path.open('xb') as output:output.write((json.dumps(staged,sort_keys=True,indent=2)+'\n').encode())
     held.hold(staged_path)
     held.mkdir(snapshot/'dist',True)
+    # Source/dependency clones are immutable producer inputs. Dist alone stays
+    # mutable/anchored until the producer closes; build/stage is already sealed.
+    for directory in sorted(snapshot.iterdir()):
+        if directory.is_dir() and directory.name not in ('build','dist'):
+            held.retire_anchors(directory)
+    held.retire_anchors(snapshot/'build')
+    held.retire_anchors(snapshot,recursive=False)
+    held.seal_tree(stage)
+    for directory in sorted(snapshot.iterdir()):
+        if directory.is_dir() and directory.name not in ('build','dist'):
+            held.seal_tree(directory)
     def cloned_inputs():
         value=inventory(snapshot)
         def selected(name):return name.split('/')[0] not in ('build','dist')
@@ -126,6 +141,7 @@ with HeldPaths() as held:
     if digest(node.read_bytes())!=c['nodeSha256']:raise RuntimeError('Node identity differs')
     result=owned_job(node,[str(snapshot/'scripts/packaging/build-entry.cjs')],snapshot,jobroot/'build-logs',STARTED+540,None,environment_override=env)
     if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:raise RuntimeError('Build failed or native closure unknown')
+    held.retire_anchors(snapshot/'dist')
     if inventory(stage)!=stage_identity or inventory(runtime)!={'files':runtime_manifest['files'],'directories':runtime_manifest['directories']} or inventory(modules)['files']!=sorted(module_files,key=lambda x:x['path']) or inventory(native_root)!=native_manifest or selected_source_names()!=sorted(x['path'] for x in sourcefiles):raise RuntimeError('Held input path/byte closure changed across build')
     if cloned_inputs()!=clone_identity:raise RuntimeError('Cloned desktop/scripts/dependencies input path/type/bytes changed')
     for item in sourcefiles:

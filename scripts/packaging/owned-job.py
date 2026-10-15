@@ -109,6 +109,8 @@ class LockedFiles:
         self.handles = []
         self.directories = set()
         self.identities = {}
+        self.directory_handles = {}
+        self.compatible = set()
 
     def open(self, filename, expected=None, directory=False):
         filename = str(filename)
@@ -133,7 +135,10 @@ class LockedFiles:
         return raw
 
     def _open(self, filename, directory):
-        if directory and os.path.normcase(filename) in self.directories:return None
+        if directory and os.path.normcase(filename) in self.directories:
+            handle=self.directory_handles[os.path.normcase(filename)]
+            self._validate(filename,handle,True,self.identities[os.path.normcase(filename)])
+            return handle
         if os.stat(filename, follow_symlinks=False).st_file_attributes & 0x400:
             raise ValueError('Reparse path refused: ' + filename)
         # Metadata-only ancestor opens do not establish deny-delete sharing.
@@ -142,12 +147,21 @@ class LockedFiles:
         if handle == INVALID:
             raise OSError(C.get_last_error(), 'Open share-read-only: ' + filename)
         self.handles.append(handle)
+        identity=self._validate(filename,handle,directory)
+        key=os.path.normcase(filename)
+        self.identities[key]=identity
+        if directory:
+            self.directories.add(key);self.directory_handles[key]=handle
+        self.protect_child(filename,handle,directory)
+        return handle
+
+    def _validate(self,filename,handle,directory,expected=None):
         info = FileInfo()
         require(file_info(handle, C.byref(info)), 'Held path attributes')
         if info.attributes & 0x400 or bool(info.attributes & 0x10) != directory:
             raise ValueError('Unsafe held path type: ' + filename)
-        self.identities[os.path.normcase(filename)] = (info.volume, info.index_high, info.index_low)
-        if directory:self.directories.add(os.path.normcase(filename))
+        identity=(info.volume,info.index_high,info.index_low)
+        if expected is not None and identity!=expected:raise ValueError('Held object identity differs: '+filename)
         buffer = C.create_unicode_buffer(32768)
         n = final_path(handle, buffer, len(buffer), 0)
         require(0 < n < len(buffer), 'Final handle identity')
@@ -157,14 +171,39 @@ class LockedFiles:
             actual = buffer.value[4:]
         if os.path.normcase(actual.rstrip('\\')) != os.path.normcase(filename.rstrip('\\')):
             raise ValueError('Canonical handle path differs: ' + filename)
-        return handle
+        return identity
+
+    def protect_child(self,filename,handle,directory=False):
+        """An actual retained child permits parent-side create/rename operations.
+
+        Every directory instance performs its own overlap transition. A second
+        logger guard must not reintroduce a strict ancestor hold while a child
+        producer runs. Registered child handles outlive the compatible parent.
+        """
+        filename=str(filename);parent=Path(filename).parent;key=os.path.normcase(str(parent))
+        if str(parent)==filename or key not in self.directories:return
+        self._validate(filename,handle,directory)
+        old=self.directory_handles[key]
+        self._validate(str(parent),old,True,self.identities[key])
+        if key in self.compatible:return
+        new=create_file(str(parent),0x80000000,3,None,3,0x02200000,None)
+        if new==INVALID:raise OSError(C.get_last_error(),'Open compatible logger ancestor')
+        try:
+            self._validate(str(parent),new,True,self.identities[key])
+            require(close(old),'Close strict logger ancestor')
+        except BaseException:
+            close(new);raise
+        self.handles[self.handles.index(old)]=new
+        self.directory_handles[key]=new;self.compatible.add(key)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *unused):
-        for handle in reversed(self.handles):
+        directories=[self.directory_handles[key] for key in sorted(self.directories,key=lambda key:len(Path(key).parts))]
+        for handle in directories+[handle for handle in self.handles if handle not in directories]:
             close(handle)
+        self.handles.clear();self.directories.clear();self.directory_handles.clear();self.compatible.clear()
 
 def active(job):
     accounting = Accounting()
@@ -200,6 +239,7 @@ def owned_job(executable, arguments, cwd, logs, deadline, lease, *, _assignment_
             log=create_file(str(logs/name),0xC0000000,1,None,1,0x00200000,None)
             if log==INVALID:raise OSError(C.get_last_error(),'Bounded evidence output')
             log_handles.append(log)
+            locks.protect_child(logs/name,log)
             identity=handle_identity(log)
             if path_identity(logs/name)!=identity:raise RuntimeError('New log path identity differs')
             log_identities.append(identity)
@@ -294,11 +334,11 @@ def owned_job(executable, arguments, cwd, logs, deadline, lease, *, _assignment_
             if handle:close(handle)
         for thread in threads:thread.join(max(0,deadline-time.monotonic()))
         if any(thread.is_alive() for thread in threads):known=False
+        locks.__exit__()
         for handle in read_handles+log_handles+evidence_handles:close(handle)
         close(job)
         if process.thread:close(process.thread)
         if process.process:close(process.process)
         if attributes is not None:delete_attributes(attributes)
-        locks.__exit__()
         if not known:raise RuntimeError('Owned tree/drain closure unproved')
 
