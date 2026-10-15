@@ -95,7 +95,6 @@ def arguments(request):
 
 class Windows:
     READ = 0x80000000
-    ATTRIBUTES = 0x80
     SHARE_READ = 1
     OPEN_EXISTING = 3
     BACKUP_SEMANTICS = 0x02000000
@@ -114,6 +113,7 @@ class Windows:
         from ctypes import wintypes as wt
         self.wt = wt
         self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.identities = {}
         class FILE_INFO(ctypes.Structure):
             _fields_ = [('attributes', wt.DWORD), ('created', wt.FILETIME), ('accessed', wt.FILETIME),
                         ('written', wt.FILETIME), ('volume', wt.DWORD), ('size_high', wt.DWORD),
@@ -130,6 +130,7 @@ class Windows:
         signatures = {
             'CreateFileW': ([wt.LPCWSTR, wt.DWORD, wt.DWORD, wt.LPVOID, wt.DWORD, wt.DWORD, wt.HANDLE], wt.HANDLE),
             'GetFileInformationByHandle': ([wt.HANDLE, ctypes.POINTER(FILE_INFO)], wt.BOOL),
+            'GetFinalPathNameByHandleW': ([wt.HANDLE, wt.LPWSTR, wt.DWORD, wt.DWORD], wt.DWORD),
             'GetFileSizeEx': ([wt.HANDLE, ctypes.POINTER(ctypes.c_longlong)], wt.BOOL),
             'ReadFile': ([wt.HANDLE, wt.LPVOID, wt.DWORD, ctypes.POINTER(wt.DWORD), wt.LPVOID], wt.BOOL),
             'CloseHandle': ([wt.HANDLE], wt.BOOL),
@@ -146,6 +147,7 @@ class Windows:
     def close(self, handle):
         if handle not in (None, 0, self.INVALID):
             self.kernel.CloseHandle(handle)
+            self.identities.pop(handle, None)
 
     def parent(self, pid):
         handle = self.kernel.OpenProcess(self.SYNCHRONIZE | self.QUERY_LIMITED, False, pid)
@@ -160,7 +162,9 @@ class Windows:
 
     def hold(self, path, directory=False):
         handle = self.kernel.CreateFileW('\\\\?\\' + path,
-            self.ATTRIBUTES if directory else self.READ,
+            # Read-bearing access is required for deny-delete sharing to
+            # protect ancestor names; READ_ATTRIBUTES alone is insufficient.
+            self.READ,
             self.SHARE_READ, None, self.OPEN_EXISTING,
             self.OPEN_REPARSE_POINT | (self.BACKUP_SEMANTICS if directory else 0), None)
         if handle in (None, 0, self.INVALID):
@@ -172,6 +176,13 @@ class Windows:
         if info.attributes & self.REPARSE or bool(info.attributes & self.DIRECTORY) != directory:
             self.close(handle)
             raise LaunchError('hold', 'unsafe_file_type')
+        final = ctypes.create_unicode_buffer(32768)
+        count = self.kernel.GetFinalPathNameByHandleW(handle, final, len(final), 0)
+        actual = final.value[4:] if final.value.startswith('\\\\?\\') else final.value
+        if not 0 < count < len(final) or ntpath.normcase(actual.rstrip('\\')) != ntpath.normcase(path.rstrip('\\')):
+            self.close(handle)
+            raise LaunchError('hold', 'path_identity_differs')
+        self.identities[handle] = (info.volume, info.index_high, info.index_low)
         return handle
 
     def verify(self, handle, expected_size, expected_digest, deadline=None):

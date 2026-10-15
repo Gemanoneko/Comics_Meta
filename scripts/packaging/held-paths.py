@@ -8,6 +8,11 @@ from ctypes import wintypes as W
 import os
 from pathlib import Path
 
+class FileInfo(C.Structure):
+    _fields_=[('attributes',W.DWORD),('created',W.FILETIME),('accessed',W.FILETIME),
+        ('written',W.FILETIME),('volume',W.DWORD),('size_high',W.DWORD),
+        ('size_low',W.DWORD),('links',W.DWORD),('index_high',W.DWORD),('index_low',W.DWORD)]
+
 class HeldPaths:
     def __init__(self):
         if os.name != 'nt': raise RuntimeError('Native Windows held-path guard required')
@@ -17,7 +22,10 @@ class HeldPaths:
         self.kernel.CloseHandle.argtypes=[W.HANDLE]
         self.kernel.GetFinalPathNameByHandleW.argtypes=[W.HANDLE,W.LPWSTR,W.DWORD,W.DWORD]
         self.kernel.GetFinalPathNameByHandleW.restype=W.DWORD
+        self.kernel.GetFileInformationByHandle.argtypes=[W.HANDLE,C.POINTER(FileInfo)]
+        self.kernel.GetFileInformationByHandle.restype=W.BOOL
         self.handles={}
+        self.identities={}
     def hold(self,value,directory=False):
         value=Path(value).absolute()
         if not value.is_absolute():raise RuntimeError('Absolute path required')
@@ -31,9 +39,18 @@ class HeldPaths:
         if info.st_file_attributes&0x400:raise RuntimeError('Reparse path refused: '+str(value))
         if directory != value.is_dir():raise RuntimeError('Unexpected path type: '+str(value))
         flags=0x00200000|(0x02000000 if directory else 0)
-        handle=self.kernel.CreateFileW(str(value),0 if directory else 0x80000000,1,None,3,flags,None)
+        # A metadata-only/zero-access directory open does not participate in
+        # read/write/delete sharing checks. Request read-bearing access on
+        # every ancestor as well as the leaf, and never share write or delete.
+        handle=self.kernel.CreateFileW(str(value),0x80000000,1,None,3,flags,None)
         if handle==C.c_void_p(-1).value:raise OSError(C.get_last_error(),'Hold path '+str(value))
         self.handles[key]=handle
+        held_info=FileInfo()
+        if not self.kernel.GetFileInformationByHandle(handle,C.byref(held_info)):
+            raise OSError(C.get_last_error(),'Held attributes')
+        if held_info.attributes&0x400 or bool(held_info.attributes&0x10)!=directory:
+            raise RuntimeError('Unsafe held path type: '+str(value))
+        self.identities[key]=(held_info.volume,held_info.index_high,held_info.index_low)
         final=C.create_unicode_buffer(32768)
         count=self.kernel.GetFinalPathNameByHandleW(handle,final,len(final),0)
         if not 0<count<len(final):raise OSError(C.get_last_error(),'Held final path')
@@ -61,3 +78,4 @@ class HeldPaths:
     def __exit__(self,*unused):
         for handle in reversed(list(self.handles.values())):self.kernel.CloseHandle(handle)
         self.handles.clear()
+        self.identities.clear()
