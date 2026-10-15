@@ -39,12 +39,13 @@ async function main(){
   const {createIo}=require('./nsis-safe/client.cjs');
   const binding=await prepare(root,checkBudget);
   const io=createIo(ioBytes,ioSha,checkBudget,binding.reference);
+  const npmRoute=await require('./npm-query-route.cjs').install(root,c,checkBudget);
   const {build,Platform,Arch}=require('electron-builder');
   const route=binding.install(io,Arch.x64);
   try {
     await build({projectDir:root,config:{...require('../../electron-builder.config.cjs'),electronVersion:'43.7.9',electronDist:c.electronDist},targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),publish:'never'});
     checkBudget();
-    console.log(JSON.stringify({safeNsisRoute:route.receipt(),nativeIo:io.receipt(),bootstrapExecuted:false}));
-  } finally {route.restore();}
+    console.log(JSON.stringify({safeNsisRoute:route.receipt(),nativeIo:io.receipt(),npmQueries:npmRoute.receipt(),bootstrapExecuted:false}));
+  } finally {route.restore();npmRoute.restore();}
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});

@@ -103,10 +103,37 @@ with HeldPaths() as held, ExitStack() as lifetime:
         if not p.is_relative_to(native_root):raise RuntimeError('Native path outside held closure')
     for p in (Path(c['electronDist'])/'electron.exe',Path(c['nsisRoot'])/'Bin/makensis.exe',Path(c['rcedit'])/'rcedit-x64.exe'):
         if not p.is_file():raise RuntimeError('Required offline native executable absent')
+    npm_runtime=manifest(c['npmRuntimeManifest'],c['npmRuntimeManifestSha256'])
+    npm_root=Path(c['nodeExecutable']).parent/'node_modules/npm'
+    if npm_runtime['schema']!=1 or npm_runtime['root']!=str(npm_root) or npm_runtime['version']!='11.20.0':
+        raise RuntimeError('Exact installed npm runtime required')
+    npm_identity={'files':[{'path':x['path'],'sha256':x['sha256']} for x in npm_runtime['files']],
+                  'directories':[x['path'] for x in npm_runtime['directories']]}
+    if inventory(npm_root)!=npm_identity:raise RuntimeError('Installed npm complete namespace/bytes differ')
+    held.tree(npm_root)
+    if json.loads((npm_root/'package.json').read_bytes())['version']!='11.20.0':raise RuntimeError('Actual installed npm version differs')
+    if held.identities[os.path.normcase(str(npm_root))]!=tuple(npm_runtime['rootIdentity']):raise RuntimeError('npm root FileID differs')
+    for item in npm_runtime['files']+npm_runtime['directories']:
+        p=npm_root/safe_rel(item['path'])
+        if held.identities[os.path.normcase(str(p))]!=tuple(item['identity']):raise RuntimeError('npm retained native FileID differs')
+    wrapper=held.hold(npm_runtime['wrapper']['path'])
+    if wrapper!=Path(c['nodeExecutable']).parent/'npm.cmd' or digest(wrapper.read_bytes())!=npm_runtime['wrapper']['sha256'] or held.identities[os.path.normcase(str(wrapper))]!=tuple(npm_runtime['wrapper']['identity']):
+        raise RuntimeError('Exact stock npm Windows launcher differs')
+    def npm_top(root):
+        return sorted([{'name':p.name,'type':'unsafe' if p.lstat().st_file_attributes&0x400 else 'directory' if p.is_dir() else 'file' if p.is_file() else 'unsafe'} for p in root.iterdir()],key=lambda x:x['name'])
+    if npm_top(npm_root.parent.parent)!=npm_runtime['nodeTop'] or npm_top(npm_root.parent)!=npm_runtime['nodeModulesTop']:
+        raise RuntimeError('Stock npm import/launcher root membership differs')
     held.mkdir(jobroot,True)
     snapshot=held.mkdir(jobroot/'source',True)
     if Path(c['snapshotRoot'])!=snapshot or Path(c['builderCache'])!=jobroot/'builder-cache':raise RuntimeError('Snapshot/cache contract mismatch')
     held.mkdir(c['builderCache'],True)
+    npm_config=held.mkdir(jobroot/'npm-config',True)
+    for name in ('user.npmrc','global.npmrc'):
+        with (npm_config/name).open('xb') as stream:stream.write(b'')
+        held.hold(npm_config/name)
+    held.retire_anchors(npm_config);held.seal_tree(npm_config)
+    npm_cache=held.mkdir(jobroot/'npm-cache',True)
+
     def copy_file(src,dest):
         held.hold(src);held.mkdir(dest.parent)
         with dest.open('xb') as output:output.write(src.read_bytes())
@@ -161,6 +188,12 @@ with HeldPaths() as held, ExitStack() as lifetime:
         return {'files':[item for item in value['files'] if selected(item['path'])],'directories':[name for name in value['directories'] if selected(name)]}
     clone_identity=cloned_inputs()
     env={'SystemRoot':r'C:\Windows','WINDIR':r'C:\Windows','ComSpec':r'C:\Windows\System32\cmd.exe','PATH':r'C:\Program Files\nodejs;C:\Windows\System32','HOME':str(jobroot),'USERPROFILE':str(jobroot),'LOCALAPPDATA':str(jobroot),'APPDATA':str(jobroot),'TEMP':str(jobroot),'TMP':str(jobroot),'COMICS_META_HELD_BUILD':'1','COMICS_META_BUILD_CONTRACT':str(contract_path),'COMICS_META_BUILD_CONTRACT_SHA256':sys.argv[2],'COMICS_META_STAGED_MANIFEST_SHA256':digest(staged_path.read_bytes())}
+    # Upstream dependency collection invokes only npm prefix/list. Its entire
+    # installed runtime is held; configuration/cache/prefix are private outputs.
+    env.update({'NPM_CONFIG_USERCONFIG':str(npm_config/'user.npmrc'),'NPM_CONFIG_GLOBALCONFIG':str(npm_config/'global.npmrc'),
+        'NPM_CONFIG_CACHE':str(npm_cache),'NPM_CONFIG_PREFIX':str(jobroot/'npm-prefix'),
+        'NPM_CONFIG_OFFLINE':'true','NPM_CONFIG_IGNORE_SCRIPTS':'true','NPM_CONFIG_AUDIT':'false',
+        'NPM_CONFIG_FUND':'false','NPM_CONFIG_UPDATE_NOTIFIER':'false'})
     node=held.hold(c['nodeExecutable'])
     if digest(node.read_bytes())!=c['nodeSha256']:raise RuntimeError('Node identity differs')
     # The broker services finite owned-file requests from the existing lease
@@ -212,22 +245,25 @@ with HeldPaths() as held, ExitStack() as lifetime:
     # Offline native producers have closed. Preserve a declared evidence child
     # even when the private cache contains no vendor entries, then use the same
     # real-child overlap protocol as every other mutable output directory.
-    cache=Path(c['builderCache'])
-    cache_ledger=cache/'offline-cache-receipt.json'
-    known_anchors=held.anchor_paths()
-    cache_entries=sorted(p.name for p in cache.iterdir() if p not in known_anchors)
-    cache_raw=(json.dumps({'schema':1,'producerClosed':True,'entriesBeforeLedger':cache_entries},sort_keys=True)+'\n').encode()
-    with cache_ledger.open('xb') as output:output.write(cache_raw)
-    held.hold(cache_ledger)
-    if cache_ledger.read_bytes()!=cache_raw:raise RuntimeError('Owned cache ledger bytes differ')
-    held.retire_anchors(cache);held.seal_tree(cache)
+    cache_ledgers=[]
+    for cache in (Path(c['builderCache']),npm_cache):
+        cache_ledger=cache/'offline-cache-receipt.json'
+        known_anchors=held.anchor_paths()
+        cache_entries=sorted(p.name for p in cache.iterdir() if p not in known_anchors)
+        cache_raw=(json.dumps({'schema':1,'producerClosed':True,'entriesBeforeLedger':cache_entries},sort_keys=True)+'\n').encode()
+        with cache_ledger.open('xb') as output:output.write(cache_raw)
+        held.hold(cache_ledger)
+        if cache_ledger.read_bytes()!=cache_raw:raise RuntimeError('Owned cache ledger bytes differ')
+        held.retire_anchors(cache);held.seal_tree(cache)
+        cache_ledgers.append({'path':str(cache_ledger),'sha256':digest(cache_raw)})
     held.retire_anchors(snapshot/'dist')
     if inventory(stage)!=stage_identity or inventory(runtime)!={'files':runtime_manifest['files'],'directories':runtime_manifest['directories']} or inventory(modules)['files']!=sorted(module_files,key=lambda x:x['path']) or inventory(native_root)!=native_manifest or selected_source_names()!=sorted(x['path'] for x in sourcefiles):raise RuntimeError('Held input path/byte closure changed across build')
     if cloned_inputs()!=clone_identity:raise RuntimeError('Cloned desktop/scripts/dependencies input path/type/bytes changed')
+    if inventory(npm_root)!=npm_identity or digest(wrapper.read_bytes())!=npm_runtime['wrapper']['sha256'] or npm_top(npm_root.parent.parent)!=npm_runtime['nodeTop'] or npm_top(npm_root.parent)!=npm_runtime['nodeModulesTop']:raise RuntimeError('Held stock npm closure changed across build')
     for item in sourcefiles:
         if digest((source/item['path']).read_bytes())!=item['sha256']:raise RuntimeError('Original source bytes changed across build')
     artifacts=inventory(snapshot/'dist')
-    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'offlineCacheLedger':{'path':str(cache_ledger),'sha256':digest(cache_raw)},'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
+    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'offlineCacheLedgers':cache_ledgers,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
     with (jobroot/'build-receipt.json').open('xb') as output:output.write((json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode())
     held.hold(jobroot/'build-receipt.json')
     # Covers jobroot and every automatically created parent after all declared
