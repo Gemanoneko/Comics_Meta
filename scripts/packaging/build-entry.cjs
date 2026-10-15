@@ -26,7 +26,25 @@ async function main(){
   const net=require('node:net');
   net.Socket.prototype.connect=function(){throw new Error('Build contract forbids network downloads');};
   // Do not require electron/index.js: that entry implicitly downloads install.js.
+  if(!Number.isSafeInteger(c.originalDeadlineUnixMs)||Date.now()>=c.originalDeadlineUnixMs)throw new Error('Original build deadline missing or expired');
+  const checkBudget=()=>{if(Date.now()>=c.originalDeadlineUnixMs)throw new Error('Original complete build deadline');};
+  const ioPath=process.env.COMICS_META_NSIS_IO_CONFIG;
+  const ioSha=process.env.COMICS_META_NSIS_IO_CONFIG_SHA256;
+  if(!ioPath||!path.isAbsolute(ioPath)||! /^[a-f0-9]{64}$/.test(ioSha||''))throw new Error('Missing parent-held NSIS I/O configuration');
+  const ioBytes=await fs.readFile(ioPath);
+  if(hash(ioBytes)!==ioSha)throw new Error('NSIS I/O configuration changed');
+  const decoderControls=require('./nsis-safe/decoder-cases.cjs').runSynthetic();
+  console.log(JSON.stringify({decoderControls}));
+  const {prepare}=require('./nsis-safe/install-nsis-route.cjs');
+  const {createIo}=require('./nsis-safe/client.cjs');
+  const binding=await prepare(root,checkBudget);
+  const io=createIo(ioBytes,ioSha,checkBudget,binding.reference);
   const {build,Platform,Arch}=require('electron-builder');
-  await build({projectDir:root,config:{...require('../../electron-builder.config.cjs'),electronVersion:'43.7.9',electronDist:c.electronDist},targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),publish:'never'});
+  const route=binding.install(io,Arch.x64);
+  try {
+    await build({projectDir:root,config:{...require('../../electron-builder.config.cjs'),electronVersion:'43.7.9',electronDist:c.electronDist},targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),publish:'never'});
+    checkBudget();
+    console.log(JSON.stringify({safeNsisRoute:route.receipt(),nativeIo:io.receipt(),bootstrapExecuted:false}));
+  } finally {route.restore();}
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});

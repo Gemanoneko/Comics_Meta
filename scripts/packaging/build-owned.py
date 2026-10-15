@@ -3,9 +3,11 @@ The external exact contract and every runtime/native/source byte require review.
 """
 import ctypes as C
 from ctypes import wintypes as W
-import hashlib,json,os,re,sys,time
+import hashlib,json,os,re,secrets,sys,time
+from contextlib import ExitStack
 from pathlib import Path
 STARTED=time.monotonic()
+BOOTSTRAP_STARTED=STARTED
 if os.name!='nt' or len(sys.argv)!=3:raise RuntimeError('Reviewed Windows contract path and SHA256 required')
 k=C.WinDLL('kernel32',use_last_error=True)
 k.GetCurrentProcess.restype=W.HANDLE;k.IsProcessInJob.argtypes=[W.HANDLE,W.HANDLE,C.POINTER(W.BOOL)]
@@ -31,11 +33,33 @@ def inventory(root):
             if p.lstat().st_file_attributes&0x400 or not p.is_file():raise RuntimeError('Reparse/nonregular tree member')
             files.append({'path':p.relative_to(root).as_posix(),'sha256':digest(p.read_bytes())})
     return {'files':sorted(files,key=lambda x:x['path']),'directories':sorted(dirs)}
-with HeldPaths() as held:
+with HeldPaths() as held, ExitStack() as lifetime:
     contract_path=held.hold(Path(sys.argv[1]))
     raw=contract_path.read_bytes()
     if not re.fullmatch('[a-f0-9]{64}',sys.argv[2]) or digest(raw)!=sys.argv[2]:raise RuntimeError('Pinned contract differs')
     c=json.loads(raw)
+    entry_started=STARTED
+    original=c.get('originalStartedMonotonic')
+    if type(original) not in (int,float) or not 0<original<=entry_started or time.monotonic()>=original+530:
+        raise RuntimeError('Original startup-inclusive build clock required')
+    STARTED=original
+    if type(c.get('originalDeadlineUnixMs')) is not int or time.time()*1000>=c['originalDeadlineUnixMs']:
+        raise RuntimeError('Original build wall deadline missing or expired')
+    # Retain the actual reporting parent; outer reviewed guardian owns this entire
+    # process tree and its foreground lifetime. A PID is never reopened later.
+    parent_handle=api('OpenProcess',HANDLE,W.DWORD,W.BOOL,W.DWORD)(0x00101000,False,os.getppid())
+    require(parent_handle,'Retain exact build reporting parent')
+    lifetime.callback(close,parent_handle)
+    get_times=api('GetProcessTimes',W.BOOL,HANDLE,*([C.POINTER(W.FILETIME)]*4))
+    def created(handle):
+        stamps=[W.FILETIME() for _ in range(4)]
+        require(get_times(handle,*[C.byref(x) for x in stamps]),'Build parent creation identity')
+        return (stamps[0].dwHighDateTime<<32)|stamps[0].dwLowDateTime
+    current=api('GetCurrentProcess',HANDLE)()
+    if created(parent_handle)>created(current):raise RuntimeError('Build parent identity reused')
+    def owner_lease():return wait_process(parent_handle,0)==258
+    if not owner_lease():raise RuntimeError('Original build owner closed')
+
     if c['schema']!=1 or c['profile'] not in ('qa','production') or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',c['version']):raise RuntimeError('Unsupported contract')
     jobroot=Path(c['jobRoot'])
     if not jobroot.is_absolute() or not jobroot.name.startswith('illuminati-cmo-build-'):raise RuntimeError('Owned build root required')
@@ -139,7 +163,51 @@ with HeldPaths() as held:
     env={'SystemRoot':r'C:\Windows','WINDIR':r'C:\Windows','ComSpec':r'C:\Windows\System32\cmd.exe','PATH':r'C:\Program Files\nodejs;C:\Windows\System32','HOME':str(jobroot),'USERPROFILE':str(jobroot),'LOCALAPPDATA':str(jobroot),'APPDATA':str(jobroot),'TEMP':str(jobroot),'TMP':str(jobroot),'COMICS_META_HELD_BUILD':'1','COMICS_META_BUILD_CONTRACT':str(contract_path),'COMICS_META_BUILD_CONTRACT_SHA256':sys.argv[2],'COMICS_META_STAGED_MANIFEST_SHA256':digest(staged_path.read_bytes())}
     node=held.hold(c['nodeExecutable'])
     if digest(node.read_bytes())!=c['nodeSha256']:raise RuntimeError('Node identity differs')
-    result=owned_job(node,[str(snapshot/'scripts/packaging/build-entry.cjs')],snapshot,jobroot/'build-logs',STARTED+540,None,environment_override=env)
+    # The broker services finite owned-file requests from the existing lease
+    # callback. It creates no service, listener, thread or extra native process.
+    lease_path=snapshot/'scripts/packaging/nsis-safe/lease-rpc.py'
+    lease_raw=lease_path.read_bytes()
+    expected_lease=next(item['sha256'] for item in sourcefiles if item['path']=='scripts/packaging/nsis-safe/lease-rpc.py')
+    if digest(lease_raw)!=expected_lease:raise RuntimeError('Held NSIS broker source differs')
+    broker_scope={'__name__':'held_nsis_io_broker','__file__':str(lease_path)}
+    exec(compile(lease_raw,str(lease_path),'exec'),broker_scope)
+    def open_rpc_leaf(lib,filename,sharing=1):
+        value=Path(filename).absolute()
+        handle=create_file(str(value),0x80000000,sharing,None,3,0x00200000,None)
+        if handle==INVALID:raise OSError(C.get_last_error(),'Acquire exact NSIS RPC leaf')
+        try:
+            held._validate(value,handle,False)
+            return handle
+        except BaseException:
+            close(handle);raise
+    nonce=secrets.token_hex(32)
+    installer=snapshot/'dist'/('Comic-Metadata-Setup-'+c['version']+'.exe')
+    template=snapshot/'node_modules/app-builder-lib/templates/nsis/installer.nsi'
+    template_sha=next(item['sha256'] for item in module_files if item['path']=='app-builder-lib/templates/nsis/installer.nsi')
+    broker_config={'schema':1,'jobRoot':str(jobroot),'rpcRoot':str(jobroot/('nsis-io-rpc-'+nonce[:12])),
+        'outDir':str(snapshot/'dist'),'installer':str(installer),'uninstaller':str(installer.parent/(installer.name[:-3]+'__uninstaller.exe')),
+        'template':str(template),'templateSha256':template_sha,'nonce':nonce,
+        'deadlineUnixMs':c['originalDeadlineUnixMs'],'allowSignerReplacement':False}
+    broker=broker_scope['NativeIoLease'](dict(globals()),{'opened':open_rpc_leaf},held,lifetime,broker_config,STARTED,STARTED+530,owner_lease)
+    env['COMICS_META_NSIS_IO_CONFIG']=broker.config_receipt['path']
+    env['COMICS_META_NSIS_IO_CONFIG_SHA256']=broker.config_receipt['sha256']
+    retained_build_logs=[]
+    def retain_build_logs(files):
+        for filename,identity,expected_hash in files:
+            handle=open_rpc_leaf(dict(globals()),filename,sharing=3)
+            lifetime.callback(close,handle)
+            if handle_identity(handle)!=tuple(identity):raise RuntimeError('Build logger handoff identity changed')
+            retained_build_logs.append((filename,tuple(identity),expected_hash))
+    result=owned_job(node,[str(snapshot/'scripts/packaging/build-entry.cjs')],snapshot,jobroot/'build-logs',STARTED+530,broker.service,environment_override=env,retain_outputs=retain_build_logs)
+    for filename,identity,expected_hash in retained_build_logs:
+        handle=open_rpc_leaf(dict(globals()),filename)
+        lifetime.callback(close,handle)
+        if handle_identity(handle)!=identity or digest(handle_read(handle,16*1024**2))!=expected_hash:
+            raise RuntimeError('Completed build logger strong bytes changed')
+
+    broker_inventory=broker.finalize_after_closure(result)
+    broker_receipt=broker.receipt(require_complete=True)
+
     if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:raise RuntimeError('Build failed or native closure unknown')
     held.retire_anchors(snapshot/'dist')
     if inventory(stage)!=stage_identity or inventory(runtime)!={'files':runtime_manifest['files'],'directories':runtime_manifest['directories']} or inventory(modules)['files']!=sorted(module_files,key=lambda x:x['path']) or inventory(native_root)!=native_manifest or selected_source_names()!=sorted(x['path'] for x in sourcefiles):raise RuntimeError('Held input path/byte closure changed across build')
@@ -147,6 +215,6 @@ with HeldPaths() as held:
     for item in sourcefiles:
         if digest((source/item['path']).read_bytes())!=item['sha256']:raise RuntimeError('Original source bytes changed across build')
     artifacts=inventory(snapshot/'dist')
-    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
+    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
     with (jobroot/'build-receipt.json').open('xb') as output:output.write((json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode())
     print(json.dumps({'root_exit':result['root_exit'],'active_after':result['active_after'],'version':c['version'],'artifacts':len(artifacts['files']),'qa':'pending'}))
