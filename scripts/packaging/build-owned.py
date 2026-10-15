@@ -209,12 +209,29 @@ with HeldPaths() as held, ExitStack() as lifetime:
     broker_receipt=broker.receipt(require_complete=True)
 
     if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:raise RuntimeError('Build failed or native closure unknown')
+    # Offline native producers have closed. Preserve a declared evidence child
+    # even when the private cache contains no vendor entries, then use the same
+    # real-child overlap protocol as every other mutable output directory.
+    cache=Path(c['builderCache'])
+    cache_ledger=cache/'offline-cache-receipt.json'
+    known_anchors=held.anchor_paths()
+    cache_entries=sorted(p.name for p in cache.iterdir() if p not in known_anchors)
+    cache_raw=(json.dumps({'schema':1,'producerClosed':True,'entriesBeforeLedger':cache_entries},sort_keys=True)+'\n').encode()
+    with cache_ledger.open('xb') as output:output.write(cache_raw)
+    held.hold(cache_ledger)
+    if cache_ledger.read_bytes()!=cache_raw:raise RuntimeError('Owned cache ledger bytes differ')
+    held.retire_anchors(cache);held.seal_tree(cache)
     held.retire_anchors(snapshot/'dist')
     if inventory(stage)!=stage_identity or inventory(runtime)!={'files':runtime_manifest['files'],'directories':runtime_manifest['directories']} or inventory(modules)['files']!=sorted(module_files,key=lambda x:x['path']) or inventory(native_root)!=native_manifest or selected_source_names()!=sorted(x['path'] for x in sourcefiles):raise RuntimeError('Held input path/byte closure changed across build')
     if cloned_inputs()!=clone_identity:raise RuntimeError('Cloned desktop/scripts/dependencies input path/type/bytes changed')
     for item in sourcefiles:
         if digest((source/item['path']).read_bytes())!=item['sha256']:raise RuntimeError('Original source bytes changed across build')
     artifacts=inventory(snapshot/'dist')
-    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
+    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'offlineCacheLedger':{'path':str(cache_ledger),'sha256':digest(cache_raw)},'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
     with (jobroot/'build-receipt.json').open('xb') as output:output.write((json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode())
+    held.hold(jobroot/'build-receipt.json')
+    # Covers jobroot and every automatically created parent after all declared
+    # producers finish; no owned placeholder enters the final evidence inventory.
+    held.retire_anchors(jobroot)
+    if held.anchor_paths():raise RuntimeError('Owned build anchors remain at final handoff')
     print(json.dumps({'root_exit':result['root_exit'],'active_after':result['active_after'],'version':c['version'],'artifacts':len(artifacts['files']),'qa':'pending'}))
