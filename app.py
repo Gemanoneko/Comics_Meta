@@ -354,6 +354,8 @@ def api(resource, **params):
             return json.loads(cached['value'])
         if missing:
             raise ComicVineNotFound(f'ComicVine reports that {resource} does not exist (Object Not Found).')
+        if qa_runtime.policy() is not None:
+            raise ProviderDeferred('Private QA uses cached provider answers only.','comicvine',0,'no_key')
         # The cache needs no key: a missing key must not hide a cached answer,
         # such as an identity conflict (F16).
         key = api_key()

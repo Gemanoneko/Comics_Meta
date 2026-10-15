@@ -52,6 +52,9 @@ def fetch(url):
     target = CACHE / (hashlib.sha256(url.encode()).hexdigest() + '.json')
     if target.exists() and time.time() - target.stat().st_mtime < 7 * 86400:
         return json.loads(target.read_text(encoding='utf-8'))
+    if app.qa_runtime.policy() is not None:
+        from provider_wait import ProviderDeferred
+        raise ProviderDeferred('Private QA uses cached research answers only.','web',0,'no_key')
     if parsed.hostname=='en.wikipedia.org':
         state=wiki_status()
         if state['retry_at']:

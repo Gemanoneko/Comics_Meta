@@ -1,11 +1,11 @@
 'use strict';
-const {app,BrowserWindow,Tray,Menu,Notification,nativeTheme,nativeImage,screen,shell,ipcMain,dialog:folderPicker}=require('electron');
+const {app,BrowserWindow,Tray,Menu,Notification,nativeTheme,nativeImage,screen,shell,ipcMain,session,dialog:folderPicker}=require('electron');
 const crypto=require('node:crypto');const fs=require('node:fs');const path=require('node:path');const {pathToFileURL}=require('node:url');
 const shellFiles=new Set(['startup.html','setup.html','stopping.html'].map(name=>pathToFileURL(path.join(__dirname,name)).href));
 const shellFile=url=>shellFiles.has(url);
 function providerPage(url){try{const parsed=new URL(url);return parsed.protocol==='https:'&&!parsed.username&&!parsed.password&&['comicvine.gamespot.com','www.comicvine.gamespot.com'].includes(parsed.hostname)&&/\/4000-\d+(?:\/|$)/.test(parsed.pathname);}catch{return false;}}
 const {Engine}=require('./engine.cjs');const {GracefulStop}=require('./graceful-stop.cjs');const {Updates}=require('./updates.cjs');
-const {loadPolicy}=require('./qa-policy.cjs');
+const {loadPolicy,requestAllowed}=require('./qa-policy.cjs');
 const qaPolicy=loadPolicy(process.env,app.getVersion());const qa=Boolean(qaPolicy);const qaRoot=qaPolicy?.root||null;
 if(qa){for(const folder of [qaPolicy.profile,qaPolicy.cache,path.join(qaPolicy.profile,'session'),qaPolicy.state,qaPolicy.locks])fs.mkdirSync(folder,{recursive:true});app.setPath('userData',qaPolicy.profile);app.setPath('cache',qaPolicy.cache);app.setPath('sessionData',path.join(qaPolicy.profile,'session'));}
 const locked=app.requestSingleInstanceLock();
@@ -81,6 +81,9 @@ if(!locked){app.exit(0);}else{
   async function start(){if(stopper?.busy||updates?.state.phase==='installer-uncertain')return;state.service='starting';state.failure=null;broadcast();try{const initial=await engine.start();state.service=initial.setup?.configured?'ready':'setup';if(state.service==='setup')window.loadFile(path.join(__dirname,'setup.html'));else window.loadURL('http://127.0.0.1:'+engine.port);await poll();}catch(error){log(error);state.service='failed';state.failure=error.code||'ENGINE_EXIT';await engine.forceStop();window.loadFile(path.join(__dirname,'startup.html'));broadcast();}}
   app.on('second-instance',show);app.on('before-quit',event=>{if(!finalExit){event.preventDefault();quit();}});app.on('window-all-closed',()=>{});
   app.whenReady().then(()=>{
+    // Install before creating either QA renderer. This filters Electron HTTP
+    // and websocket requests; Python and native processes have separate owners.
+    if(qa)session.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*','ws://*/*','wss://*/*']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url)}));
     const bounds=initialBounds();window=new BrowserWindow({...bounds,minWidth:640,minHeight:480,title:'Comic Metadata',show:false,backgroundColor:'#12151c',autoHideMenuBar:true,icon:path.join(__dirname,'assets','icon.ico'),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:qa}});
     if(bounds.maximized)window.maximize();secure(window,url=>url==='http://127.0.0.1:'+engine?.port+'/'||shellFile(url));
     let timer;for(const name of ['move','resize','maximize','unmaximize'])window.on(name,()=>{clearTimeout(timer);timer=setTimeout(saveBounds,400);});window.on('show',()=>window.webContents.send('shell-refresh'));window.on('focus',()=>window.webContents.send('shell-refresh'));
@@ -92,7 +95,7 @@ if(!locked){app.exit(0);}else{
     engine=new Engine({resources:app.isPackaged?process.resourcesPath:path.join(__dirname,'..','build','staged'),state:stateRoot,locks:qa?qaPolicy.locks:path.join(local,'ComicsMeta','locks'),port:qa?qaPolicy.enginePort:8765,log:path.join(logFolder,'engine.log')});
     stopper=new GracefulStop(engine);stopper.on('stage',stoppingDialog);stopper.on('finished',()=>{if(dialog){dialog.removeAllListeners('close');dialog.close();dialog=null;}state.stopping=null;broadcast();});
     const {autoUpdater}=require('electron-updater');
-    if(qa){Object.defineProperty(autoUpdater.app,'baseCachePath',{value:qaPolicy.cache});autoUpdater.logger=null;autoUpdater.netSession.webRequest.onBeforeRequest({urls:['<all_urls>']},(details,callback)=>{let allowed=false;try{const target=new URL(details.url);allowed=target.origin===new URL(qaPolicy.feedURL).origin&&target.pathname.startsWith(new URL(qaPolicy.feedURL).pathname);}catch{}callback({cancel:!allowed});});autoUpdater.setFeedURL({provider:'generic',url:qaPolicy.feedURL,requestHeaders:{Authorization:'Bearer '+qaPolicy.feedToken}});autoUpdater.requestHeaders={Authorization:'Bearer '+qaPolicy.feedToken};}
+    if(qa){Object.defineProperty(autoUpdater.app,'baseCachePath',{value:qaPolicy.cache});autoUpdater.logger=null;if(autoUpdater.netSession!==session.defaultSession)autoUpdater.netSession.webRequest.onBeforeRequest({urls:['<all_urls>']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url,{feedOnly:true})}));autoUpdater.setFeedURL({provider:'generic',url:qaPolicy.feedURL,requestHeaders:{Authorization:'Bearer '+qaPolicy.feedToken}});autoUpdater.requestHeaders={Authorization:'Bearer '+qaPolicy.feedToken};}
     fs.mkdirSync(path.join(stateRoot,'work'),{recursive:true});
     updates=new Updates({updater:autoUpdater,stopper,engine,log,exit,workRoot:path.join(stateRoot,'work','update-launch'),qaInstallDirectory:qaPolicy?.installDirectory,qaArtifact:qaPolicy?.artifact,record:value=>{fs.writeFileSync(path.join(logFolder,'update-attempt-'+crypto.randomUUID()+'.json'),JSON.stringify({...value,loadedShellVersion:app.getVersion(),installedVersionVerified:false},null,2),{flag:'wx'});}});updates.on('state',value=>{const entering=value.phase==='installer-uncertain'&&state.update.phase!=='installer-uncertain';state.update={...value};if(entering){state.service='held';state.failure=null;window.loadFile(path.join(__dirname,'startup.html'));}broadcast();});
     engine.on('exit',()=>{if(stopper.busy||finalExit)return;restarts=restarts.filter(time=>Date.now()-time<60000);if(restarts.length<3){restarts.push(Date.now());setTimeout(start,500);}else{state.service='failed';state.failure='RESTART_EXHAUSTED';broadcast();}});engine.on('engine-error',log);

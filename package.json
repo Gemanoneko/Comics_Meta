@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "check:python": "node scripts/check-python.cjs",
-    "check:shell": "node --test desktop/tests/*.test.cjs",
+    "check:shell": "node scripts/check-shell.cjs",
     "check": "npm run check:python && npm run check:shell",
     "prepare:runtime": "node scripts/packaging/prepare-runtime.mjs",
     "pack": "node scripts/build-installer.cjs",

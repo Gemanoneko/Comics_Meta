@@ -97,22 +97,42 @@ def main():
     if not 1<=options.port<=65535 or options.parent_pid<=0:raise ValueError('Invalid owner')
     if not os.environ.get('COMICS_META_STATE_ROOT') or not os.environ.get('COMICS_META_SHELL_TOKEN'):
         raise ValueError('A selected state root and shell identity are required')
+    token=os.environ['COMICS_META_SHELL_TOKEN']
+    if len(token)!=64 or any(c not in '0123456789abcdef' for c in token):raise ValueError('Invalid original shell nonce')
     parent=api('OpenProcess',HANDLE,W.DWORD,W.BOOL,W.DWORD)(0x100000,False,options.parent_pid)
     require(parent,'Hold shell parent identity')
     # The sole writer is the shell-created pipe; neither PID reuse nor a
     # recreated process can inherit that writer after the original shell exits.
-    import secrets, threading
-    supplied=sys.stdin.buffer.readline(256).rstrip(b'\r\n')
-    expected=os.environ['COMICS_META_SHELL_TOKEN'].encode('ascii')
-    if not secrets.compare_digest(supplied,expected):
+    import secrets
+    get_std=api('GetStdHandle',HANDLE,W.DWORD)
+    owner_input=get_std(0xFFFFFFF6)
+    peek=api('PeekNamedPipe',W.BOOL,HANDLE,C.c_void_p,W.DWORD,C.c_void_p,C.POINTER(W.DWORD),C.c_void_p)
+    def available_owner_bytes():
+        count=W.DWORD()
+        if not peek(owner_input,None,0,None,C.byref(count),None):
+            if C.get_last_error()==109:return None
+            raise OSError(C.get_last_error(),'Original shell owner pipe status')
+        return count.value
+    expected=token.encode('ascii')
+    supplied=b'';wanted=expected+b'\n';handshake_deadline=time.monotonic()+8
+    try:
+        while len(supplied)<len(wanted):
+            if time.monotonic()>=handshake_deadline:raise TimeoutError('Original shell owner handshake deadline')
+            count=available_owner_bytes()
+            if count is None:raise RuntimeError('Original shell owner stream closed')
+            if not count:time.sleep(.01);continue
+            buffer=C.create_string_buffer(min(count,len(wanted)-len(supplied)));read=W.DWORD()
+            require(read_file(owner_input,buffer,len(buffer),C.byref(read),None),'Read exact original shell nonce')
+            if not read.value:raise RuntimeError('Original shell owner nonce EOF')
+            supplied+=buffer.raw[:read.value]
+        if not secrets.compare_digest(supplied,wanted):raise RuntimeError('Original shell owner stream unavailable')
+    except BaseException:
         close(parent)
-        raise RuntimeError('Original shell owner stream unavailable')
-    owner_stop=threading.Event()
-    def observe_owner():
-        command=sys.stdin.buffer.readline(16)
-        # EOF or any unexpected control closes the owned tree fail-closed.
-        owner_stop.set()
-    threading.Thread(target=observe_owner,daemon=True).start()
+        raise
+    def owner_stopped():
+        # EOF or any control byte closes the owned tree fail-closed. Native
+        # polling leaves no buffered-stdin daemon alive during clean shutdown.
+        return available_owner_bytes()!=0
     job=create_job(None,None); require(job,'Create engine job')
     proc=ProcessInfo(); attributes=None
     try:
@@ -134,12 +154,12 @@ def main():
         code=Path(__file__).resolve().parent
         argv=[sys.executable,'-B',str(code/'app.py'),'--no-browser','--port',str(options.port)]
         command=C.create_unicode_buffer(subprocess.list2cmdline(argv))
-        if owner_stop.is_set() or wait_process(parent,0)!=0x102:raise RuntimeError('Shell owner already exited')
+        if owner_stopped() or wait_process(parent,0)!=0x102:raise RuntimeError('Shell owner already exited')
         require(create_process(sys.executable,command,None,None,True,0x08000000|0x4|0x80000,None,str(code),C.byref(startup),C.byref(proc)),'Owned engine creation')
         require(resume_thread(proc.thread)!=0xFFFFFFFF,'Resume owned engine')
         forced=False
         while wait_process(proc.process,100)==0x102:
-            if owner_stop.is_set() or wait_process(parent,0)!=0x102:
+            if owner_stopped() or wait_process(parent,0)!=0x102:
                 forced=True
                 require(terminate_job(job,125),'Shell exit closes only owned engine tree')
                 break

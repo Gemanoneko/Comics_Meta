@@ -10,6 +10,7 @@ import time
 import urllib.request
 import app
 import file_lock
+import qa_runtime
 
 STOP_BASELINE_ENV = 'COMICS_META_STOP_BASELINE'
 _stop_baseline = None  # Quit generation this process already outlived; None: never stops.
@@ -160,9 +161,9 @@ def status():
 def unload_model():
     from local_model import MODEL
     body=json.dumps({'model':MODEL,'keep_alive':0,'stream':False}).encode()
-    req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=body,headers={'Content-Type':'application/json'})
+    req=qa_runtime.model_request('/api/generate',data=body,headers={'Content-Type':'application/json'})
     with urllib.request.urlopen(req,timeout=30) as response:json.load(response)
-    with urllib.request.urlopen('http://127.0.0.1:11434/api/ps',timeout=5) as response:
+    with urllib.request.urlopen(qa_runtime.model_request('/api/ps'),timeout=5) as response:
         if any(m.get('name')==MODEL for m in json.load(response).get('models',[])):
             raise ValueError('Gemma is still loaded.')
 
