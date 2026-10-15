@@ -38,12 +38,14 @@ async function main(){
   if(hash(ioBytes)!==ioSha)throw new Error('NSIS I/O configuration changed');
   const decoderControls=require('./nsis-safe/decoder-cases.cjs').runSynthetic();
   console.log(JSON.stringify({decoderControls}));
+  // Initialize the normal upstream entry before inspecting its internal classes.
+  // Interception is installed below before build() can construct any target.
+  const {build,Platform,Arch}=require('electron-builder');
   const {prepare}=require('./nsis-safe/install-nsis-route.cjs');
   const {createIo}=require('./nsis-safe/client.cjs');
   const binding=await prepare(root,checkBudget);
   const io=createIo(ioBytes,ioSha,checkBudget,binding.reference);
   const npmRoute=await require('./npm-query-route.cjs').install(root,c,checkBudget);
-  const {build,Platform,Arch}=require('electron-builder');
   const route=binding.install(io,Arch.x64);
   try {
     await build({projectDir:root,config:{...require('../../electron-builder.config.cjs'),electronVersion:'43.7.9',electronDist:c.electronDist},targets:Platform.WINDOWS.createTarget(['nsis'],Arch.x64),publish:'never'});
@@ -51,4 +53,4 @@ async function main(){
     console.log(JSON.stringify({safeNsisRoute:route.receipt(),nativeIo:io.receipt(),npmQueries:npmRoute.receipt(),bootstrapExecuted:false}));
   } finally {route.restore();npmRoute.restore();}
 }
-main().catch(e=>{console.error(e.message);process.exitCode=1;});
+main().catch(e=>{console.error(e&&e.stack?e.stack:String(e));process.exitCode=1;});

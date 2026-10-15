@@ -248,10 +248,20 @@ with HeldPaths() as held, ExitStack() as lifetime:
         if handle_identity(handle)!=identity or digest(handle_read(handle,16*1024**2))!=expected_hash:
             raise RuntimeError('Completed build logger strong bytes changed')
 
+    # Preserve the direct native API result and non-mutating broker snapshot
+    # before a success-only protocol finalizer can reject an incomplete build.
+    result_path=jobroot/'native-build-result.json'
+    result_raw=(json.dumps({'schema':1,'beforeRpcFinalization':True,'nativeResult':result,'nsisIo':broker.receipt(require_complete=False)},sort_keys=True,indent=2)+'\n').encode()
+    with result_path.open('xb') as output:output.write(result_raw)
+    held.hold(result_path)
+    if result_path.read_bytes()!=result_raw:raise RuntimeError('Native result evidence bytes differ')
+    native_result_receipt={'path':str(result_path),'sha256':digest(result_raw)}
+    if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:
+        detail=result.get('stderr') or result.get('stdout') or ''
+        print(json.dumps({'nativeBuildFailure':{'reason':result['reason'],'root_pid':result['root_pid'],'root_exit':result['root_exit'],'active_after':result['active_after'],'detail':detail[:4096],'detailTruncated':len(detail)>4096,'receipt':native_result_receipt}}),flush=True)
+        raise RuntimeError('Native builder failed; exact result and broker state retained before finalization')
     broker_inventory=broker.finalize_after_closure(result)
     broker_receipt=broker.receipt(require_complete=True)
-
-    if result['reason']!='completed' or result['root_exit']!=0 or result['active_after']!=0:raise RuntimeError('Build failed or native closure unknown')
     # Offline native producers have closed. Preserve a declared evidence child
     # even when the private cache contains no vendor entries, then use the same
     # real-child overlap protocol as every other mutable output directory.
@@ -273,7 +283,7 @@ with HeldPaths() as held, ExitStack() as lifetime:
     for item in sourcefiles:
         if digest((source/item['path']).read_bytes())!=item['sha256']:raise RuntimeError('Original source bytes changed across build')
     artifacts=inventory(snapshot/'dist')
-    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'offlineCacheLedgers':cache_ledgers,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
+    receipt={'schema':1,'version':c['version'],'profile':c['profile'],'sourceIdentity':c['sourceManifestSha256'],'sourceHead':c['sourceHead'],'runtimeIdentity':c['runtimeManifestSha256'],'nativeResult':result,'nativeResultReceipt':native_result_receipt,'nsisIo':broker_receipt,'nsisIoInventory':broker_inventory,'offlineCacheLedgers':cache_ledgers,'artifacts':artifacts,'state':'build completed; packaged QA/update proof still required'}
     with (jobroot/'build-receipt.json').open('xb') as output:output.write((json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode())
     held.hold(jobroot/'build-receipt.json')
     # Covers jobroot and every automatically created parent after all declared
