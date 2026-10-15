@@ -1,0 +1,200 @@
+{
+  "schema": 1,
+  "status": "USER REQUESTED HANDOFF TO CLAUDE CODE; ALL NEW BUILD/IMPLEMENTATION JOBS STOPPED",
+  "studioRoot": "C:/Antigravity Projects/Studio Illuminati",
+  "installerWorktree": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1",
+  "source": {
+    "head": "69272a0d09d1e23c79bc153af5ec267e87f73b2a",
+    "branch": "feat/m1-state-split",
+    "version": "0.2.1",
+    "sourceDirty": false,
+    "docsDirtyUntilSullyCheckpoint": true,
+    "checkpointHead": "Sully supplies the subsequent Docs-only commit; packaged source remains the source.head above"
+  },
+  "evidenceRoot": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015",
+  "lastRun": {
+    "route": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23",
+    "freezeSha256": "7eecc02bc633da0980751a2354b1cec946cf200953170618d2e8e9c79c4e924b",
+    "session": 18092,
+    "terminalExit": 1,
+    "totalElapsedMs": 201251,
+    "raw": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/actual-tool-result.json",
+      "bytes": 5817,
+      "sha256": "5f037df9ffbe60f87a30370965fda8b843f9949699327b9d69876ac224d208c4"
+    },
+    "closureReportedByOriginalNativeResults": {
+      "outer": {
+        "pid": 54296,
+        "exit": 1,
+        "activeAfter": 0
+      },
+      "worker": {
+        "pid": 72688,
+        "exit": 1,
+        "activeAfter": 0
+      },
+      "buildSupervisor": {
+        "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/run-01/worker-evidence/compiler-native.json",
+        "bytes": 1535,
+        "sha256": "af537caf07a56f671e2a1611b518340151c728acdcb366131408c31b4e7edaa8",
+        "result": {
+          "root_pid": 68200,
+          "reason": "completed",
+          "root_exit": 1,
+          "active_after": 0,
+          "elapsed_ms": 146632
+        }
+      },
+      "node": {
+        "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/run-01/worker-evidence/illuminati-cmo-build-baseline-0.2.1-23/native-build-result.json",
+        "bytes": 11549,
+        "sha256": "5a55455f91bf27258cc4507740fbb5b57d8f3df8ea8a8dbf03616956e1f6a91f",
+        "result": {
+          "root_pid": 100952,
+          "reason": "completed",
+          "root_exit": 0,
+          "active_after": 0,
+          "elapsed_ms": 146165,
+          "brokerState": "new",
+          "brokerComplete": false,
+          "rpcFinalized": false
+        }
+      }
+    },
+    "independentActualAudit": "PENDING: Senua issued no actual23 evidence/source audit command before handoff; last independently audited actual run is22 FAILED",
+    "executionReview": "Senua_Compiler23_ExecutionReview_CLEAR_2026-10-15.md; clearance was only for the one already-used invocation",
+    "reached": [
+      "13 synthetic decoder controls",
+      "Actual electron-builder26.15.3 packaging with authenticated Electron43.7.9 distribution",
+      "Actual node-module search and private offline7za archive creation reported in builder log",
+      "Actual makensis.exe BUILD_UNINSTALLER compile invocation failed on first !include; generated bootstrap was NEVER executed"
+    ],
+    "notProved": [
+      "Completed NSIS bootstrap compilation",
+      "Actual bounded decoder/upstream uninstaller byte equivalence",
+      "Completed installer",
+      "Rendered/installed app QA",
+      "Actual0.2.1-to0.2.2 update or state preservation",
+      "Release readiness"
+    ],
+    "nodeStdout": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/run-01/worker-evidence/illuminati-cmo-build-baseline-0.2.1-23/build-logs/stdout.log",
+      "bytes": 3103,
+      "sha256": "d5344bfb4de690ff369e626cd84cc1e986762f5cfa172faeb916a4f99dacc55a"
+    },
+    "nodeStderr": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/run-01/worker-evidence/illuminati-cmo-build-baseline-0.2.1-23/build-logs/stderr.log",
+      "bytes": 4419,
+      "sha256": "afb784ccfaa3bbe8754704284a5d6447138c5ce54798a7748b2df562c14cb05c"
+    },
+    "firstReportedError": "makensis !include could not open snapshot node_modules/app-builder-lib/templates/nsis/include/StdUtils.nsh; aborting script line1",
+    "includeObservation": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/compile-baseline-23/run-01/worker-evidence/illuminati-cmo-build-baseline-0.2.1-23/source/node_modules/app-builder-lib/templates/nsis/include/StdUtils.nsh",
+      "characters": 264,
+      "existsAfterClosure": true,
+      "sha256": "e68d1bf7e4afd258b601346b833bf064285213d8f481caa900a1430cdabee275",
+      "authenticatedOriginalSameBytes": true,
+      "longestAdmittedNsisTemplatePath": 285,
+      "scope": "Postclosure data observation, not a new native path probe"
+    },
+    "broker": {
+      "state": "new",
+      "complete": false,
+      "rpcFinalized": false,
+      "requests": 2,
+      "operations": [
+        "read-template",
+        "assert-paths"
+      ],
+      "finalizerCorrectlyRejectedIncompleteState": true
+    },
+    "exitAnomaly": {
+      "nodeNativeExit": 0,
+      "errorLogged": true,
+      "sourceConsistentExplanation": "Pinned async-exit-hook/index.js registers beforeExit with code0 and schedules process.exit(0), despite CLI catch setting process.exitCode1. No runtime probe was performed."
+    }
+  },
+  "proposalOnly24": {
+    "created": false,
+    "codeEdited": false,
+    "reviewed": false,
+    "executed": false,
+    "containedRoute": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/b24",
+    "jobRootName": "illuminati-cmo-build-24",
+    "snapshotSourceRoot": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-packaging-recovery-20261015/b24/run-01/worker-evidence/illuminati-cmo-build-24/source",
+    "measuredAllNsisTemplatePathsAtMost": 254,
+    "measuredNativeNsisIncludeContribPluginPathsAtMost": 228,
+    "pathCauseStatus": "Legacy native MAX_PATH compatibility is source-consistent with existing identical264-character file not opening; actual shorter-path verification has NOT run",
+    "exitFixProposal": "Preserve vendor async cleanup; in failed CLI catch add a final synchronous once(exit) listener retaining exitCode1. Must independently source-review exact semantics before any execution.",
+    "requirements": "Audit actual23 first; make only finite source correction if justified; fresh unique graph/current pins/source review/one original600000ms atomic Job run. Never retry23."
+  },
+  "currentSavedEnvironment": {
+    "hooks": {
+      "path": "C:/Users/AnGeLZzZ/.codex/hooks.json",
+      "sha256": "a51189c24eca243fa6ff902ee3444cb5dd125f40788d766a8093328d3d8f45ce"
+    },
+    "config": {
+      "path": "C:/Users/AnGeLZzZ/.codex/config.toml",
+      "sha256": "4be097509b92d39027b3ae8c041cead931435f50e2071782bde145a7a76507a6",
+      "bytes": 7120
+    },
+    "decodedCommandStringSha256": "9ab0e00151263d2fdeb26d4f532a59575cc5a7f75153ac20ed0f28bd0e31a660",
+    "ruling": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/Team/Docs/QuickLaunch_PostTrust_Gate07_Review_2026-10-15.md",
+      "sha256": "450668f459044db069aef3dda13e99d0ebdcf000b57be0168dc5ecd2b7704045",
+      "commit": "31fb11092a83f298b52674a9ed651023ba5c33a9"
+    },
+    "plan": {
+      "path": "C:/Antigravity Projects/Studio Illuminati/Team/Docs/QuickLaunch_PostTrust_Gate07_Plan_2026-10-15.md",
+      "sha256": "5ce5e3f128c99543875d29fc53713d067dd40f58e6da012e9eaa521b05ddda40"
+    },
+    "acceptedDelta": "Exactde2-to4be only61bytes at[4293,4337),[4338,4351),[4352,4356),line123; allotherbytes equal; authenticcaptures/currentafter verified",
+    "loadedContextCertified": false,
+    "cmoHookRouteEnrollmentInferred": false
+  },
+  "resumeOrder": [
+    "Run mandatory studio sync; preserve unrelated changes. Read AGENTS.md, ProcessRules.md, DelegationPrimer.md and latest appended Session_2026-10-13_Recap.md.",
+    "Read maintained recovery Doc and this JSON; verify source/evidence/runtime/shared saved-state pins without edits or blind repinning.",
+    "Independently audit original actual23 raw, directNode result, logs and ancestor native closure. No24 implementation or execution has occurred.",
+    "Prepare bounded short contained path and exit-status correction only after source assessment; keep bootstrap extraction pure JavaScript, never execute generated BUILD_UNINSTALLER binary.",
+    "Sully checkpoints any source changes, then freeze genuine source HEAD/current environment/exact graph; Senua exact review permits one bounded original600000ms atomic Job invocation with fresh roots and native closure/seals.",
+    "Finish baseline0.2.1 installer, then Sully freezes final candidate0.2.2 before actual QA. Follow current qa-handoff protocol2 sender/receiver immutable receipts.",
+    "Actual rendered/install/prior-to-next update tests include running and human-paused state/API-key/library preservation in private fixtures; Futaba owns QA.",
+    "Senua version-matched release review and Futaba actual GO precede Sully GitHub release of exact tested bytes; no unreviewed rebuild."
+  ],
+  "roles": {
+    "code": "Ender",
+    "review": "Senua",
+    "qa": "Futaba",
+    "gitVersionRelease": "Sully exclusively"
+  },
+  "qaHarnessRoot": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer-m1/scratch/cmo-futaba-installed-qa-20261015",
+  "safetyScope": {
+    "preserveAllEvidence": true,
+    "noCleanup": true,
+    "noLiveAppOrRealState": true,
+    "liveAppRoot": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer",
+    "excludedPorts": [
+      8765,
+      11434
+    ],
+    "noGeneratedNsisBootstrapExecution": true,
+    "normalInstalledUninstaller": "Only as required by separately reviewed authorized actual prior-to-next updater in private install root; not a standalone uninstall test",
+    "noPhysicalInputWithoutApproval": true,
+    "noSleepResume": true,
+    "noPrivilegesOrSharedSettingsHooksTrustAVChanges": true,
+    "noGuardRefusalBypass": true,
+    "noAttribution": true
+  },
+  "historicalLimitations": {
+    "originalTempEvidenceRoot": "C:/Users/AnGeLZzZ/AppData/Local/Temp/illuminati-codex-cmo-installer-resume-20261013",
+    "originalAuditPins": "Original named files absent; hashes not verified. Historical renderer09/archive29 proof remains unknown. Fresh qualification never backfills it."
+  },
+  "handoffState": {
+    "ownedJobsActive": 0,
+    "source24NotStarted": true,
+    "noProductAppStopped": true,
+    "commandsHoldAfterCheckpoint": true
+  }
+}
