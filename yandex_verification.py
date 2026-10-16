@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 import app
+import storage
 
 _owner = None
 PENDING = {'queued','opening','open'}
@@ -32,7 +33,7 @@ def control(con):
 
 def owner_alive(state):
     try:
-        heartbeat=json.loads((app.DATA/'queue/heartbeat').read_text(encoding='utf-8'))
+        heartbeat=json.loads(storage.read_text(app.DATA/'queue/heartbeat'))
         return bool(state.get('owner')) and heartbeat['pid']==state.get('owner_pid') and 0<=time.time()-heartbeat['timestamp']<15
     except (OSError,ValueError,KeyError,TypeError):return False
 

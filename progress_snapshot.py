@@ -10,6 +10,7 @@ import json
 import threading
 import time
 import app
+import storage
 
 PAYLOAD_BATCHES = 100
 
@@ -39,7 +40,7 @@ class Files:
         key=(stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
         previous=self.values.get(path)
         if previous is not None and previous[0]==key:return previous[1]
-        value=json.loads(path.read_text(encoding='utf-8'))
+        value=json.loads(storage.read_text(path))
         self.values[path]=(key,value)
         return value
 

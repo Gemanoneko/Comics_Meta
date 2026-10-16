@@ -57,7 +57,7 @@ def control(con):
 
 def alive(state):
     try:
-        beat=json.loads((app.DATA/'browser-heartbeat').read_text(encoding='utf-8'))
+        beat=json.loads(storage.read_text(app.DATA/'browser-heartbeat'))
         return bool(state.get('owner')) and beat['pid']==state.get('owner_pid') and 0<=time.time()-beat['timestamp']<15
     except (OSError,ValueError,KeyError,TypeError):return False
 

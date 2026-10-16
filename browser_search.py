@@ -45,11 +45,13 @@ def api_key():
 
 def legacy_status(**changes):
     path=app.DATA/'browser-search.json'
-    previous=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    previous=json.loads(storage.read_text(path)) if path.exists() else {}
     if changes:
         previous.update(changes,timestamp=time.time());storage.save(path,previous)
     heartbeat=app.DATA/'browser-heartbeat'
-    previous['alive']=heartbeat.exists() and time.time()-json.loads(heartbeat.read_text(encoding='utf-8'))['timestamp']<15
+    # The worker's heartbeat thread replaces this file every 2 s; a plain read
+    # meeting that replace crashed the worker at start (installed 0.2.1 QA, M3).
+    previous['alive']=heartbeat.exists() and time.time()-json.loads(storage.read_text(heartbeat))['timestamp']<15
     previous['verification_pending']=(app.DATA/'browser-resume').exists() or (previous['alive'] and previous.get('human_verification') and previous.get('verification_state') in ('opening','open'))
     return previous
 

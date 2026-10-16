@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
@@ -41,3 +43,25 @@ class SupervisorTests(unittest.TestCase):
         supervisor.supervise(Path('project'), stop, launch, baseline=lambda: 0)
         self.assertEqual(launch.call_count, 2)
         self.assertEqual(stop.waits, [30, 30])
+
+    def test_launch_failure_is_logged_once_per_cause(self):
+        # A refused launch was silent (installed 0.2.1 QA, M1); now it reaches the engine log.
+        refused = PermissionError('Private QA native child refused')
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log):
+            supervisor.supervise(Path('project'), StopAfter(4), Mock(side_effect=[
+                refused, refused, Mock(**{'poll.return_value': 1}), OSError('unavailable')]), baseline=lambda: 0)
+        lines = log.getvalue().splitlines()
+        self.assertEqual(lines, [
+            'Could not start worker.py; retrying every 30 s: PermissionError Private QA native child refused',
+            'Could not start worker.py; retrying every 30 s: OSError unavailable'])
+
+    def test_crashed_browser_worker_is_restarted_on_the_next_check(self):
+        child = Mock()
+        child.poll.side_effect = [None, 1]  # Running at the first check, crashed by the second.
+        launch = Mock(return_value=child)
+        stop = StopAfter(3)
+        supervisor.supervise(Path('project'), stop, launch, 'browser_worker.py', baseline=lambda: 0)
+        self.assertEqual(launch.call_count, 2)
+        self.assertEqual(launch.call_args.args[0][-1], str(Path('project') / 'browser_worker.py'))
+        self.assertEqual(stop.waits, [30, 30, 30])

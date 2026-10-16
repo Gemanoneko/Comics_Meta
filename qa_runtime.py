@@ -136,6 +136,26 @@ def model_request(endpoint, data=None, headers=None):
     return urllib.request.Request('http://'+host+':'+str(port)+endpoint, data=data, headers=copied)
 
 
+def launched_program(executable, command):
+    """The program a subprocess.Popen audit event will start, or None if unclear.
+
+    POSIX and an explicit executable= give it directly. On Windows Popen passes
+    executable=None and one command-line string; CreateProcess then runs the
+    quoted text up to the next quote, or else the text before the first space
+    or tab. Anything unclear (no closing quote, a non-string) is None, which
+    the caller refuses.
+    """
+    if executable is not None:
+        try:return os.fsdecode(executable)
+        except TypeError:return None
+    if not isinstance(command, str):
+        return None
+    if command.startswith('"'):
+        end = command.find('"', 1)
+        return command[1:end] if end > 0 else None
+    return re.split('[ \t]', command, maxsplit=1)[0]
+
+
 def install():
     global _INSTALLED
     value = policy()
@@ -163,7 +183,12 @@ def install():
             address=args[1]
             if not address_allowed(address,{port}):raise PermissionError('Private QA socket binding refused')
         elif event=='subprocess.Popen':
-            executable=os.path.normcase(os.path.abspath(str(args[0])))
+            # args[0] is None on Windows unless executable= was passed; the
+            # program is then the first command-line token (installed 0.2.1 QA, M1).
+            program=launched_program(args[0],args[1])
+            # A bare or relative name would be searched for; only a full path is compared.
+            if not program or not os.path.isabs(program):raise PermissionError('Private QA native child refused')
+            executable=os.path.normcase(os.path.abspath(program))
             if executable not in (allowed_python,allowed_native):raise PermissionError('Private QA native child refused')
             child_env=args[3]
             if child_env is not None and any(child_env.get(key)!=os.environ.get(key) for key in ('COMICS_META_QA','COMICS_META_QA_ROOT','COMICS_META_QA_POLICY','COMICS_META_QA_POLICY_SHA256','COMICS_META_STATE_ROOT','COMICS_META_LOCK_DIR')):raise PermissionError('Private QA child exclusions missing')

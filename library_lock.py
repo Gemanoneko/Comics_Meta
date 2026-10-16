@@ -131,7 +131,7 @@ def _overlapping_owner(claims, library_id, state_id):
             _remove(lock_path, record_path)  # Its process has ended.
             continue
         try:
-            owner = json.loads(record_path.read_text(encoding='utf-8'))
+            owner = json.loads(storage.read_text(record_path))
             state, library = owner['state_identity'], owner['library_identity']
         except (OSError, ValueError, KeyError, TypeError):
             state = library = None

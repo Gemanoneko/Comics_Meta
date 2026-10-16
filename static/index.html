@@ -179,7 +179,7 @@ $('filter').onclick=()=>{offset=0;load()};$('query').onkeydown=e=>{if(e.key==='E
 const HELP_CODES=new Set(['write_stopped','dead_link','conflict']),RETRY_CODES=['write_failed','held'];
 const CHIP_LABELS={write_stopped:'Writes stopped',dead_link:'Dead ComicVine link',conflict:'ComicVine conflict',write_failed:'Write failed',held:'Held for ComicVine'};
 const HELD_CAUSES={cooldown:'ComicVine is cooling down after an error.',limit:'The ComicVine request limit is reached.',unreachable:'ComicVine cannot be reached.',rejected:'ComicVine did not accept the request.',empty:'ComicVine returned no issue for this link.'};
-const MISSING_KEY='Open API keys in the desktop app to add a ComicVine key.';
+const MISSING_KEY=window.comicDesktop?'Open API keys at the top of the page to add one.':'Open API keys in the Comic Metadata desktop app to add one.';
 const retryRequested=new Set();
 function setText(e,t){if(e.textContent!==t)e.textContent=t}
 function chips(){return [...document.querySelectorAll('#problemChips .chip')]}

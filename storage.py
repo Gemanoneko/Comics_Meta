@@ -18,3 +18,19 @@ def save(path,value):
                 time.sleep(.05)
     finally:
         if temporary.exists():temporary.unlink()
+
+
+def read_text(path):
+    """Text of a status, heartbeat or lease file that save() may be replacing right now.
+
+    While the replace runs, Windows briefly refuses a plain open with
+    PermissionError (errno 13), in the writer's own process too. Retried with
+    the writer's bound; a refusal that outlasts it is raised. Other errors,
+    including a missing file, are raised at once.
+    """
+    for attempt in range(20):
+        try:
+            return Path(path).read_text(encoding='utf-8')
+        except PermissionError:
+            if attempt==19:raise
+            time.sleep(.05)
