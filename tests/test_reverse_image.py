@@ -2,6 +2,8 @@ import hashlib
 import inspect
 import io
 import os
+import struct
+import tracemalloc
 import unittest
 import zipfile
 from pathlib import Path
@@ -177,10 +179,101 @@ class FileCoverPreviewTests(unittest.TestCase):
             (status,_,_),lookup=get(url)
             self.assertEqual(status,400,url)
             lookup.assert_not_called()
+        # A malformed id or index is a clean 400, never Python's int() text (Futaba 0.2.3 m6).
+        for url,message in (('/api/cover?id=abc','Choose a comic.'),('/api/cover?id=abc&index=0','Choose a comic.'),('/api/cover?id=-1','Choose a comic.'),
+                            ('/api/cover?id=7&index=x','Choose a suitable image among the first five archive images.')):
+            (status,_,body),lookup=get(url)
+            self.assertEqual((status,body),(400,{'error':message}),url)
+            lookup.assert_not_called()
         (status,_,body),_=get('/api/cover?id=7',empty)
         self.assertEqual((status,body),(400,{'error':NO_COVER}))
         (status,mime,body),_=get('/api/cover?id=7&index=0')  # The Archive image picker is unchanged.
         self.assertEqual((status,mime,body),(200,'image/jpeg',picture()))
+
+
+def lying(path,data,method,declared):
+    """An archive whose one image really holds `data` while both headers declare `declared` bytes."""
+    with zipfile.ZipFile(path,'w',compression=method) as archive:
+        archive.writestr('01.jpg',data)
+    raw=bytearray(path.read_bytes())
+    struct.pack_into('<I',raw,raw.index(b'PK\x03\x04')+22,declared)
+    struct.pack_into('<I',raw,raw.rindex(b'PK\x01\x02')+24,declared)
+    path.write_bytes(bytes(raw))
+
+
+def peak(action):
+    """Peak traced memory while running action, and what it raised."""
+    tracemalloc.start()
+    try:
+        try:
+            action()
+        except Exception as exc:
+            return tracemalloc.get_traced_memory()[1],exc
+        return tracemalloc.get_traced_memory()[1],None
+    finally:
+        tracemalloc.stop()
+
+
+class BoundedImageReadTests(unittest.TestCase):
+    """Senua v0.2.3 P1: cover() and preview() are bounded by the bytes actually decompressed."""
+    REAL=16*1024*1024
+    LIMIT=1024*1024
+
+    def setUp(self):
+        self.root=Path(self.enterContext(scratch_directory()))
+
+    def test_an_entry_larger_than_it_declares_is_capped_for_deflate_bzip2_and_lzma(self):
+        data=bytes(self.REAL)
+        for method in (zipfile.ZIP_DEFLATED,zipfile.ZIP_BZIP2,zipfile.ZIP_LZMA):
+            with self.subTest(method=method):
+                path=self.root/('Lying-'+str(method)+'.cbz')
+                lying(path,data,method,1000)
+                with zipfile.ZipFile(path) as archive:
+                    info=reverse_image.images(archive)[0]
+                    self.assertEqual((info.file_size,info.compress_type),(1000,method))  # The fixture does lie.
+                    # Positive control: archive.read() decompresses the real size before any check.
+                    used,_=peak(lambda:archive.read(info))
+                    self.assertGreater(used,self.REAL)
+                with patch.object(reverse_image,'COVER_BYTES',self.LIMIT):
+                    used,raised=peak(lambda:reverse_image.cover(path))
+                    self.assertIsNotNone(raised)
+                    self.assertLess(used,4*self.LIMIT)
+                    with patch.object(reverse_image,'thumbnail') as decode:
+                        used,raised=peak(lambda:reverse_image.preview(path))
+                    self.assertIsInstance(raised,reverse_image.NoPreview)
+                    self.assertLess(used,4*self.LIMIT)
+                    decode.assert_not_called()
+
+    def test_honest_stored_and_deflated_covers_still_read_and_others_are_refused(self):
+        for method in (zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED):
+            path=self.root/('Honest-'+str(method)+'.cbz')
+            with zipfile.ZipFile(path,'w',compression=method) as archive:
+                archive.writestr('01.jpg',picture())
+            self.assertEqual(reverse_image.cover(path)[0],picture())
+            self.assertEqual(Image.open(io.BytesIO(reverse_image.preview(path))).format,'JPEG')
+        for method in (zipfile.ZIP_BZIP2,zipfile.ZIP_LZMA):  # The file would choose the decoder's memory.
+            path=self.root/('Other-'+str(method)+'.cbz')
+            with zipfile.ZipFile(path,'w',compression=method) as archive:
+                archive.writestr('01.jpg',picture())
+            with self.assertRaises(ValueError):
+                reverse_image.cover(path)
+            with self.assertRaises(reverse_image.NoPreview):
+                reverse_image.preview(path)
+
+    def test_the_running_total_is_enforced_even_if_the_member_overruns(self):
+        class Overrun:
+            def open(self,info):
+                return io.BytesIO(b'x'*(reverse_image.COVER_BYTES+1))
+        info=zipfile.ZipInfo('01.jpg')
+        info.file_size=info.compress_size=1
+        with self.assertRaises(ValueError):
+            reverse_image.read_image(Overrun(),info)
+        info2=zipfile.ZipInfo('01.jpg')
+        info2.file_size=info2.compress_size=1
+        class Exact:
+            def open(self,info):
+                return io.BytesIO(b'x'*reverse_image.COVER_BYTES)
+        self.assertEqual(len(reverse_image.read_image(Exact(),info2)),reverse_image.COVER_BYTES)  # Control: at the limit it reads.
 
 
 if __name__=='__main__':

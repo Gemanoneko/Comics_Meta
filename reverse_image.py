@@ -8,6 +8,8 @@ import app
 
 IMAGE_EXTENSIONS=('.jpg','.jpeg','.png','.webp')
 COVER_BYTES=20_000_000
+READ_CHUNK=1<<20  # Each read decompresses at most this much (deflate's max_length).
+READABLE=(zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED)  # What real comics use.
 
 
 def images(archive):
@@ -15,12 +17,32 @@ def images(archive):
     return sorted((i for i in archive.infolist() if i.filename.lower().endswith(IMAGE_EXTENSIONS)),key=lambda i:i.filename)
 
 
+def read_image(archive, info):
+    """One image's bytes, bounded by the bytes actually decompressed (Senua v0.2.3 P1).
+
+    ZipInfo sizes come from the file and can lie. archive.read() decompresses a whole member
+    before any size is enforced: up to 2 GiB per call for deflate, and for bzip2 or LZMA the
+    file also chooses the decoder's memory. So only stored and deflated members are read;
+    reading through open() in READ_CHUNK pieces bounds every decompression call, and the
+    running total is refused as soon as it passes COVER_BYTES. ZipExtFile also stops at the
+    declared size, then fails its CRC check. Shared by cover() and preview()."""
+    if info.compress_type not in READABLE or info.file_size>COVER_BYTES or info.compress_size>2*COVER_BYTES:
+        raise ValueError('Choose a suitable image among the first five archive images.')
+    data=bytearray()
+    with archive.open(info) as member:
+        while chunk:=member.read(READ_CHUNK):
+            data+=chunk
+            if len(data)>COVER_BYTES:
+                raise ValueError('Choose a suitable image among the first five archive images.')
+    return bytes(data)
+
+
 def cover(path, index=0):
     with zipfile.ZipFile(app.filesystem_path(path)) as archive:
         found=images(archive)
-        if not 0 <= index < min(5,len(found)) or found[index].file_size > COVER_BYTES:
+        if not 0 <= index < min(5,len(found)):
             raise ValueError('Choose a suitable image among the first five archive images.')
-        data=archive.read(found[index])
+        data=read_image(archive,found[index])
         extension=Path(found[index].filename).suffix.lower()
         mime={'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp'}[extension]
         return data,mime,extension
@@ -96,9 +118,9 @@ def preview(path):
                     raise NoPreview()
                 with zipfile.ZipFile(handle) as archive:
                     found=images(archive)
-                    if not found or found[0].file_size>COVER_BYTES or found[0].compress_size>2*COVER_BYTES:
+                    if not found:
                         raise NoPreview()
-                    data=archive.read(found[0])
+                    data=read_image(archive,found[0])
             return thumbnail(data)
         finally:
             _decoders.release()
