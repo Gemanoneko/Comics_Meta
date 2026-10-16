@@ -24,7 +24,9 @@ class Engine extends EventEmitter {
     for(const file of [python,host])if(!fs.existsSync(file))throw Object.assign(Error('Runtime missing'),{code:'RUNTIME_MISSING'});
     fs.mkdirSync(this.state,{recursive:true});fs.mkdirSync(path.dirname(this.log),{recursive:true});
     const out=fs.openSync(this.log,'a');
-    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
+    // PYTHONDONTWRITEBYTECODE reaches every descendant (supervisor workers too): no __pycache__ may
+    // appear in the installed runtime, whose closure the next update verifies (0.2.2->0.2.3 failure).
+    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
     // A private authenticated owner stream supplements the held PID handle.
     // EOF proves this exact shell is gone even if Windows reuses its PID.
     this.child.stdin.on('error',error=>this.emit('engine-error',error));

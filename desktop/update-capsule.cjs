@@ -11,9 +11,17 @@ async function ancestors(target){
   const resolved=path.resolve(target);let current=path.parse(resolved).root;
   for(const part of resolved.slice(current.length).split(path.sep).filter(Boolean)){current=path.join(current,part);const stat=await fs.lstat(current);if(!stat.isDirectory()||stat.isSymbolicLink())throw Error('Update runtime ancestor is not a regular directory');}
 }
-async function inventory(root){
+// Bytecode caches (Sergei's real 0.2.2->0.2.3 update): a Python run without -B writes __pycache__\*.pyc
+// beside the modules it imports. They are never in the manifest and never copied (the capsule is built
+// from the manifest alone), so an unlisted __pycache__ holding only regular .pyc files (or the
+// interpreter's own .pyc.<n> write temporaries) is left out of the INSTALLED source's inventory.
+// Anything else in it (another file, a link, a subfolder) keeps the folder in, and the check refuses.
+// The capsule copy is always inventoried strictly.
+const BYTECODE=/^[^/\\]+\.pyc(?:\.[0-9]+)?$/;
+async function bytecodeOnly(folder){for(const item of await fs.readdir(folder,{withFileTypes:true})){if(!BYTECODE.test(item.name))return false;const stat=await fs.lstat(path.join(folder,item.name));if(!stat.isFile()||stat.isSymbolicLink())return false;}return true;}
+async function inventory(root,{listed=null}={}){
   await ancestors(root);const files=[],directories=[];
-  async function visit(folder){for(const item of await fs.readdir(folder,{withFileTypes:true})){const absolute=path.join(folder,item.name),name=path.relative(root,absolute).split(path.sep).join('/');relative(name);const stat=await fs.lstat(absolute);if(stat.isSymbolicLink())throw Error('Update runtime contains a link');if(stat.isDirectory()){directories.push(name);await visit(absolute);}else if(stat.isFile()){files.push({path:name,sha256:digest(await fs.readFile(absolute))});}else throw Error('Update runtime contains a special file');}}
+  async function visit(folder){for(const item of await fs.readdir(folder,{withFileTypes:true})){const absolute=path.join(folder,item.name),name=path.relative(root,absolute).split(path.sep).join('/');relative(name);const stat=await fs.lstat(absolute);if(stat.isSymbolicLink())throw Error('Update runtime contains a link');if(stat.isDirectory()){if(listed&&item.name==='__pycache__'&&!listed.has(name)&&await bytecodeOnly(absolute))continue;directories.push(name);await visit(absolute);}else if(stat.isFile()){files.push({path:name,sha256:digest(await fs.readFile(absolute))});}else throw Error('Update runtime contains a special file');}}
   await visit(root);return{files:files.sort((a,b)=>a.path.localeCompare(b.path,'en')),directories:directories.sort()};
 }
 function normalized(manifest){
@@ -43,13 +51,14 @@ async function prepareUpdateCapsule({resources,workRoot}){
   const manifest=JSON.parse(await fs.readFile(manifestPath,'utf8')),expected=normalized(manifest);
   const source=path.join(install,'runtime','python'),helper=path.join(install,'engine','installer_launch.py');await ancestors(path.dirname(helper));
   const helperStat=await fs.lstat(helper);if(!helperStat.isFile()||helperStat.isSymbolicLink())throw Error('Invalid updater helper');const helperBytes=await fs.readFile(helper);if(digest(helperBytes)!==manifest.helperSha256)throw Error('Updater helper identity differs');
-  if(JSON.stringify(await inventory(source))!==JSON.stringify(expected))throw Error('Update runtime source closure differs');
+  const installed={listed:new Set(expected.directories)};
+  if(JSON.stringify(await inventory(source,installed))!==JSON.stringify(expected))throw Error('Update runtime source closure differs');
   const root=await fs.mkdtemp(path.join(base,'launch-'));await ancestors(root);const runtime=path.join(root,'runtime');await fs.mkdir(runtime);await ancestors(runtime);const python=path.join(runtime,'python');await fs.mkdir(python);await ancestors(python);const engine=path.join(root,'engine');await fs.mkdir(engine);await ancestors(engine);
   for(const name of [...expected.directories].sort((a,b)=>a.split('/').length-b.split('/').length||a.localeCompare(b))){await ancestors(path.dirname(path.join(python,name)));await fs.mkdir(path.join(python,name));}
   for(const item of expected.files){const src=path.join(source,item.path),dest=path.join(python,item.path);await ancestors(path.dirname(src));await ancestors(path.dirname(dest));const stat=await fs.lstat(src);if(!stat.isFile()||stat.isSymbolicLink())throw Error('Updater runtime input type changed');const bytes=await fs.readFile(src);if(digest(bytes)!==item.sha256)throw Error('Updater runtime input changed');await fs.writeFile(dest,bytes,{flag:'wx'});}
   const copiedHelper=path.join(engine,'installer_launch.py');await fs.writeFile(copiedHelper,helperBytes,{flag:'wx'});
   await fs.writeFile(path.join(root,'runtime-manifest.json'),JSON.stringify(manifest),{flag:'wx'});
-  if(JSON.stringify(await inventory(source))!==JSON.stringify(expected)||JSON.stringify(await inventory(python))!==JSON.stringify(expected)||digest(await fs.readFile(helper))!==manifest.helperSha256||digest(await fs.readFile(copiedHelper))!==manifest.helperSha256)throw Error('Update capsule closure changed');
+  if(JSON.stringify(await inventory(source,installed))!==JSON.stringify(expected)||JSON.stringify(await inventory(python))!==JSON.stringify(expected)||digest(await fs.readFile(helper))!==manifest.helperSha256||digest(await fs.readFile(copiedHelper))!==manifest.helperSha256)throw Error('Update capsule closure changed');
   await modulePaths(root,python,expected);
   return{python:path.join(python,'python.exe'),helper:copiedHelper,root};
 }

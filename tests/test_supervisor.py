@@ -64,4 +64,6 @@ class SupervisorTests(unittest.TestCase):
         supervisor.supervise(Path('project'), stop, launch, 'browser_worker.py', baseline=lambda: 0)
         self.assertEqual(launch.call_count, 2)
         self.assertEqual(launch.call_args.args[0][-1], str(Path('project') / 'browser_worker.py'))
+        # -B: a worker writes no __pycache__ into the installed runtime (0.2.2->0.2.3 update failure).
+        self.assertEqual(launch.call_args.args[0][1:], ['-B', str(Path('project') / 'browser_worker.py')])
         self.assertEqual(stop.waits, [30, 30, 30])

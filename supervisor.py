@@ -20,7 +20,8 @@ def supervise(base, stop, launch=None, script='worker.py', baseline=None):
                 env = dict(os.environ, **{pause_control.STOP_BASELINE_ENV: str(baseline())})
                 if stop.is_set():
                     break
-                child = launch([sys.executable, str(base / script)], cwd=base, env=env,
+                # -B: no __pycache__ in the installed runtime; the next update verifies its closure.
+                child = launch([sys.executable, '-B', str(base / script)], cwd=base, env=env,
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 reported = None
             except (OSError, sqlite3.Error, ValueError) as exc:
