@@ -45,10 +45,14 @@ class Files:
         return value
 
     def queue(self,path):
+        return [value for _,value in self.queue_named(path)]
+
+    def queue_named(self,path):
+        """(stem, ticket) for every queue file, in queue order; the stem is the ticket's id."""
         paths=set(path.glob('*.json'))
         for old in list(self.values):
             if old.parent==path and old not in paths:self.values.pop(old,None)
-        return [self.read(item,{}) for item in paths]
+        return [(item.stem,self.read(item,{})) for item in sorted(paths,key=lambda item:item.name)]
 
 
 def collect(files):
@@ -59,11 +63,12 @@ def collect(files):
     result['completed_total']=len(completed)
     completed=result['completed']=completed[-PAYLOAD_BATCHES:]
     result['completed_revision']=hashlib.sha256(json.dumps(completed,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-    queue_dir=app.DATA/'queue';tickets=files.queue(queue_dir)
+    import folder_help
+    queue_dir=app.DATA/'queue';named=files.queue_named(queue_dir);tickets=[ticket for _,ticket in named]
     heartbeat=files.read(queue_dir/'heartbeat',{})
     result['queue']={'alive':0<=time.time()-heartbeat.get('timestamp',0)<15,
                     **{state:sum(t.get('state')==state for t in tickets) for state in ('pending','running','complete')},
-                    'attention':[{'folder':t['folder'],'error':t.get('error','')} for t in tickets if t.get('state')=='needs_attention']}
+                    'attention':folder_help.attention(named)}  # FolderHelpActions 8.2: id and code per line.
     result['live_root']=app.live_root()
     result['research']=discovery_state.counts(result['live_root'])
     result['control']=pause_control.status()

@@ -123,6 +123,28 @@ def write_not_done(path, outcome, reason, now=None):
     return True
 
 
+def due_now(paths, now=None):
+    """Make these comics due at the next pass of their folder (FolderHelpActions 2026-10-16: a closed
+    "Your help is needed" line). Only the retry time moves; outcome, signature, waits and any
+    failed-write run stay, so a comic whose writes stopped still waits for its file to change.
+    A comic with no record is already due. Returns how many records changed."""
+    now = time.time() if now is None else now
+    changed = 0
+    with app.db() as con:
+        initialize(con)
+        for path in paths:
+            found = con.execute('SELECT value FROM discovery_records WHERE path=?', (str(path),)).fetchone()
+            if not found:
+                continue
+            record = json.loads(found['value'])
+            if not isinstance(record, dict) or record.get('retry_at', 0) <= now:
+                continue
+            record['retry_at'] = now
+            con.execute('UPDATE discovery_records SET value=? WHERE path=?', (json.dumps(record, ensure_ascii=False), str(path)))
+            changed += 1
+    return changed
+
+
 def counts(root):
     with app.db() as con:
         initialize(con)

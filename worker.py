@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 import batch
 import app
+import folder_help
 import storage
 import pause_control
 
@@ -83,7 +84,8 @@ def run_one():
             item.update(state='pending',paused=time.time())
         except Exception as exc:
             # Never retry a partially written plan blindly or remove its backups.
-            item.update(state='needs_attention', error=str(exc), finished=time.time())
+            # The reason code is classified here, from the exception, not in the page (FolderHelpActions 8.2).
+            item.update(state='needs_attention', error=str(exc), code=folder_help.classify(exc), finished=time.time())
         save(ticket, item)
         return True
     return False
@@ -120,7 +122,7 @@ def main():
     for ticket in QUEUE.glob('*.json'):
         item = json.loads(ticket.read_text(encoding='utf-8'))
         if item['state'] == 'running':
-            item.update(state='needs_attention', error='Interrupted batch; inspect results and retained backups before requeuing.')
+            item.update(state='needs_attention', error=folder_help.INTERRUPTED, code='interrupted')
             save(ticket, item)
     def heartbeat():
         while True:

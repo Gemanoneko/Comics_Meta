@@ -267,25 +267,35 @@ def _unlink(path):
         path.unlink()
 
 
+def delete_one(path, before_unlink=None):
+    """Permanently delete one backup under its comic's write guard; returns the bytes freed.
+
+    before_unlink(comic), when given, runs under the guard right before the delete; whatever it
+    raises stops the delete and propagates (FolderHelpActions Amendment A8.2 proves the comic there)."""
+    import library_lock
+    path, comic = checked(path)
+    library_lock.require(path)  # Raises before any change if another copy owns the library.
+    with app.comic_write_guard(comic):
+        path, comic = checked(path)  # Again, under the guard.
+        if before_unlink is not None:
+            before_unlink(comic)
+        size = path.lstat().st_size
+        _unlink(path)
+    _forget(path)
+    try:
+        path.parent.rmdir()  # Only when empty, as the verified-backup cleanup does.
+    except OSError:
+        pass
+    return size
+
+
 def delete(idents):
     """Permanently delete exactly these listed backups, each under its comic's write guard."""
-    import library_lock
     deleted, failed, freed = [], [], 0
     for ident in idents:
         try:
-            path, comic = checked(resolve(ident))
-            library_lock.require(path)  # Raises before any change if another copy owns the library.
-            with app.comic_write_guard(comic):
-                path, _ = checked(path)  # Again, under the guard.
-                size = path.lstat().st_size
-                _unlink(path)
-            freed += size
+            freed += delete_one(resolve(ident))
             deleted.append(ident)
-            _forget(path)
-            try:
-                path.parent.rmdir()  # Only when empty, as the verified-backup cleanup does.
-            except OSError:
-                pass
         except BackupError as exc:
             failed.append({'id': ident, 'code': exc.code})
         except app.ArchiveChanged:

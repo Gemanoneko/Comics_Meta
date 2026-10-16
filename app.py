@@ -682,7 +682,7 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js'):
+            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js','/folder-help.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
             if url.path == '/comic-recovery.css':
                 return self.respond((BASE/'static/comic-recovery.css').read_bytes(),mime='text/css; charset=utf-8')
@@ -911,6 +911,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond(kept_backups.delete(ids))
                 except kept_backups.BackupError as exc:
                     return self.respond({'error':exc.code,'code':exc.code},400)
+            if self.path == '/api/attention/reveal':
+                # FolderHelpActions 8.3: Open folder / Show in folder. Allowed while paused; ids only, never a path.
+                import folder_help
+                try:
+                    if not isinstance(body,dict) or 'ticket' not in body or set(body)-{'ticket','problem'}:
+                        raise folder_help.HelpError('gone')
+                    return self.respond(folder_help.reveal(body['ticket'],body.get('problem')))
+                except folder_help.HelpError as exc:
+                    return self.respond(exc.payload(),400)
             if self.path == '/api/try-again':
                 # Failure-filter spec R4. Allowed while paused: it only clears a stop flag in
                 # the comic's record; the one attempt runs at the next pass after Resume.
@@ -919,6 +928,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond({'ok': True, 'changed': changed, 'problem': problem})
             if getattr(self.server, 'setup_required', False):
                 return self.respond({'error': 'Finish setup before starting processing.'}, 403)
+            if self.path in ('/api/attention/check','/api/attention/delete-backups','/api/attention/close'):
+                # FolderHelpActions 8.3 and Amendment A8: the ticket id (and the offered backup ids),
+                # never a path. Each refuses with its own 'paused' code, ahead of the generic guard below.
+                import folder_help
+                try:
+                    keys={'/api/attention/delete-backups':{'ticket','backups'}}.get(self.path,{'ticket'})
+                    if not isinstance(body,dict) or set(body)!=keys:
+                        raise folder_help.HelpError('invalid','choose a folder that needs help')
+                    if self.path == '/api/attention/check':
+                        return self.respond(folder_help.check(body['ticket']))
+                    if self.path == '/api/attention/close':
+                        return self.respond(folder_help.close_recheck(body['ticket']))
+                    return self.respond(folder_help.delete_backups(body['ticket'],body['backups']))
+                except folder_help.HelpError as exc:
+                    return self.respond(exc.payload(),400)
             if pause_control.requested():
                 raise ValueError('Processing is paused. Resume before starting manual work.')
             if self.path == '/api/browser-resume':

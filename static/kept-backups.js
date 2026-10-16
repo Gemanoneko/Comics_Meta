@@ -327,5 +327,6 @@ window.KeptBackups = (() => {
 
   init();
   // A save outcome that keeps a backup refreshes the summary in the background (Amendment A3).
-  return {block, clean, size, age, refresh: () => (panel ? read() : Promise.resolve(false))};
+  // clean and pathText are shared with the folder help lines (FolderHelpActions section 3).
+  return {block, clean, pathText, size, age, refresh: () => (panel ? read() : Promise.resolve(false))};
 })();
