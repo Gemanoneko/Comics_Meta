@@ -41,6 +41,7 @@ How it works:
   - dependencies from `prepare-08`, copied into `node_modules/` on the first run;
   - the Python/7-Zip runtime and the Electron/NSIS/rcedit tools from `runtime-assemble-13`.
   - Pass `--inputs <dir>` to point elsewhere. Nothing is downloaded: a network connect fails the build.
+  - **DO NOT clean `scratch/cmo-packaging-recovery-20261015/`.** It is gitignored and is the only build toolchain, so the installer builds on this machine only until it is moved (Senua v0.2.2 N2).
 - **Staging.** The driver stages `build/staged` (runtime, engine sources, licences) and its manifest.
 - **Build.** It runs electron-builder in a child process, `scripts/packaging/build-lean.cjs`. `node_modules/`, `build/` and `dist/` are gitignored.
 - **Uninstaller stub (hard rule, kept).** The generated NSIS `BUILD_UNINSTALLER` stub is never executed. The pinned safe route (`nsis-safe/`) extracts the uninstaller with the pure-JS decoder and checks it byte-for-byte against upstream's pure `UninstallerReader`.

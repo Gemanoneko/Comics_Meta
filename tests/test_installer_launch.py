@@ -4,7 +4,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -228,6 +230,58 @@ class CapsuleContractTests(unittest.TestCase):
                 self.assertEqual(launch.run(request,native,native.receipt),1)
             self.assertNotIn('create',[event[0] for event in native.events])
             self.assertEqual(native.receipts[0]['code'],'capsule_module_path_escapes')
+
+
+@unittest.skipUnless(os.name == 'nt', 'native Windows share modes')
+class NativeShareModeTests(unittest.TestCase):
+    """Real CreateFileW holds on scratch folders only; nothing is launched."""
+    def sharing_violation(self, action):
+        with self.assertRaises(PermissionError) as caught:action()
+        self.assertEqual(caught.exception.winerror,32)
+
+    def test_directory_hold_keeps_its_name_but_allows_child_atomic_saves(self):
+        native=launch.Windows()
+        with tempfile.TemporaryDirectory(dir=os.environ['COMICS_META_TEST_SCRATCH']) as folder:
+            held,empty=Path(folder)/'held',Path(folder)/'empty'
+            held.mkdir();empty.mkdir()
+            (held/'state.json').write_text('old');(held/'state.json.tmp').write_text('new')
+            (Path(folder)/'outside.txt').write_text('moved')
+            handles=[native.hold(str(held),directory=True),native.hold(str(empty),directory=True)]
+            try:
+                os.replace(held/'state.json.tmp',held/'state.json')  # Atomic save inside a held ancestor.
+                os.replace(Path(folder)/'outside.txt',held/'moved.txt')
+                self.assertEqual((held/'state.json').read_text(),'new')
+                self.sharing_violation(lambda:os.rename(held,Path(folder)/'renamed'))
+                self.sharing_violation(lambda:os.rmdir(empty))
+            finally:
+                for handle in handles:native.close(handle)
+            os.rename(held,Path(folder)/'renamed')
+            os.rmdir(empty)
+
+    def test_old_read_only_directory_share_blocks_child_saves(self):
+        # Positive control: the pre-fix READ-only share mode refuses the same save.
+        native=launch.Windows()
+        with tempfile.TemporaryDirectory(dir=os.environ['COMICS_META_TEST_SCRATCH']) as folder:
+            held=Path(folder)/'held';held.mkdir()
+            (held/'state.json.tmp').write_text('new')
+            with patch.object(native,'SHARE_WRITE',0):handle=native.hold(str(held),directory=True)
+            try:
+                self.sharing_violation(lambda:os.replace(held/'state.json.tmp',held/'state.json'))
+            finally:
+                native.close(handle)
+            os.replace(held/'state.json.tmp',held/'state.json')
+
+    def test_file_hold_still_freezes_payload_bytes_and_name(self):
+        native=launch.Windows()
+        with tempfile.TemporaryDirectory(dir=os.environ['COMICS_META_TEST_SCRATCH']) as folder:
+            payload_file=Path(folder)/'payload.exe';payload_file.write_bytes(b'test')
+            handle=native.hold(str(payload_file))
+            try:
+                with self.assertRaises(PermissionError):payload_file.open('r+b')  # CRT maps error 32 to EACCES.
+                self.sharing_violation(lambda:os.replace(payload_file,Path(folder)/'other.exe'))
+            finally:
+                native.close(handle)
+            self.assertEqual(payload_file.read_bytes(),b'test')
 
 
 if __name__ == '__main__':

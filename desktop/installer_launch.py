@@ -96,6 +96,7 @@ def arguments(request):
 class Windows:
     READ = 0x80000000
     SHARE_READ = 1
+    SHARE_WRITE = 2
     OPEN_EXISTING = 3
     BACKUP_SEMANTICS = 0x02000000
     OPEN_REPARSE_POINT = 0x00200000
@@ -165,7 +166,10 @@ class Windows:
             # Read-bearing access is required for deny-delete sharing to
             # protect ancestor names; READ_ATTRIBUTES alone is insufficient.
             self.READ,
-            self.SHARE_READ, None, self.OPEN_EXISTING,
+            # Directories also share WRITE: their own rename/delete stays refused,
+            # but other programs' (and the relaunched app's) child renames and
+            # atomic saves still work. Files keep READ only: hashed bytes are frozen.
+            self.SHARE_READ | (self.SHARE_WRITE if directory else 0), None, self.OPEN_EXISTING,
             self.OPEN_REPARSE_POINT | (self.BACKUP_SEMANTICS if directory else 0), None)
         if handle in (None, 0, self.INVALID):
             raise LaunchError('hold', 'handle_unavailable')
