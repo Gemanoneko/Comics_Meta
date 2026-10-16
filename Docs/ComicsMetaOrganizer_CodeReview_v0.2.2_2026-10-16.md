@@ -167,3 +167,92 @@ QA installs use the production appId (`electron-builder.config.cjs`). electron-b
 **Verdict:** RELEASE CLEAR
 
 This certifies the source range above and confirms that the examined 0.2.2 artifact's engine and desktop bytes equal HEAD 047a138. It does not certify installed behaviour, the prior→next update, or publication; those belong to Futaba and Sully. Major and Minor findings are logged for Ender's next cycle and do not gate this release.
+
+---
+
+## Addendum — N1/N4 fixes (2026-10-16)
+
+```
+Reviewer: Senua (Code Reviewer)
+Date: 2026-10-16
+Commit range: 047a1381408da3bb128ebf85d4b7cd7449854a57..723ef4014b43e8a2c08346ae31027b8e44e91a48
+Code files changed: 3 (desktop/installer_launch.py, tests/test_installer_launch.py, tests/test_qa_runtime.py), +77 / -3
+Worktree: tree clean at review start; the three files equal 723ef40 (Sully's commit landed before this addendum)
+Artifact examined (not run): dist/Comic-Metadata-Setup-0.2.2.exe, 149,449,648 B, sha256 ecd894870cdfee90133f58300d264484996fbae3a4dd543c55ff5cdf0017172e
+```
+
+Both fixes are real. Neither weakens a protection. There are no new findings.
+
+### N1 — Resolved
+
+- **The change.** `installer_launch.py:172`: directory holds now share READ|WRITE. File holds still share READ only. Access is still GENERIC_READ, so deny-delete sharing still guards every held name.
+- **Measured.** I used the shipped `Windows.hold` on scratch folders only. For the "old" column I patched `SHARE_WRITE` to 0 on the same class.
+
+| Operation while held | Old (READ only) | New (READ\|WRITE) |
+|---|---|---|
+| Atomic save (`os.replace`) inside a held folder | refused (32) | **allowed** |
+| Move a file into a held folder | refused (32) | **allowed** |
+| Rename or delete the held folder itself | refused (32) | refused (32) |
+| Rename a held child folder | refused (32) | refused (32) |
+| Delete the held payload | refused (32) | refused (32) |
+| Replace the held payload by renaming another file onto it | refused (32) | refused (5) |
+| Turn a non-empty held folder into a junction | refused (32) | refused (145, folder not empty) |
+| Turn an empty held folder into a junction, via a write-attributes handle | allowed | allowed |
+| Create a new file in a held folder | allowed | allowed |
+| Hard-link a new name into a held folder | refused (32) | allowed |
+| Payload bytes after all of the above | unchanged | unchanged |
+
+- **Does it reopen a protection? No.** The holds make sure the verified payload path and the capsule closure still point at the same objects at launch. Three things guarantee that, and all three still hold:
+  - Every held name refuses rename and delete. DELETE is not shared, for files or folders.
+  - The payload refuses writes, because file holds are still READ only.
+  - Every held ancestor contains the next held name, so it is never empty and cannot become a junction (measured: 145).
+- **What WRITE sharing adds.** Other processes can now rename or hard-link a name into a held folder, and open it with write access. A new name in a held folder does not change what the exact payload path resolves to. Creating new files there was always allowed, so this adds no new way to plant content, such as a DLL beside the installer.
+- **Pre-existing, unchanged by the fix (advisory, no severity).** An empty held folder can be turned into a junction through a write-attributes handle, because that access takes no part in sharing. The old share mode allowed it too. No empty folder lies on the payload path. Reading the code, any capsule file reached through such a junction would fail the hold's final-path check (`path_identity_differs`).
+- **Acquiring a hold.** A hold now also succeeds when another process has a held folder open for write. It still fails when anyone has the folder open for delete. This is not a weakening: write access to a folder cannot rename it.
+- **What remains during an update.** Other programs still cannot rename or delete the held folders themselves: `C:\`, `C:\Users`, the profile, `AppData`, `AppData\Local`, the state root, the update work folder and `comic-metadata-updater\pending`. Normal programs do not do that. Saves and renames inside those folders, including the relaunched app's state writes, now work.
+- **The new tests are real.** I ran mutation controls on scratch copies of the module, under the guard:
+  - Folders shared READ only (the pre-fix code): the main test errors with WinError 32 on the atomic save.
+  - Folders also share DELETE: the main test fails, because the folder rename is not refused.
+  - Files also share WRITE: the file test fails, because the `r+b` open is not refused.
+  - The in-repo control `test_old_read_only_directory_share_blocks_child_saves` sees the save refused under the old share mode, and the same save succeeds after release.
+  - Nit, not a finding: the file test accepts any PermissionError on `r+b` and never reopens after release. The mutation shows it still catches a WRITE-shared file hold.
+- **Note for Futaba (updated).** Installed QA still cannot see effects on other processes. The remaining effect is limited to rename or delete of the held folders themselves.
+
+### N4 — Resolved
+
+- **Production code untouched.** `qa_runtime.py` did not change, so the refusal logic is the same.
+- **The fixture now matches the code.** It builds the full policy that `policy()` validates. It resets `_POLICY` and `_INSTALLED` for each test through patches with cleanup. It sets `TEMP` to the scratch parent only inside each patched call.
+- **The refusal cases are unchanged:** a wrong hash pin, and a state root outside the QA root. A new positive control shows that the unchanged fixture installs exactly once. So each refusal comes from its own change.
+- **Mutation controls.** I removed the hash pin from a scratch copy of `qa_runtime.py`, and the test fails with "RuntimeError not raised". I removed the state-root pin, and it fails the same way. Each refusal case catches its own weakening.
+- **No hook leaks.** Every `install()` call in the file patches `sys.addaudithook`, so no real audit hook stays in the test process.
+
+### Test run (guard confirmed active)
+
+- **Guard proof.** The runner imported `test_0_state_isolation` first. Before any test ran, it checked the guard:
+  - All 9 guarded roots refused a probe open: the -m1 checkout's `data/`, `batches/`, `config.json` and `.env`; `%LOCALAPPDATA%\ComicsMeta`; and the live main checkout's `data/`, `batches/`, `config.json` and `.env`, passed in as a valid `COMICS_META_TEST_PROTECTED_ROOTS`.
+  - A connect to a closed, non-fixture port was refused by the guard, not by the OS.
+  - The state root was inside scratch.
+  - The runner was set to abort if any of these checks failed.
+- **Results.** `test_0` + `test_installer_launch` + `test_qa_runtime` + `test_zz`: 25 tests, 25 passed. `VIOLATIONS` was 0.
+- **Mutation runs.** All 5 mutants were killed under the same guard, with `VIOLATIONS` 0 each time.
+- **Not done.** No app, installer or build was run, nothing was written to git, and nothing touched ports 8765 or 11434. The scratch folder was removed afterwards.
+
+### Artifact
+
+- **Hashes.** The exe's sha256 equals the brief. `latest.yml` sha512 and size (149,449,648) equal the exe. The blockmap was rebuilt with the exe.
+- **The helper inside the exe.** I extracted it from the exe's own `app-64.7z`, not only from `win-unpacked`.
+  - `resources/engine/installer_launch.py` is byte-identical to the fixed source and to `dist/win-unpacked`.
+  - The packaged `update-runtime-manifest.json` `helperSha256` (`41a5f4c4…`) equals that helper's sha256, so the update-capsule identity check will accept it.
+- **Engine files.** All 57 equal the working tree and HEAD 723ef40. The only differences are CRLF line endings from the autocrlf checkout.
+- **app.asar.** The 16 tracked desktop files equal HEAD. Only `package.json`, which the builder rewrites, differs. 18 icon assets are unpacked outside the asar and were not compared.
+
+### Updated tally
+
+- Total Critical: 0
+- Total Major: 2 open (N2, N3); N1 and N4 resolved
+- Total Minor: 7 new (N5–N11), unchanged; 13 carried, unchanged
+- Safety-floor violations: 0
+
+**Verdict:** RELEASE CLEAR
+
+This addendum certifies 047a138..723ef40. It also confirms that the rebuilt 0.2.2 artifact's helper equals the fixed source and that its engine and desktop bytes equal HEAD 723ef40. It does not certify installed behaviour, the prior→next update, or publication.
