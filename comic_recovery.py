@@ -222,6 +222,22 @@ def preview(comic_id, action, candidate=None):
     return {'token': token, 'action': action, 'changes': [{'field': key, 'before': old.get(key, ''), 'after': value}
             for key, value in fields.items()], 'source': source, 'filename': Path(row['path']).name}
 
+def archive_sha256(path):
+    with app.filesystem_path(path).open('rb') as handle:
+        return hashlib.file_digest(handle, 'sha256').hexdigest()
+
+def discard_verified_backup(path, backup, original_sha256):
+    """Remove a saved-and-verified change's backup (Sergei 2026-10-16, option B).
+
+    app.remove_verified_backup deletes only that file, only from the comic's own backup
+    folder and only when it still holds the original's SHA-256. Any refusal keeps the
+    backup; the change itself stays saved and verified. Returns True once removed."""
+    try:
+        app.remove_verified_backup(path, backup, original_sha256)
+    except Exception:
+        return False
+    return True
+
 def confirm(token, confirmation):
     if confirmation is not True or not isinstance(token, str):
         raise RecoveryError('confirmation', 'Review and explicitly confirm this change.')
@@ -242,6 +258,8 @@ def confirm(token, confirmation):
         source = plan['source']
         if source and provider(source['issue_id'])['revision'] != source['revision']:
             raise RecoveryError('stale', 'This comic or its evidence changed. Review the updated values before saving.')
+        # Under the writer guard, before the backup copy: what the backup must equal to be removed.
+        original_sha256 = archive_sha256(row['path'])
         try:
             backup = app.write_metadata(row, plan['fields'], overwrite_fields=set(plan['fields']), expected=old,
                 expected_snapshot=old, verify_readback=True, attempt=attempt,
@@ -255,6 +273,9 @@ def confirm(token, confirmation):
             # Never claim unchanged after the writer may have replaced the archive.
             return {'ok': False, 'verified': False, 'backup': attempt.get('backup'),
                     'message': 'The change was not verified. Check the file and retained recovery backup before trying again.'}
+        # Saved and the full metadata verified: the backup is a redundant copy, as for
+        # automatic writes and /api/apply. Only this path removes it; every failure above keeps it.
+        removed = discard_verified_backup(row['path'], backup, original_sha256)
         # Old signature-bound problems clear naturally. Do not erase a newer worker record.
         updated = app.comic(plan['comic'])
         with app.db() as con:
@@ -263,5 +284,6 @@ def confirm(token, confirmation):
             current = json.loads(found[0]) if found else {}
             import problems
             problem = problems.classify(current, [updated['size'], updated['mtime']])
-        return {'ok': True, 'verified': True, 'backup': backup, 'backup_retained': True,
+        return {'ok': True, 'verified': True, 'backup': backup, 'backup_retained': not removed,
+                'backup_removed_after_verification': removed,
                 'metadata': after, 'problem': problem, 'message': 'Change saved and verified.'}

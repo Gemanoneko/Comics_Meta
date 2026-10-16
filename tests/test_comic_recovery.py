@@ -1,9 +1,10 @@
 """Offline recovery regressions. No real provider, library or credential access."""
 import contextlib
+from pathlib import Path
 import copy
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import comic_recovery as recovery
 
 class RecoveryPlanTests(unittest.TestCase):
@@ -135,23 +136,130 @@ class RecoveryConfirmationTests(unittest.TestCase):
             with self.assertRaises(recovery.RecoveryError):recovery.confirm('token',True)
             writer.assert_not_called()
 
-    def test_postwrite_mismatch_reports_retained_recovery_not_success(self):
-        def write(*args,**kwargs):
-            self.assertEqual(kwargs['expected_snapshot'],self.old)
-            self.assertTrue(kwargs['verify_readback'])
-            self.assertTrue(kwargs['guard_held'])
-            self.assertEqual(kwargs['writer'],'manual')
-            kwargs['attempt']['backup']='owned-backup'
-            return 'owned-backup'
+    def write(self,*args,**kwargs):
+        self.assertEqual(kwargs['expected_snapshot'],self.old)
+        self.assertTrue(kwargs['verify_readback'])
+        self.assertTrue(kwargs['guard_held'])
+        self.assertEqual(kwargs['writer'],'manual')
+        self.assertFalse(kwargs.get('remove_verified_backups',False))  # Removal waits for the full-snapshot check.
+        kwargs['attempt']['backup']='owned-backup'
+        return 'owned-backup'
+
+    def no_record(self):
+        con=MagicMock()
+        con.execute.return_value.fetchone.return_value=None
+        return con
+
+    def confirm_with(self,after,remove=None):
         with patch.object(recovery.app,'comic_write_guard',create=True,return_value=contextlib.nullcontext()), \
              patch('pause_control.requested',return_value=False), \
              patch.object(recovery,'snapshot',return_value=(self.row,self.old,self.record,{'issue_id':'123'})), \
-             patch.object(recovery.app,'write_metadata',side_effect=write), \
-             patch.object(recovery.app,'read_metadata',return_value=(dict(self.old,Web='unexpected'),'embedded','')):
-            result=recovery.confirm('token',True)
+             patch.object(recovery,'archive_sha256',return_value='original-sha'), \
+             patch.object(recovery.app,'write_metadata',side_effect=self.write), \
+             patch.object(recovery.app,'read_metadata',return_value=(after,'embedded','')), \
+             patch.object(recovery.app,'remove_verified_backup',side_effect=remove) as remover, \
+             patch.object(recovery.app,'comic',return_value=self.row), \
+             patch.object(recovery.app,'db',return_value=contextlib.nullcontext(self.no_record())), \
+             patch('discovery_state.initialize'):
+            return recovery.confirm('token',True),remover
+
+    def test_postwrite_mismatch_reports_retained_recovery_not_success(self):
+        result,remover=self.confirm_with(dict(self.old,Web='unexpected'))
         self.assertFalse(result['verified'])
         self.assertEqual(result['backup'],'owned-backup')
+        remover.assert_not_called()  # Control: a failed verification never removes the backup.
         with self.assertRaises(recovery.RecoveryError):recovery.confirm('token',True)
+
+    def test_verified_save_removes_its_backup_with_the_original_digest(self):
+        result,remover=self.confirm_with(dict(self.old,Web=''))
+        self.assertTrue(result['verified'])
+        remover.assert_called_once_with('isolated.cbz','owned-backup','original-sha')
+        self.assertEqual((result['backup_retained'],result['backup_removed_after_verification']),(False,True))
+        self.assertEqual(result['message'],'Change saved and verified.')
+
+    def test_refused_backup_removal_keeps_backup_and_still_reports_verified(self):
+        result,remover=self.confirm_with(dict(self.old,Web=''),remove=ValueError('Backup verification failed.'))
+        remover.assert_called_once()
+        self.assertTrue(result['verified'])
+        self.assertEqual((result['backup_retained'],result['backup_removed_after_verification']),(True,False))
+
+class RecoveryBackupFileTests(unittest.TestCase):
+    """Real archive, real write_metadata and real backup removal through confirm() (0.2.3)."""
+    WEB = 'https://comicvine.gamespot.com/title/4000-123/ https://other.test/'
+
+    def setUp(self):
+        import os, shutil, uuid
+        from test_app import scratch_parent
+        self.shutil = shutil
+        scratch = scratch_parent()
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.temp_path = scratch / str(uuid.uuid4())
+        self.root = self.temp_path / 'comics'
+        self.root.mkdir(parents=True)
+        self.previous_data = recovery.app.DATA
+        recovery.app.DATA = self.temp_path / 'catalog'
+        recovery._PLANS.clear()
+        self.path = self.root / 'Good 001 (2000).cbz'
+        self.archive('<ComicInfo><Series>Good</Series><Number>1</Number><Web>' + self.WEB + '</Web></ComicInfo>')
+        self.original = self.path.read_bytes()
+        recovery.app.JOB.update(running=True, changed=0, visited=0, errors=0)
+        recovery.app.scan([str(self.root)])
+        with recovery.app.db() as con:
+            self.row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.path),)).fetchone())
+        self.old = recovery.app.read_metadata(self.path)[0]
+        recovery._PLANS['token'] = {'comic': self.row['id'], 'action': 'remove_link', 'row': dict(self.row),
+            'old': dict(self.old), 'record_revision': recovery.digest({}), 'source': None,
+            'fields': recovery.plan_fields(self.old, 'remove_link', target=123), 'created': time.time()}
+
+    def tearDown(self):
+        recovery._PLANS.clear()
+        recovery.app.DATA = self.previous_data
+        from test_app import scratch_parent
+        from test_worker import prune_scratch
+        intended = scratch_parent()
+        assert self.temp_path.resolve().parent == intended.resolve()
+        self.shutil.rmtree(self.temp_path)
+        prune_scratch(intended)
+
+    def archive(self, xml):
+        import zipfile
+        with zipfile.ZipFile(self.path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr('001.jpg', b'pretend cover bytes')
+            archive.writestr('002.jpg', b'pretend page bytes' * 1000)
+            archive.writestr('ComicInfo.xml', xml)
+
+    def backups(self):
+        folder = self.root / '.comic-metadata-backups'
+        return sorted(folder.iterdir()) if folder.exists() else []
+
+    def confirm(self, write=None):
+        with patch('library_lock.require'), patch('pause_control.requested', return_value=False), \
+             patch.object(recovery, 'snapshot', return_value=(self.row, dict(self.old), {}, {'issue_id': '123'})), \
+             patch.object(recovery.app, 'write_metadata', side_effect=write or recovery.app.write_metadata):
+            return recovery.confirm('token', True)
+
+    def test_verified_recovery_save_removes_its_backup(self):
+        result = self.confirm()
+        self.assertTrue(result['verified'])
+        self.assertEqual(result['message'], 'Change saved and verified.')
+        self.assertEqual((result['backup_retained'], result['backup_removed_after_verification']), (False, True))
+        self.assertEqual(recovery.app.read_metadata(self.path)[0]['Web'], ' https://other.test/')
+        self.assertFalse(recovery.app.filesystem_path(result['backup']).exists())
+        self.assertEqual(self.backups(), [])
+        self.assertFalse((self.root / '.comic-metadata-backups').exists())  # The emptied folder goes too.
+
+    def test_failed_verification_keeps_the_original_as_backup(self):
+        real = recovery.app.write_metadata
+        def write_then_changed_elsewhere(*args, **kwargs):
+            backup = real(*args, **kwargs)
+            # Another program edits a field the preview never showed; the full-snapshot check must fail.
+            self.archive('<ComicInfo><Series>Edited elsewhere</Series><Number>1</Number><Web> https://other.test/</Web></ComicInfo>')
+            return backup
+        result = self.confirm(write_then_changed_elsewhere)
+        self.assertFalse(result['verified'])
+        self.assertEqual(len(self.backups()), 1)
+        self.assertEqual(self.backups()[0].name, Path(result['backup']).name)
+        self.assertEqual(self.backups()[0].read_bytes(), self.original)
 
 if __name__ == '__main__':
     unittest.main()
