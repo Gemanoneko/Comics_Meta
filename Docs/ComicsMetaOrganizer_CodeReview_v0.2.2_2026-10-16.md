@@ -256,3 +256,106 @@ Both fixes are real. Neither weakens a protection. There are no new findings.
 **Verdict:** RELEASE CLEAR
 
 This addendum certifies 047a138..723ef40. It also confirms that the rebuilt 0.2.2 artifact's helper equals the fixed source and that its engine and desktop bytes equal HEAD 723ef40. It does not certify installed behaviour, the prior→next update, or publication.
+
+---
+
+## Addendum 2 — 723ef40..374250c (2026-10-16)
+
+```
+Reviewer: Senua (Code Reviewer)
+Date: 2026-10-16
+Commit range: 723ef4014b43e8a2c08346ae31027b8e44e91a48..374250cb5b795807ac8662b5c21c91df88eed0f9
+Code files changed: 16 (13 production, 3 tests), +242 / -22, Docs excluded
+Worktree: WIP/Comics Meta Organizer-m1, branch feat/m1-state-split, tree clean at review
+Artifact examined (not run): dist/Comic-Metadata-Setup-0.2.2.exe, 149,451,776 B, sha256 ddb0dcf877cc09f2a26cde2f48a34ca68c503a6b4c708f5fe5608b86c2e78937
+```
+
+All four changes hold up. I found no new Critical, Major or Minor findings. The safety floor is intact.
+
+### QA audit hook — program read from the command line
+
+On Windows, `subprocess.Popen` sends the audit event with `executable=None` and one command-line string. The old hook turned `None` into the text `"None"` and refused every child, so the QA worker never started. The new `launched_program()` reads the program the way `CreateProcess` does. The hook now also refuses any program that is not a full path.
+
+I tried to get a program outside the allowed set {bundled Python, `COMICS_META_7ZIP`} past the hook. Nothing got through.
+
+- **Argument lists.** `list2cmdline` quotes a path that contains spaces, and the helper reads the text inside the quotes. The tests cover both a spaced and an unspaced Python path.
+- **Strings.** An unquoted path with spaces yields `C:\Program`, which is refused. Windows would go on to try longer prefixes, but the hook refuses first. The docstring simplifies this rule; the behaviour still fails closed.
+- **Malformed input.** A missing closing quote, a leading space, an empty string, `None`, a list, or a number is refused.
+- **Names that are not full paths.** Bare, relative, drive-relative (`C:x`) and root-relative names are refused by the new `isabs` check. This is stricter than before.
+- **`shell=True`.** Popen sets `executable` to `%ComSpec%` (absolute `cmd.exe`) before the audit event, so the call is refused. If `ComSpec` is not absolute, the command line starts with that relative name, and that is refused too.
+- **`cmd /c` as a list.** `cmd.exe` is not in the set, so it is refused.
+- **`executable=` is passed.** It takes priority over the command text, exactly as in `CreateProcess`. A test covers this.
+- **Path spellings.** Forward slashes, `..`, and trailing dots or spaces normalise the same way in `abspath` and in Windows, so they reach the same file. `\\?\` and `\\.\` prefixes, 8.3 short names and `:stream` suffixes do not normalise to the allowed path, so they are refused.
+- **Environment.** The six-key exclusion check is unchanged and still runs. It is tested.
+- **By design.** The allowed Python can still run any code (`-c`). The module docstring makes no OS-firewall claim.
+- **Out-of-range note (advisory, no severity).** The refused-event list does not include `os.startfile`, `os.spawn*` or a direct `_winapi.CreateProcess`, so these skip the Popen branch. `app.py:874` calls `os.startfile`, and `webbrowser.open` at `app.py:1060` can reach it on Windows. Those lines are unchanged and outside this range.
+
+### Supervisor — failed launches are logged
+
+- **Volume.** The supervisor logs once per distinct (class, message) and resets after a good launch. That is at most one line per 30-second backoff, even if two causes alternate.
+- **Where it goes.** The line goes to stderr, which `desktop/engine.cjs` pipes into the engine log.
+- **Content.** The line holds only the exception class and text. The launch `env` is never printed.
+- **Failures of the log itself.** A write that fails is swallowed, so the retries continue.
+- **Catch set.** It is unchanged. A QA refusal is a `PermissionError`, which is an `OSError`, so it is caught.
+
+### `storage.read_text` — bounded retry
+
+- **No hang.** It retries only `PermissionError`, at most 20 tries 50 ms apart, so about 1 s at worst. After that it raises the same error.
+- **No masking.** A missing file, a decode error or any other `OSError` is raised at once; the missing-file case is tested. A lasting `PermissionError`, such as an ACL deny or a folder at that path, surfaces about 1 s later as the same type. Every caller handles it exactly as before. Errors are delayed, never swallowed.
+- **Writer match.** The browser heartbeat (`browser_worker.py:214`) and the library claim records (`library_lock.py:205`) are written by `storage.save`'s atomic replace. That is the race this retry targets. No code deletes the heartbeat, so the helper does not open a new missing-file race.
+- **Library lock semantics are unchanged.**
+  - The exception set is unchanged.
+  - An unreadable record still gives an `unknown` owner, so the library still counts as busy.
+  - The only change: a read that meets a replace now gets the real record, so a passing race no longer reports a false busy.
+  - The lock open and `try_lock` logic is untouched.
+  - The ~1 s delay inside the gate happens only on a lasting refusal. `Claim.release` still releases on `LibraryBusy`.
+
+### API keys header button
+
+- **No new IPC.** `desktop/main.cjs` and `preload.cjs` are unchanged. The button reuses `keys-status` and `keys-save`, which check `senderAllowed`, require the service to be ready, and call the token-gated `/api/shell/keys`. `key_status()` returns only booleans.
+- **No new DOM or log sinks.** All new text is set with `textContent`. The two JS files have no `innerHTML`, `insertAdjacentHTML`, `console` calls or web storage. Saved-key status is used only as booleans.
+- **Key values stay out of the DOM and logs.** Values exist only in the password inputs while the user types.
+  - They are cleared on save, Cancel, Close and Escape.
+  - They are re-masked on focus-out and when the window is hidden.
+  - The `entered` copy is blanked after the save.
+  - A failed save shows a fixed message, never the key or the error text.
+- **Keys mode.** CSS hides the comic parts of the dialog. The Close button sits in the first child, so it stays visible. The dialog is modal, so the table behind it cannot open a comic.
+- **Desktop only.** The button exists only in the desktop app, because `shell-ui.js` stops early when there is no bridge. The `desktop/setup.html` change is text only, and its CSP is unchanged.
+
+### Test run (guard confirmed active)
+
+- **Disclosure: a first attempt that loaded no tests.** Shell quoting made my `COMICS_META_TEST_PROTECTED_ROOTS` JSON malformed, and `test_0_state_isolation` raised at import (line 55). My runner had not loaded any test at that point.
+  - Before failing, `test_0` had pointed state and locks at scratch.
+  - No test, `app` import or child process ran.
+  - The module's exit hook removed its folder.
+  - I rebuilt the JSON in Python and re-ran.
+- **Guard proof.** The runner imported `test_0` first and was set to abort unless every check passed. All checks passed:
+  - 10 roots were refused by the guard, with the guard's own message. They are the -m1 checkout's `data/`, `batches/`, `config.json` and `.env`; `%LOCALAPPDATA%\ComicsMeta`; the live main checkout's `data/`, `batches/`, `config.json` and `.env`; and `%LOCALAPPDATA%\comic-metadata-updater`.
+  - A connect to closed port 9 was refused by the guard, not by the OS.
+  - The state root was inside scratch.
+- **Results.** `test_0` + `test_qa_runtime` + `test_storage_read` + `test_supervisor` + `test_zz`: 17 tests, 17 passed, 0 skipped. `VIOLATIONS` was 0. Bytecode writing was off, so nothing was written to the repo.
+- **Real-launch coverage.** `test_qa_runtime`'s child test runs a real Windows Popen (`executable=None`) through the real hook. The worker started with the QA environment. The `cmd.exe` launch and the stripped-environment launch were both refused before they started. That child Python runs outside the test guard by design. Its only real child is a stand-in worker in scratch.
+- **Not done.**
+  - No app, installer or build was run, and nothing was written to git.
+  - Nothing touched ports 8765 or 11434.
+  - Futaba's `%TEMP%` install folders and `%LOCALAPPDATA%\comic-metadata-updater` were not touched. The updater folder was also guarded.
+  - The scratch folder was removed afterwards.
+
+### Artifact
+
+- **Hashes.** The exe's sha256 equals the brief. In `latest.yml`, the version is 0.2.2, and both the top-level and `files[0]` sha512 and size (149,451,776) equal the exe.
+- **Engine spot-check from the exe's own `app-64.7z`.** `resources/engine/qa_runtime.py`, `supervisor.py` and `storage.py` equal the HEAD 374250c blobs. So do the other five changed engine `.py` files and the four changed `static/` files. `desktop/setup.html` inside `app.asar` also equals HEAD.
+  - Six of these files differ only by CRLF line endings from the autocrlf checkout.
+  - Positive control: the same comparison against the 723ef40 blobs reports a mismatch for all three spot-checked files.
+  - This was a spot-check, not a full 57-file sweep.
+
+### Updated tally
+
+- Total Critical: 0
+- Total Major: 2 open (N2, N3), unchanged; 0 new
+- Total Minor: 7 (N5–N11) and 13 carried, unchanged; 0 new
+- Safety-floor violations: 0
+
+**Verdict:** RELEASE CLEAR
+
+This addendum certifies 723ef40..374250c. It confirms that the rebuilt 0.2.2 artifact (sha256 ddb0dcf8…) carries HEAD 374250c for the spot-checked files. It does not certify installed behaviour (Futaba's concurrent pass), the prior→next update, or publication.
