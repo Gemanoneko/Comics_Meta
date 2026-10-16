@@ -6,19 +6,20 @@
 
 | | |
 |---|---|
-| Version | Live service: 0.1.4. Installer integration branch: VERSION/package.json are authoritative; first standalone installer and update QA are pending. |
+| Version | Installed standalone app: 0.2.4 (2026-10-16). VERSION/package.json are authoritative. The old v0.1.4 checkout service was retired on 2026-10-16. |
 | Repo | https://github.com/Gemanoneko/Comics_Meta.git, branch `main` |
 | Phase | Daily Use (confirmed by Sergei 2026-10-12) |
 | Stack | Python 3.11+ on Windows; local web dashboard (stdlib `ThreadingHTTPServer`) on http://127.0.0.1:8765; Pillow; Playwright driving installed Microsoft Edge; local catalog and state in `data/` (gitignored). Optional: Ollama `gemma3:4b`, 7-Zip (CBR/CB7 conversion). Dependencies pinned exactly in `requirements.txt` |
-| State | `config.json`, `.env`, `data/`, `batches/`, `work/` live in the state root: this folder unless `COMICS_META_STATE_ROOT` names another absolute folder (the packaged app will use `%LOCALAPPDATA%\ComicsMeta`) |
+| State | `config.json`, `.env`, `data/`, `batches/`, `work/` live in the state root. The installed app uses `%LOCALAPPDATA%\ComicsMeta`; v0.1.4 state was migrated there on 2026-10-16. A dev run uses this folder unless `COMICS_META_STATE_ROOT` names another absolute folder |
 | Library lock | `%LOCALAPPDATA%\ComicsMeta\locks` — one copy of the app per library (see Decision Log) |
-| Launcher | `run.cmd` → `start-app.ps1` registers and starts the on-demand scheduled task `ComicsMeta-Local-8765`, which runs `server_host.py` → `app.py` |
+| Launcher | Installed app (per-user, `%LOCALAPPDATA%\Programs\comic-metadata`), started from the Start menu. The old `run.cmd` and scheduled task `ComicsMeta-Local-8765` are retired (the task was deleted on 2026-10-16) |
 
 ## How to start and stop
 
-1. Double-click `run.cmd`. The dashboard is at http://127.0.0.1:8765. The launcher window can be closed.
-2. After a reboot, double-click `run.cmd` again. There is no sign-in or startup trigger.
-3. To stop: press **Pause**, wait for **Paused**, then end `ComicsMeta-Local-8765` in Windows Task Scheduler.
+1. Start **Comic Metadata** from the Start menu. There is no sign-in or startup trigger.
+2. Closing the window hides it to the tray, and processing continues.
+3. To stop: tray icon → **Quit** (a graceful stop). **Pause & release GPU** frees the computer without quitting.
+4. Updates: **Check for updates** in the header. This works in-app from 0.2.4 onward; 0.2.2 and 0.2.3 needed a manual install.
 
 ## Commands
 
