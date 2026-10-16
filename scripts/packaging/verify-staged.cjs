@@ -2,7 +2,7 @@
 const fs=require('node:fs/promises');const path=require('node:path');const crypto=require('node:crypto');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 module.exports=async function(context){
-  if(process.env.COMICS_META_HELD_BUILD!=='1')throw new Error('Held build supervisor required');
+  if(process.env.COMICS_META_HELD_BUILD!=='1'&&process.env.COMICS_META_LEAN_BUILD!=='1')throw new Error('Run through scripts/build-installer.cjs');
   const root=context.packager.projectDir;const stage=path.join(root,'build','staged');
   const raw=await fs.readFile(path.join(root,'build','staged-manifest.json'));
   if(sha(raw)!==process.env.COMICS_META_STAGED_MANIFEST_SHA256)throw new Error('Staged manifest identity changed');

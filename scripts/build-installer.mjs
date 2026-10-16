@@ -1,1 +1,1 @@
-throw new Error('Legacy installer entry retired. Use scripts/build-installer.cjs with an independently reviewed held build contract.');
+throw new Error('Legacy installer entry retired. Use npm run pack (scripts/build-installer.cjs).');

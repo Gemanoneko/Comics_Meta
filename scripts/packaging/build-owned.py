@@ -70,7 +70,8 @@ with HeldPaths() as held, ExitStack() as lifetime:
 
     if c['schema']!=1 or c['profile'] not in ('qa','production') or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',c['version']):raise RuntimeError('Unsupported contract')
     jobroot=Path(c['jobRoot'])
-    if not jobroot.is_absolute() or not jobroot.name.startswith('illuminati-cmo-build-'):raise RuntimeError('Owned build root required')
+    # Exact short owned name keeps legacy-path makensis inputs inside MAX_PATH.
+    if not jobroot.is_absolute() or not re.fullmatch(r'cmo-b[0-9]{2,3}',jobroot.name):raise RuntimeError('Owned build root required')
     source=Path(c['sourceRoot'])
     if source.name=='Comics Meta Organizer':raise RuntimeError('Live source checkout is excluded')
     def manifest(filename,expected):

@@ -25,7 +25,29 @@
 - Dev run: `python app.py`
 - Tests: `python -B -m unittest discover -s tests -v` — always the whole discovery run: `tests/test_0_state_isolation.py` loads first, points state and locks at a throwaway folder, and refuses any access to this folder's `data/`, `batches/`, `config.json`, `.env` and to `%LOCALAPPDATA%\ComicsMeta`; `test_zz_state_isolation.py` fails the run if a refusal was swallowed. A single module run (`-p test_x.py`) bypasses that net. Set `COMICS_META_TEST_SCRATCH` to an absolute folder (with the exact letter case Windows reports) to keep test folders out of the checkout.
 - In-book credits and publisher-agreement pilot (read-only, run while paused, uses the GPU): `python -B pilot_credits.py --out <folder> [--limit 150]`
-- Installer build: `npm run pack` through the separately reviewed held Windows build supervisor and exact source/runtime/native contract. Packaging source is implemented; actual installer build and installed update certification remain pending.
+- Installer build: `npm run pack` from this checkout — see **Lean build path** below. Installed update certification (0.2.1 → 0.2.2) remains pending.
+
+### Lean build path (Sergei 2026-10-15)
+
+Sergei: "go as lean as possible." The held supervisor, per-run frozen graphs, guardian/Job/seal wrappers and freeze manifests are dropped from the build route (their source stays in `scripts/packaging/` and their evidence in `scratch/`, unused).
+
+1. Bump `VERSION`, `package.json` and `package-lock.json` (Sully).
+2. From the checkout root, run `npm run pack` (same as `node scripts/build-installer.cjs`). It takes about 3–4 minutes and works offline.
+3. The installer lands in `dist/Comic-Metadata-Setup-<version>.exe`, with `latest.yml` and `.blockmap` next to it.
+4. The run ends with `BUILD OK <path> <bytes> sha256 <hash>`. Anything else means the build failed: the driver exits 1.
+
+How it works:
+- **Inputs.** The authenticated offline toolchain already on this machine, under `scratch/cmo-packaging-recovery-20261015/`:
+  - dependencies from `prepare-08`, copied into `node_modules/` on the first run;
+  - the Python/7-Zip runtime and the Electron/NSIS/rcedit tools from `runtime-assemble-13`.
+  - Pass `--inputs <dir>` to point elsewhere. Nothing is downloaded: a network connect fails the build.
+- **Staging.** The driver stages `build/staged` (runtime, engine sources, licences) and its manifest.
+- **Build.** It runs electron-builder in a child process, `scripts/packaging/build-lean.cjs`. `node_modules/`, `build/` and `dist/` are gitignored.
+- **Uninstaller stub (hard rule, kept).** The generated NSIS `BUILD_UNINSTALLER` stub is never executed. The pinned safe route (`nsis-safe/`) extracts the uninstaller with the pure-JS decoder and checks it byte-for-byte against upstream's pure `UninstallerReader`.
+- **Path guard.** makensis 3.04 is not long-path aware, and the old held build failed at a 264-character include path. `nsis-path-bound.cjs` refuses any NSIS input or output over 254 characters before compiling. From this checkout the longest path is 228.
+- **Exit codes.** electron-builder's exit hook can turn a failure into exit 0. The child keeps exit 1 on failure using upstream's `process.on('exit')` pattern, and the driver treats exit 0 as success only with the child's final `leanBuild` receipt and matching installer bytes.
+
+Install/QA note: the installed tree goes 142 characters deep below the install folder. Keep any private install folder at or under about 100 characters.
 - Release: Sully synchronizes `VERSION`, `package.json` and `package-lock.json`, commits and pushes immediately. `npm run release` promotes the exact QA-certified artifact bytes from its pinned release contract, verifies the named tag and retains the last four heavy GitHub releases; it never rebuilds the approved installer. No public installer release until actual native installation/update QA and independent review pass.
 
 ## Decision Log
