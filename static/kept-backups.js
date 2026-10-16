@@ -6,12 +6,14 @@
 window.KeptBackups = (() => {
   const LIMIT = 500;
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const REASONS = {save_not_verified: 'Save not verified', delete_refused: 'Saved; backup could not be deleted'};
-  const REVEAL_ERRORS = {
-    not_found: 'This recovery backup is not at this location.',
-    folder_unavailable: 'Folder is unavailable. Check that the library drive is connected.',
-  };
-  const REVEAL_FAILED = 'Could not open File Explorer. Use the path above.';
+  const REASONS = {save_not_verified: 'Save not verified', delete_refused: 'Saved; backup could not be deleted',
+                   not_saved: 'Not saved; file was not changed'};
+  // Show in folder errors, per host: the location block shows the full path, a row only its comic's folder.
+  const UNAVAILABLE = 'Folder is unavailable. Check that the library drive is connected.';
+  const BLOCK_REVEAL = {not_found: 'Could not find this backup. Check the path above.', folder_unavailable: UNAVAILABLE,
+                        failed: 'Could not open File Explorer. Use the path above.'};
+  const ROW_REVEAL = {not_found: 'Backup not found. Use Refresh to update the list.', folder_unavailable: UNAVAILABLE,
+                      failed: 'Could not open File Explorer. The backup is in the .comic-metadata-backups folder inside the folder above.'};
   const DELETE_ERRORS = {
     writing: 'This comic is being updated. Try again in a minute.',
     in_use: 'Could not delete this backup. Close any program using it, then try again.',
@@ -96,12 +98,12 @@ window.KeptBackups = (() => {
     };
   }
 
-  function revealButton(id, label, line, accessibleName) {
+  function revealButton(id, label, line, messages, accessibleName) {
     const node = button(label, SHOW_TIP, async () => {
       line.clear();
       setBusy([node], true);
       try { await post('backups/reveal', {id}); }
-      catch (error) { line.show(REVEAL_ERRORS[error.code] || REVEAL_FAILED); }
+      catch (error) { line.show(messages[error.code] || messages.failed); }
       finally { setBusy([node], false); }
     }, 'backup-button');
     if (accessibleName) node.setAttribute('aria-label', accessibleName);
@@ -115,7 +117,7 @@ window.KeptBackups = (() => {
     node.append(el('p', 'Recovery backup', 'backup-location-label'), pathText(el('p', undefined, 'backup-location-path'), kept.path));
     if (kept.id) {
       const row = el('div', undefined, 'recovery-actions');
-      row.append(revealButton(kept.id, 'Show backup in folder', errorLine(node, 'backup-location-error')));
+      row.append(revealButton(kept.id, 'Show backup in folder', errorLine(node, 'backup-location-error'), BLOCK_REVEAL));
       node.append(row);
     }
     return node;
@@ -208,13 +210,15 @@ window.KeptBackups = (() => {
     text.append(el('p', item.name, 'kept-name'), pathText(el('p', undefined, 'kept-folder'), item.folder), meta);
     const actions = el('div', undefined, 'recovery-actions kept-actions');
     const line = errorLine(node, 'kept-error');
-    const show = revealButton(item.id, 'Show in folder', line, 'Show in folder: ' + item.name + ', ' + when);
+    const show = revealButton(item.id, 'Show in folder', line, ROW_REVEAL, 'Show in folder: ' + item.name + ', ' + when);
     show.dataset.show = item.id;
     const remove = button('Delete', 'Delete this backup file. You are asked to confirm first.', () => {
       line.clear();
       const detail = item.reason === 'save_not_verified'
         ? 'The save to ' + item.name + ' was not verified, so this may be its only good copy. Deleting is permanent.'
-        : 'It is the only way to undo the change to ' + item.name + '. Deleting is permanent.';
+        : item.reason === 'not_saved'
+          ? 'The change to ' + item.name + ' was not saved and the file was not changed, so this is only an extra copy. Deleting is permanent.'
+          : 'It is the only way to undo the change to ' + item.name + '. Deleting is permanent.';
       openConfirm(remove, box => actions.after(box), ['Delete this backup?', detail], 'Delete backup',
                   'Delete this backup file permanently.', 'Keep it', controls => deleteOne(item, [...controls, remove], line));
     });
@@ -265,9 +269,14 @@ window.KeptBackups = (() => {
     const ids = items.map(item => item.id);  // Exactly the set this confirm counts (Amendment A7.5).
     const count = ids.length, bytes = total();
     const unverified = items.filter(item => item.reason === 'save_not_verified').length;
-    const lines = [bounded ? 'Delete the ' + count + ' listed backups (' + size(bytes) + ')?' : 'Delete all ' + count + ' kept backups (' + size(bytes) + ')?',
-                   'They are the only way to undo those changes. Deleting is permanent.'];
-    if (unverified) lines.push(unverified === 1 ? '1 is from a save that was not verified.' : unverified + ' are from saves that were not verified.');
+    const unchanged = items.filter(item => item.reason === 'not_saved').length;  // Extra copies, not counted as unverified.
+    const lines = [bounded ? 'Delete the ' + count + ' listed backups (' + size(bytes) + ')?' : 'Delete all ' + count + ' kept backups (' + size(bytes) + ')?'];
+    if (unchanged === count) lines.push('They are extra copies of files that were not changed. Deleting is permanent.');
+    else {
+      lines.push('They are the only way to undo those changes. Deleting is permanent.');
+      if (unverified) lines.push(unverified === 1 ? '1 is from a save that was not verified.' : unverified + ' are from saves that were not verified.');
+      if (unchanged) lines.push(unchanged === 1 ? '1 is a copy of a file that was not changed.' : unchanged + ' are copies of files that were not changed.');
+    }
     openConfirm(deleteAllButton, box => toolbar.after(box), lines, 'Delete ' + count + ' backups',
                 'Delete all listed backup files permanently.', 'Keep them', controls => deleteAll(ids, controls));
   }

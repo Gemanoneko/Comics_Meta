@@ -41,11 +41,11 @@ def backups():
     items = []
     names = ['Batman 003 (2019).cbz', LONG, 'Spawn 112.cbz', 'X-Men [Vol. 2] 001.cbz']
     folders = ['D:\\Comics\\Batman', '\\\\?\\D:\\Comics\\' + 'Very Long Folder Name ' * 6 + 'Ünïcode [Brackets]', '\\\\?\\UNC\\nas\\share\\Comics', 'D:\\' + 'Segment' * 12]
-    reasons = ['save_not_verified', 'delete_refused', None]
+    reasons = ['save_not_verified', 'delete_refused', None, 'not_saved']
     for index in range(17):
         items.append({'id': '%032x' % (index + 1), 'name': names[index % 4], 'folder': folders[index % 4],
                       'size': [431_000_000, 43_200_000, 999, 3_400_000_000][index % 4], 'created': NOW - [30, 720, 3 * 3600, 4 * 86400, 40 * 86400][index % 5],
-                      'reason': reasons[index % 3]})
+                      'reason': reasons[index % 4]})
     return items
 
 
@@ -57,6 +57,7 @@ class KeptBackupsDOMTests(YandexDOMTests):
         self.items = backups()
         self.posts = []
         self.reveal_status = 200
+        self.reveal_code = 'not_found'
         self.confirm_result = {'ok': False, 'verified': False, 'backup': BACKUP, 'backup_id': 'b' * 32, 'message': NOT_VERIFIED}
         self.apply_result = (200, {'ok': True, 'verified': True, 'backup': BACKUP, 'backup_id': 'c' * 32, 'backup_retained': True, 'backup_removed_after_verification': False})
         self.context.add_init_script('window.setInterval=()=>0;')
@@ -81,7 +82,7 @@ class KeptBackupsDOMTests(YandexDOMTests):
         if path == '/api/backups':
             return route.fulfill(json={'items': self.items, 'count': len(self.items), 'bytes': sum(i['size'] for i in self.items), 'bounded': False})
         if path == '/api/backups/reveal':
-            return route.fulfill(status=self.reveal_status, json={'ok': True} if self.reveal_status == 200 else {'error': 'not_found', 'code': 'not_found'})
+            return route.fulfill(status=self.reveal_status, json={'ok': True} if self.reveal_status == 200 else {'error': self.reveal_code, 'code': self.reveal_code})
         if path == '/api/backups/delete':
             ids = json.loads(route.request.post_data)['ids']
             self.items = [i for i in self.items if i['id'] not in ids]
@@ -180,7 +181,8 @@ class KeptBackupsDOMTests(YandexDOMTests):
         self.page.click('.kept-toolbar button:has-text("Delete all")')
         lines = self.page.evaluate("[...document.querySelectorAll('.kept-confirm p')].map(p=>p.textContent)")
         self.assertRegex(lines[0], r'^Delete all 16 kept backups \([0-9.]+ GB\)\?$')
-        self.assertEqual(lines[1:], ['They are the only way to undo those changes. Deleting is permanent.', '5 are from saves that were not verified.'])
+        self.assertEqual(lines[1:], ['They are the only way to undo those changes. Deleting is permanent.', '4 are from saves that were not verified.',
+                                     '4 are copies of files that were not changed.'])  # Not counted as unverified.
         self.assertEqual(self.page.evaluate('document.activeElement.textContent'), 'Keep them')
         ids = [item['id'] for item in self.items]
         self.page.click('.kept-confirm button:has-text("Delete 16 backups")')
@@ -190,6 +192,41 @@ class KeptBackupsDOMTests(YandexDOMTests):
         self.assertEqual(self.page.evaluate('document.activeElement.tagName'), 'SUMMARY')
         self.assertEqual(self.page.locator('#keptBackups summary').text_content(), 'Kept backups · none')
         self.assertTrue(self.page.locator('.kept-toolbar button:has-text("Delete all")').is_hidden())
+
+    def confirm_lines(self):
+        return self.page.evaluate("[...document.querySelectorAll('.kept-confirm p')].map(p=>p.textContent)")
+
+    def refresh_with(self, items):
+        self.items = items
+        self.page.click('.kept-toolbar button:has-text("Refresh")')
+        self.page.wait_for_function('n=>document.querySelectorAll(".kept-item").length===n', arg=len(items))
+
+    def test_not_saved_copies_and_row_reveal_errors(self):
+        self.open_panel()
+        row = self.page.locator('.kept-item').nth(3)
+        self.assertEqual(row.locator('.kept-reason').text_content(), 'Not saved; file was not changed')
+        row.locator('button[aria-label^="Delete:"]').click()
+        self.assertEqual(self.confirm_lines(), ['Delete this backup?', 'The change to X-Men [Vol. 2] 001.cbz was not saved and the file was not changed, '
+                                                'so this is only an extra copy. Deleting is permanent.'])
+        self.page.keyboard.press('Escape')
+        self.reveal_status = 400
+        for code, text in (('not_found', 'Backup not found. Use Refresh to update the list.'),
+                           ('failed', 'Could not open File Explorer. The backup is in the .comic-metadata-backups folder inside the folder above.')):
+            self.reveal_code = code
+            row.locator('button[aria-label^="Show in folder:"]').click()
+            self.page.wait_for_function('t=>document.querySelector(".kept-item:nth-child(4) .kept-error")?.textContent===t', arg=text)
+        self.assertEqual(self.page.locator('.kept-error').count(), 1)
+        mixed = self.items[:4]  # One of each reason.
+        self.refresh_with(mixed)
+        self.page.click('.kept-toolbar button:has-text("Delete all")')
+        self.assertEqual(self.confirm_lines()[1:], ['They are the only way to undo those changes. Deleting is permanent.',
+                                                    '1 is from a save that was not verified.', '1 is a copy of a file that was not changed.'])
+        self.page.keyboard.press('Escape')
+        self.refresh_with([item for item in backups() if item['reason'] == 'not_saved'])
+        self.page.click('.kept-toolbar button:has-text("Delete all")')
+        lines = self.confirm_lines()
+        self.assertRegex(lines[0], r'^Delete all 4 kept backups \([0-9.]+ GB\)\?$')
+        self.assertEqual(lines[1:], ['They are extra copies of files that were not changed. Deleting is permanent.'])
 
     def save_recovery(self):
         self.page.wait_for_function("document.querySelector('#rows button')")
@@ -219,7 +256,11 @@ class KeptBackupsDOMTests(YandexDOMTests):
         self.reveal_status = 400
         button.click()
         self.page.wait_for_function("document.querySelector('#problemDetail .backup-location-error')")
-        self.assertEqual(self.page.locator('#problemDetail .backup-location-error').text_content(), 'This recovery backup is not at this location.')
+        self.assertEqual(self.page.locator('#problemDetail .backup-location-error').text_content(), 'Could not find this backup. Check the path above.')
+        self.reveal_code = 'failed'
+        button.click()
+        self.page.wait_for_function("document.querySelector('#problemDetail .backup-location-error')?.textContent.startsWith('Could not open')")
+        self.assertEqual(self.page.locator('#problemDetail .backup-location-error').text_content(), 'Could not open File Explorer. Use the path above.')
         self.assertEqual(self.page.evaluate('document.activeElement.textContent'), 'Show backup in folder')
         self.assertEqual(self.page.locator('#problemDetail .recovery-status').text_content(), NOT_VERIFIED)  # Never through status().
         self.assert_layout('#problemDetail .backup-location', 320)

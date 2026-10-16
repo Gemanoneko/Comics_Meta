@@ -304,7 +304,7 @@ class RecoveryBackupFileTests(unittest.TestCase):
             self.assertEqual(self.path.read_bytes(), self.original)  # Measured: nothing was written.
             self.assertEqual([p.name for p in self.backups()], [Path(result['backup']).name])
             self.assertRegex(result['backup_id'], '^[0-9a-f]{32}$')
-            self.assertEqual(self.kept_reasons(), ['save_not_verified'])
+            self.assertEqual(self.kept_reasons(), ['not_saved'])  # Only an extra copy (Judy's verdict 2026-10-16).
         finally:
             writable()
 

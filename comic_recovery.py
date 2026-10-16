@@ -300,10 +300,12 @@ def confirm(token, confirmation):
             # Never claim unchanged after the writer may have replaced the archive: only a
             # read-only file whose bytes still match is reported as not changed.
             made = attempt.get('backup')
+            unchanged = unchanged_read_only(row['path'], original_sha256)
             result = {'ok': False, 'verified': False, 'backup': made,
-                      'message': READ_ONLY if unchanged_read_only(row['path'], original_sha256) else NOT_VERIFIED if made else NOT_VERIFIED_NO_BACKUP}
+                      'message': READ_ONLY if unchanged else NOT_VERIFIED if made else NOT_VERIFIED_NO_BACKUP}
             if made:
-                result['backup_id'] = kept(row['path'], made, 'save_not_verified')
+                # A copy of a file proved unchanged is only an extra copy (Judy's verdict 2026-10-16).
+                result['backup_id'] = kept(row['path'], made, 'not_saved' if unchanged else 'save_not_verified')
             return result
         # Saved and the full metadata verified: the backup is a redundant copy, as for
         # automatic writes and /api/apply. Only this path removes it; every failure above keeps it.

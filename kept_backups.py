@@ -25,7 +25,7 @@ import app
 FOLDER = '.comic-metadata-backups'
 NAME = re.compile(r'(.+)\.([0-9]{1,20})\.bak')
 LIMIT = 500  # Newest listed; the page says when there are more (Amendment A3).
-REASONS = ('save_not_verified', 'delete_refused')
+REASONS = ('save_not_verified', 'delete_refused', 'not_saved')  # not_saved: read-only file, proved unchanged.
 _SECRET = secrets.token_bytes(32)
 _ID = re.compile(r'[0-9a-f]{32}')
 _IDS = OrderedDict()  # id -> the backup path it was issued for
