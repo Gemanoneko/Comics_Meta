@@ -779,17 +779,17 @@ class Handler(BaseHTTPRequestHandler):
                     result_rows.append(item)
                 return self.respond({'rows': result_rows, 'total': total})
             if url.path == '/api/cover':
-                row = comic(int(args['id'][0]))
+                import reverse_image
                 if 'index' in args:
-                    import reverse_image
+                    row = comic(int(args['id'][0]))
                     data,mime,_ = reverse_image.cover(row['path'],int(args['index'][0]))
                     return self.respond(data,mime=mime)
-                with zipfile.ZipFile(filesystem_path(row['path'])) as archive:
-                    images = sorted([i for i in archive.infolist() if i.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))], key=lambda i: i.filename)
-                    if not images or images[0].file_size > 20_000_000:
-                        raise ValueError('No suitable cover preview.')
-                    mime = 'image/png' if images[0].filename.lower().endswith('.png') else 'image/webp' if images[0].filename.lower().endswith('.webp') else 'image/jpeg'
-                    return self.respond(archive.read(images[0]), mime=mime)
+                # Cover in this file (FileCover 2026-10-16): by comic id only, same-origin as recovery evidence.
+                if self.headers.get('Sec-Fetch-Site') not in (None,'same-origin','none'):
+                    return self.respond({'error':'Untrusted origin'},403)
+                if set(args)!={'id'} or len(args['id'])!=1:
+                    raise ValueError('Choose a comic.')
+                return self.respond(reverse_image.preview(comic(int(args['id'][0]))['path']),mime='image/jpeg')
             self.respond({'error': 'Not found'}, 404)
         except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
             return
