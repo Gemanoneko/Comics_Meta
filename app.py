@@ -466,6 +466,13 @@ class ArchiveChanged(ValueError):
 _write_guard_state=threading.local()
 
 
+def write_lock_path(path):
+    """The lock file comic_write_guard holds for this archive."""
+    import library_lock
+    canonical=library_lock.identity(filesystem_path(path))
+    return DATA/'write-locks'/(hashlib.sha256(canonical.encode('utf-8')).hexdigest()+'.lock')
+
+
 @contextmanager
 def comic_write_guard(path):
     """One OS-held metadata writer per canonical archive, including same-state workers."""
@@ -478,7 +485,7 @@ def comic_write_guard(path):
         if entry.is_symlink() or getattr(info,'st_file_attributes',0)&0x400:
             raise ArchiveChanged('Metadata write lock path is unavailable; nothing written.')
     folder.mkdir(parents=True,exist_ok=True)
-    lock_path=folder/(hashlib.sha256(canonical.encode('utf-8')).hexdigest()+'.lock')
+    lock_path=write_lock_path(path)
     if lock_path.is_symlink() or (lock_path.exists() and getattr(lock_path.lstat(),'st_file_attributes',0)&0x400):
         raise ArchiveChanged('Metadata write lock path is unavailable; nothing written.')
     fd=file_lock.open_lock(lock_path)
@@ -675,7 +682,7 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js'):
+            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
             if url.path == '/comic-recovery.css':
                 return self.respond((BASE/'static/comic-recovery.css').read_bytes(),mime='text/css; charset=utf-8')
@@ -689,6 +696,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond(comic_recovery.evidence(int(args['comic'][0]),args.get('issue',[None])[0]))
                 except comic_recovery.RecoveryError as exc:
                     return self.respond({'error':str(exc),'code':exc.code},400)
+            if url.path == '/api/backups':
+                # Kept backups (BackupLocation Amendment A2-A3): same-origin only, like recovery evidence.
+                if self.headers.get('Sec-Fetch-Site') not in (None,'same-origin','none'):
+                    return self.respond({'error':'Untrusted origin'},403)
+                import kept_backups
+                try:
+                    if args:raise kept_backups.BackupError('unavailable')
+                    return self.respond(kept_backups.listing())
+                except Exception:
+                    return self.respond({'error':'unavailable','code':'unavailable'},400)
             if url.path == '/api/shell/keys':
                 token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
                 if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
@@ -780,9 +797,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond({'rows': result_rows, 'total': total})
             if url.path == '/api/cover':
                 import reverse_image
+                # A malformed id is a clean 400, never Python's int() text (Futaba 0.2.3 m6).
+                def number(name):
+                    values = args.get(name, [])
+                    return int(values[0]) if len(values) == 1 and re.fullmatch('[0-9]{1,18}', values[0]) else None
+                if number('id') is None:
+                    return self.respond({'error': 'Choose a comic.'}, 400)
                 if 'index' in args:
-                    row = comic(int(args['id'][0]))
-                    data,mime,_ = reverse_image.cover(row['path'],int(args['index'][0]))
+                    if number('index') is None:
+                        return self.respond({'error': 'Choose a suitable image among the first five archive images.'}, 400)
+                    row = comic(number('id'))
+                    data,mime,_ = reverse_image.cover(row['path'],number('index'))
                     return self.respond(data,mime=mime)
                 # Cover in this file (FileCover 2026-10-16): by comic id only, same-origin as recovery evidence.
                 if self.headers.get('Sec-Fetch-Site') not in (None,'same-origin','none'):
@@ -873,6 +898,19 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Folder is unavailable. Check that the library drive is connected.')
                 os.startfile(str(folder))
                 return self.respond({'ok': True})
+            if self.path in ('/api/backups/reveal','/api/backups/delete'):
+                # Allowed while paused: neither changes a comic. Ids only, never a path (Amendment A7.5-A7.6).
+                import kept_backups
+                try:
+                    if self.path == '/api/backups/reveal':
+                        if not isinstance(body,dict) or set(body)!={'id'}:raise kept_backups.BackupError('not_found')
+                        return self.respond(kept_backups.reveal(body['id']))
+                    ids=body.get('ids') if isinstance(body,dict) and set(body)=={'ids'} else None
+                    if not isinstance(ids,list) or not 0<len(ids)<=kept_backups.LIMIT or not all(isinstance(i,str) for i in ids) or len(set(ids))!=len(ids):
+                        raise kept_backups.BackupError('failed')
+                    return self.respond(kept_backups.delete(ids))
+                except kept_backups.BackupError as exc:
+                    return self.respond({'error':exc.code,'code':exc.code},400)
             if self.path == '/api/try-again':
                 # Failure-filter spec R4. Allowed while paused: it only clears a stop flag in
                 # the comic's record; the one attempt runs at the next pass after Resume.
@@ -946,12 +984,35 @@ class Handler(BaseHTTPRequestHandler):
                         volume = api('volume/4050-' + str(int(volume_id)), field_list='publisher')
                         if (volume.get('publisher') or {}).get('name'):
                             fields['Publisher'] = volume['publisher']['name']
-                    import automatic
+                    import automatic, kept_backups
                     row=comic(int(body['comic']))
                     present,_,_=read_metadata(filesystem_path(row['path']))
                     fields,_,_=automatic.external_plan(present,fields,{},False)
-                    backup = write_metadata(row,fields,remove_verified_backups=True)
-                return self.respond({'ok': True, 'backup': backup, 'backup_removed_after_verification': True})
+                    # The page tells every outcome apart (BackupLocation Amendment A1, A7.1).
+                    attempt={}
+                    with comic_write_guard(row['path']):
+                        # Under the writer guard, before the backup copy: what the backup must equal to be removed.
+                        with filesystem_path(row['path']).open('rb') as handle:
+                            original_sha256=hashlib.file_digest(handle,'sha256').hexdigest()
+                        try:
+                            backup=write_metadata(row,fields,attempt=attempt,verify_readback=True,guard_held=True)
+                        except Exception:
+                            made=attempt.get('backup')
+                            if not made:raise  # Nothing was copied: the server text, as before.
+                            kept_backups.record(row['path'],made,'save_not_verified')
+                            result=({'error':'The change was not verified. Check the file and retained recovery backup before trying again.',
+                                     'verified':False,'backup':made,'backup_id':kept_backups.issue(made)},400)
+                        else:
+                            try:
+                                remove_verified_backup(row['path'],backup,original_sha256)
+                                removed=True
+                            except Exception:
+                                removed=False  # Saved and verified; only the redundant copy stays.
+                                kept_backups.record(row['path'],backup,'delete_refused')
+                            result=({'ok':True,'verified':True,'backup':backup,'backup_retained':not removed,
+                                     'backup_removed_after_verification':removed,
+                                     **({} if removed else {'backup_id':kept_backups.issue(backup)})},200)
+                return self.respond(*result)
             self.respond({'error': 'Not found'}, 404)
         except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
             return

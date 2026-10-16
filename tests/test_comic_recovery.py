@@ -19,8 +19,16 @@ class RecoveryPlanTests(unittest.TestCase):
         before = copy.deepcopy(self.old)
         fields = recovery.plan_fields(self.old, 'remove_link', target=123)
         self.assertEqual(set(fields), {'Web'})
-        self.assertEqual(fields['Web'], 'https://example.test/page; ; https://other.test/')
+        self.assertEqual(fields['Web'], 'https://example.test/page; https://other.test/')  # Not '; ;' (Futaba 0.2.3 m2).
         self.assertEqual(self.old, before)
+
+    def test_removal_keeps_no_stray_separator_at_either_end_or_alone(self):
+        link = 'https://comicvine.gamespot.com/old/4000-123/'
+        for web, after in ((link + '; https://other.test/', 'https://other.test/'), ('https://a.test/; ' + link, 'https://a.test/'),
+                           (link, ''), ('https://a.test/\n' + link + '\nhttps://b.test/', 'https://a.test/\nhttps://b.test/'),
+                           ('https://a.test/, ' + link + ' ,https://b.test/', 'https://a.test/, https://b.test/')):
+            with self.subTest(web=web):
+                self.assertEqual(recovery.plan_fields({'Web': web}, 'remove_link', target=123), {'Web': after})
 
     def test_provider_identity_only(self):
         fields = recovery.plan_fields(self.old, 'use_provider', self.source, 123)
@@ -167,6 +175,8 @@ class RecoveryConfirmationTests(unittest.TestCase):
         result,remover=self.confirm_with(dict(self.old,Web='unexpected'))
         self.assertFalse(result['verified'])
         self.assertEqual(result['backup'],'owned-backup')
+        self.assertEqual(result['message'],recovery.NOT_VERIFIED)
+        self.assertRegex(result['backup_id'],'^[0-9a-f]{32}$')  # The page shows this backup's location.
         remover.assert_not_called()  # Control: a failed verification never removes the backup.
         with self.assertRaises(recovery.RecoveryError):recovery.confirm('token',True)
 
@@ -176,12 +186,24 @@ class RecoveryConfirmationTests(unittest.TestCase):
         remover.assert_called_once_with('isolated.cbz','owned-backup','original-sha')
         self.assertEqual((result['backup_retained'],result['backup_removed_after_verification']),(False,True))
         self.assertEqual(result['message'],'Change saved and verified.')
+        self.assertNotIn('backup_id',result)  # A deleted backup has no location to show.
 
     def test_refused_backup_removal_keeps_backup_and_still_reports_verified(self):
         result,remover=self.confirm_with(dict(self.old,Web=''),remove=ValueError('Backup verification failed.'))
         remover.assert_called_once()
         self.assertTrue(result['verified'])
         self.assertEqual((result['backup_retained'],result['backup_removed_after_verification']),(True,False))
+        self.assertEqual(result['message'],'Change saved and verified. The recovery backup could not be deleted and was retained.')
+        self.assertRegex(result['backup_id'],'^[0-9a-f]{32}$')
+
+    def test_failure_before_the_backup_copy_says_no_backup_was_made(self):
+        def refuse(*args,**kwargs):
+            raise recovery.app.ArchiveChanged('ComicInfo changed since this preview; nothing written.')
+        self.write=refuse
+        result,_=self.confirm_with(self.old)
+        self.assertEqual((result['verified'],result['backup']),(False,None))
+        self.assertEqual(result['message'],'The change was not verified. No recovery backup was made. Check the file before trying again.')
+        self.assertNotIn('backup_id',result)
 
 class RecoveryBackupFileTests(unittest.TestCase):
     """Real archive, real write_metadata and real backup removal through confirm() (0.2.3)."""
@@ -243,7 +265,7 @@ class RecoveryBackupFileTests(unittest.TestCase):
         self.assertTrue(result['verified'])
         self.assertEqual(result['message'], 'Change saved and verified.')
         self.assertEqual((result['backup_retained'], result['backup_removed_after_verification']), (False, True))
-        self.assertEqual(recovery.app.read_metadata(self.path)[0]['Web'], ' https://other.test/')
+        self.assertEqual(recovery.app.read_metadata(self.path)[0]['Web'], 'https://other.test/')
         self.assertFalse(recovery.app.filesystem_path(result['backup']).exists())
         self.assertEqual(self.backups(), [])
         self.assertFalse((self.root / '.comic-metadata-backups').exists())  # The emptied folder goes too.
@@ -260,6 +282,31 @@ class RecoveryBackupFileTests(unittest.TestCase):
         self.assertEqual(len(self.backups()), 1)
         self.assertEqual(self.backups()[0].name, Path(result['backup']).name)
         self.assertEqual(self.backups()[0].read_bytes(), self.original)
+        self.assertEqual(result['message'], recovery.NOT_VERIFIED)  # Changed elsewhere: never 'not changed'.
+
+    def kept_reasons(self):
+        with recovery.app.db() as con:
+            import kept_backups
+            kept_backups._table(con)
+            return [row[0] for row in con.execute('SELECT reason FROM kept_backups')]
+
+    @unittest.skipUnless(__import__('os').name == 'nt', 'Windows refuses to replace a read-only file')
+    def test_read_only_comic_says_not_saved_and_not_changed(self):
+        import os, stat
+        os.chmod(self.path, stat.S_IREAD)
+        def writable():
+            for path in (self.path, *self.backups()):
+                os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        try:  # tearDown removes the folder before cleanups run, so read-only is undone here.
+            result = self.confirm()
+            self.assertFalse(result['verified'])
+            self.assertEqual(result['message'], "The change was not saved because this comic file is read-only. The file was not changed. Turn off Read-only in the file's Properties, then try again.")
+            self.assertEqual(self.path.read_bytes(), self.original)  # Measured: nothing was written.
+            self.assertEqual([p.name for p in self.backups()], [Path(result['backup']).name])
+            self.assertRegex(result['backup_id'], '^[0-9a-f]{32}$')
+            self.assertEqual(self.kept_reasons(), ['save_not_verified'])
+        finally:
+            writable()
 
 if __name__ == '__main__':
     unittest.main()

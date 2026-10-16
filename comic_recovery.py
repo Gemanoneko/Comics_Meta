@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import secrets
+import stat
 import threading
 import time
 from pathlib import Path
@@ -20,6 +21,13 @@ TTL = 600
 _PLANS = {}
 _MUTEX = threading.Lock()
 WEB = re.compile(r'https?://(?:www\.)?comicvine(?:\.gamespot)?\.com/[^\s,;]*?4000-([1-9]\d{0,11})(?=/|[\s,;]|$)(?:/[^\s,;]*)?', re.I)
+SEPARATORS = ' \t\r\n,;'  # What WEB accepts between links.
+# Save outcomes (BackupLocation 2026-10-16 section 3; Futaba 0.2.3 m1 for the read-only case).
+NOT_VERIFIED = 'The change was not verified. Check the file and retained recovery backup before trying again.'
+NOT_VERIFIED_NO_BACKUP = 'The change was not verified. No recovery backup was made. Check the file before trying again.'
+READ_ONLY = "The change was not saved because this comic file is read-only. The file was not changed. Turn off Read-only in the file's Properties, then try again."
+SAVED = 'Change saved and verified.'
+SAVED_BACKUP_KEPT = 'Change saved and verified. The recovery backup could not be deleted and was retained.'
 
 class RecoveryError(ValueError):
     def __init__(self, code, message):
@@ -175,7 +183,11 @@ def plan_fields(old, action, source=None, target=None):
         raise RecoveryError('ambiguous_link', 'The exact ComicVine link to change cannot be identified. Review the file first.')
     match = matches[0]
     if action == 'remove_link':
-        return {'Web': web[:match.start()] + web[match.end():]}
+        # One separator goes with the link: 'a; X; b' becomes 'a; b', not 'a; ; b' (Futaba 0.2.3 m2).
+        before, after = web[:match.start()], web[match.end():]
+        if not after.strip(SEPARATORS):
+            return {'Web': before.rstrip(SEPARATORS)}
+        return {'Web': (before if before.strip(SEPARATORS) else '') + after.lstrip(SEPARATORS)}
     if action not in ('keep_file', 'use_provider') or not source:
         raise RecoveryError('invalid_action', 'Choose an available recovery option.')
     fields = source['fields']
@@ -226,6 +238,21 @@ def archive_sha256(path):
     with app.filesystem_path(path).open('rb') as handle:
         return hashlib.file_digest(handle, 'sha256').hexdigest()
 
+def unchanged_read_only(path, original_sha256):
+    """True only when the comic file is read-only and still byte-identical to before the save,
+    so 'not changed' is measured, not assumed (Futaba 0.2.3 m1)."""
+    try:
+        info = app.filesystem_path(path).stat()
+        return bool(getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_READONLY) and archive_sha256(path) == original_sha256
+    except Exception:
+        return False
+
+def kept(path, backup, reason):
+    """Record why a backup stays and issue the page's id for it (BackupLocation Amendment A7.3)."""
+    import kept_backups
+    kept_backups.record(path, backup, reason)
+    return kept_backups.issue(backup)
+
 def discard_verified_backup(path, backup, original_sha256):
     """Remove a saved-and-verified change's backup (Sergei 2026-10-16, option B).
 
@@ -270,12 +297,18 @@ def confirm(token, confirmation):
             if after != expected:
                 raise RecoveryError('verification', 'The resulting metadata did not match the approved fields. Recovery backup retained.')
         except Exception:
-            # Never claim unchanged after the writer may have replaced the archive.
-            return {'ok': False, 'verified': False, 'backup': attempt.get('backup'),
-                    'message': 'The change was not verified. Check the file and retained recovery backup before trying again.'}
+            # Never claim unchanged after the writer may have replaced the archive: only a
+            # read-only file whose bytes still match is reported as not changed.
+            made = attempt.get('backup')
+            result = {'ok': False, 'verified': False, 'backup': made,
+                      'message': READ_ONLY if unchanged_read_only(row['path'], original_sha256) else NOT_VERIFIED if made else NOT_VERIFIED_NO_BACKUP}
+            if made:
+                result['backup_id'] = kept(row['path'], made, 'save_not_verified')
+            return result
         # Saved and the full metadata verified: the backup is a redundant copy, as for
         # automatic writes and /api/apply. Only this path removes it; every failure above keeps it.
         removed = discard_verified_backup(row['path'], backup, original_sha256)
+        backup_id = None if removed else kept(row['path'], backup, 'delete_refused')
         # Old signature-bound problems clear naturally. Do not erase a newer worker record.
         updated = app.comic(plan['comic'])
         with app.db() as con:
@@ -284,6 +317,9 @@ def confirm(token, confirmation):
             current = json.loads(found[0]) if found else {}
             import problems
             problem = problems.classify(current, [updated['size'], updated['mtime']])
-        return {'ok': True, 'verified': True, 'backup': backup, 'backup_retained': not removed,
-                'backup_removed_after_verification': removed,
-                'metadata': after, 'problem': problem, 'message': 'Change saved and verified.'}
+        result = {'ok': True, 'verified': True, 'backup': backup, 'backup_retained': not removed,
+                  'backup_removed_after_verification': removed,
+                  'metadata': after, 'problem': problem, 'message': SAVED if removed else SAVED_BACKUP_KEPT}
+        if backup_id:
+            result['backup_id'] = backup_id
+        return result
