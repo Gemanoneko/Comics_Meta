@@ -28,13 +28,12 @@ class BrowserCooldownTests(unittest.TestCase):
         self.enterContext(patch.object(worker.search,'cover_bytes',return_value=b'fixture cover'))
         self.cached=self.enterContext(patch.object(worker.search,'cached',return_value=('fixture-key',None)))
         self.reserve=self.enterContext(patch.object(worker.search,'reserve'))
-        self.fallback=self.enterContext(patch.object(worker.search,'serpapi_search',return_value=[]))
         self.enterContext(patch.object(worker.search,'save_cache'))
         self.record=self.enterContext(patch.object(worker.cover_tasks,'record'))
         self.finish=self.enterContext(patch.object(worker.cover_tasks,'finish'))
         self.browser=Mock()
         self.browser.search.return_value=[{'url':'https://example.org/issue','title':'Fixture'}]
-        self.options={'daily_request_limit':100,'serpapi_fallback':False}
+        self.options={'daily_request_limit':100}
 
     def test_repeated_wait_preserves_deadline_without_request_or_browser(self):
         for now in (100,120,199):
@@ -95,12 +94,14 @@ class BrowserCooldownTests(unittest.TestCase):
         self.assertTrue(self.state['human_verification'])
         self.assertEqual(self.browser.search.call_count,1)
 
-    def test_existing_fallback_remains_available_without_changing_deadline(self):
-        self.options['serpapi_fallback']=True
-        self.fallback.return_value=[{'url':'https://example.org/fallback','title':'Fixture'}]
-        worker.process(self.row,self.browser,self.options)
-        self.fallback.assert_called_once()
+    def test_legacy_fallback_setting_is_ignored_during_a_cooldown(self):
+        # SerpApi was removed (Sergei 2026-10-16). An old config that still turns
+        # its fallback on holds the search like any cooldown: no request, no leads.
+        self.options.update(serpapi_fallback=True,serpapi_monthly_limit=250)
+        hold=worker.process(self.row,self.browser,self.options)
+        self.assertEqual(hold,200)
         self.reserve.assert_not_called()
         self.browser.search.assert_not_called()
         self.assertEqual(self.state['browser_retry_at'],200)
-        self.record.assert_called_once()
+        self.record.assert_not_called()
+        self.finish.assert_not_called()

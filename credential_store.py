@@ -7,7 +7,10 @@ from pathlib import Path
 import re
 import app
 
-ALLOWED_KEYS = ('COMICVINE_API_KEY', 'METRON_API_TOKEN', 'GOOGLE_BOOKS_API_KEY', 'BRAVE_SEARCH_API_KEY', 'SERPAPI_API_KEY')
+ALLOWED_KEYS = ('COMICVINE_API_KEY', 'METRON_API_TOKEN', 'GOOGLE_BOOKS_API_KEY', 'BRAVE_SEARCH_API_KEY')
+# Keys of removed sources (SerpApi, 2026-10-16). A value saved by an earlier
+# version still loads and is kept as saved; nothing reads it or offers it.
+RETIRED_KEYS = ('SERPAPI_API_KEY',)
 POINTER = '_credential_file'
 
 
@@ -62,7 +65,7 @@ def encrypt(values):
 
 
 def _validated(values):
-    if not isinstance(values, dict) or any(name not in ALLOWED_KEYS or not isinstance(value, str) or any(c in value for c in '\r\n\0') for name, value in values.items()):
+    if not isinstance(values, dict) or any(name not in ALLOWED_KEYS + RETIRED_KEYS or not isinstance(value, str) or any(c in value for c in '\r\n\0') for name, value in values.items()):
         raise CredentialError()
     return values
 
@@ -92,8 +95,22 @@ def saved(config=None):
         raise CredentialError() from None
 
 
-def setting(name, *, config=None, saved_values=None):
+def _environment(name):
     value = os.environ.get(name, '').strip()
+    if value:
+        return value
+    wanted = name.upper()
+    for key, candidate in os.environ.items():
+        if key.upper() == wanted and candidate.strip():
+            return candidate.strip()
+    return ''
+
+
+def setting(name, *, config=None, saved_values=None):
+    # Key names match in any case in the environment and in env files, as in
+    # v0.1.4 (a live .env spelled one in mixed case). Saved values keep their
+    # canonical names.
+    value = _environment(name)
     if value:
         return value
     if name in ALLOWED_KEYS:
@@ -108,7 +125,7 @@ def setting(name, *, config=None, saved_values=None):
             if not line or line.startswith('#'):
                 continue
             key, separator, candidate = line.partition('=')
-            if separator and key.strip() == name:
+            if separator and key.strip().upper() == name.upper():
                 candidate = candidate.strip()
                 if len(candidate) > 1 and candidate[0] == candidate[-1] and candidate[0] in ('"', "'"):
                     candidate = candidate[1:-1]

@@ -108,9 +108,9 @@ class BrowserSearchTests(unittest.TestCase):
 
     def test_budget_persists_and_does_not_allow_overrun(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'):
-            browser_search.reserve('serpapi',1,'2026-10')
-            with self.assertRaisesRegex(ValueError,'limit'):browser_search.reserve('serpapi',1,'2026-10')
-            browser_search.reserve('serpapi',1,'2026-11')
+            browser_search.reserve('browser',1,'2026-10-16')
+            with self.assertRaisesRegex(ValueError,'limit'):browser_search.reserve('browser',1,'2026-10-16')
+            browser_search.reserve('browser',1,'2026-10-17')
 
     def test_human_challenge_is_reported_without_solving_it(self):
         self.assertTrue(browser_search.challenge('https://www.google.com/sorry/index',''))
@@ -135,17 +135,12 @@ class BrowserSearchTests(unittest.TestCase):
                 self.assertEqual(scheduler.select(d),d)
             with app.db() as con:self.assertEqual(con.execute('SELECT COUNT(*) FROM cover_retries').fetchone()[0],0)
 
-    def test_serpapi_upload_uses_cover_bytes_and_cache_is_local(self):
-        responses=[{'image_id':'upload-token'},{'visual_matches':[{'link':'https://catalog.example/issue','title':'Comic'}]}]
-        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(browser_search,'api_key',return_value='test-secret'),patch.object(browser_search,'request_json',side_effect=responses) as send:
-            result=browser_search.serpapi_search(b'cover-only',{'serpapi_fallback':True,'serpapi_monthly_limit':1})
-            request=send.call_args_list[0].args[0]
-            self.assertIn(b'cover-only',request.data);self.assertIn(b'filename="cover.jpg"',request.data)
-            self.assertEqual(result[0]['title'],'Comic')
+    def test_cover_cache_is_local_and_keyed_by_cover_bytes(self):
+        result=[{'url':'https://catalog.example/issue','title':'Comic'}]
+        with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'):
             key,_=browser_search.cached(b'cover-only');browser_search.save_cache(key,result)
             self.assertEqual(browser_search.cached(b'cover-only')[1],result)
-            with self.assertRaisesRegex(ValueError,'limit'):browser_search.serpapi_search(b'another',{'serpapi_fallback':True,'serpapi_monthly_limit':1})
-            self.assertEqual(send.call_count,2)
+            self.assertIsNone(browser_search.cached(b'another')[1])
 
     def test_changed_archive_never_records_candidates(self):
         with scratch_directory() as d:
@@ -155,23 +150,25 @@ class BrowserSearchTests(unittest.TestCase):
                 browser_worker.process(row,Mock(),{})
                 self.assertEqual(finish.call_args.args[1],'stale');record.assert_not_called()
 
-    def test_api_errors_do_not_expose_key_in_exception(self):
-        with patch.object(browser_search.urllib.request,'urlopen',side_effect=ValueError('secret-api-key')):
-            with self.assertRaises(ValueError) as caught:browser_search.request_json(Mock())
-            self.assertNotIn('secret-api-key',str(caught.exception))
-
-    def test_challenge_records_help_and_fallback_leads_without_writing_metadata(self):
+    def test_challenge_with_legacy_fallback_config_holds_without_writing_metadata(self):
+        # SerpApi was removed (Sergei 2026-10-16). An old config that still turns its
+        # fallback on makes no request: the comic keeps its queue place, and only
+        # the Lens search is counted.
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)/'data'),patch.object(research,'CACHE',Path(d)/'research'):
             path=Path(d)/'comic.cbz';path.write_bytes(b'archive')
             stat=path.stat();row={'path':str(path),'size':stat.st_size,'mtime':stat.st_mtime_ns,'metadata':'{}'}
             cover_tasks.enqueue(row)
             browser=Mock();browser.search.side_effect=browser_search.HumanVerification('https://www.google.com/sorry/index')
-            leads=[{'url':'https://catalog.example/issue','title':'Issue'}]
-            with patch.object(browser_search,'cover_bytes',return_value=b'cover'),patch.object(browser_search,'serpapi_search',return_value=leads):
-                browser_worker.process(row,browser,{'serpapi_fallback':True,'daily_request_limit':1})
+            with patch.object(browser_search,'cover_bytes',return_value=b'cover'),patch('urllib.request.urlopen',side_effect=AssertionError('no network')) as network:
+                hold=browser_worker.process(row,browser,{'serpapi_fallback':True,'serpapi_monthly_limit':250,'daily_request_limit':1})
+            network.assert_not_called()
+            self.assertGreater(hold,time.time())
             state=browser_search.status()
-            self.assertTrue(state['human_verification']);self.assertEqual(state['provider'],'serpapi')
+            self.assertTrue(state['human_verification']);self.assertNotIn('provider',state)
             with app.db() as con:
-                self.assertEqual(con.execute('SELECT state FROM cover_tasks').fetchone()[0],'leads_found')
+                task=dict(con.execute('SELECT state,detail FROM cover_tasks').fetchone())
+                self.assertEqual([r[0] for r in con.execute('SELECT provider FROM image_search_requests')],['browser'])
                 self.assertEqual(con.execute('SELECT COUNT(*) FROM history').fetchone()[0],0)
+            self.assertEqual(task['state'],'pending')
+            self.assertNotIn('SerpApi',task['detail'])
             self.assertEqual(path.read_bytes(),b'archive')

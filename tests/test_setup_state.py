@@ -151,8 +151,9 @@ class SetupStateTests(unittest.TestCase):
                              (str(self.root / 'missing'), 'folder_missing')]:
             self.error(code, lambda: setup_state.save(folder, {}))
         for value in ('one\ntwo', 'one\rtwo', 'one\0two', None):
-            self.error('key_invalid', lambda: setup_state.save(str(self.library), {'SERPAPI_API_KEY': value}))
+            self.error('key_invalid', lambda: setup_state.save(str(self.library), {'BRAVE_SEARCH_API_KEY': value}))
         self.error('key_invalid', lambda: setup_state.save(str(self.library), {'GCD_PASSWORD': 'unsupported'}))
+        self.error('key_invalid', lambda: setup_state.save(str(self.library), {'SERPAPI_API_KEY': 'retired'}))
         self.acquire.assert_not_called()
         self.assertFalse((self.state / 'config.json').exists())
 
@@ -174,7 +175,7 @@ class SetupStateTests(unittest.TestCase):
         self.assertEqual((self.state / 'config.json').read_bytes(), before)
 
     def test_atomic_commit_failure_keeps_previous_config_and_encrypted_generation(self):
-        name = 'SERPAPI_API_KEY'
+        name = 'BRAVE_SEARCH_API_KEY'
         setup_state.save(str(self.library), {name: 'synthetic-first-value'})
         before = (self.state / 'config.json').read_bytes()
         with patch.object(setup_state, '_replace', side_effect=OSError('fixture failure')):
@@ -232,6 +233,27 @@ class SetupStateTests(unittest.TestCase):
         setup_state.save_keys({'COMICVINE_API_KEY':'synthetic-first'})
         setup_state.save(str(self.library),{'COMICVINE_API_KEY':'synthetic-second'})
         self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-second')
+
+    def test_saved_serpapi_key_from_an_earlier_version_still_loads_and_is_kept(self):
+        # SerpApi was removed (Sergei 2026-10-16); 0.2.2 could save its key. That
+        # saved file must still open, the key is neither reported nor accepted
+        # again, and a later save keeps it exactly as it was.
+        legacy={'COMICVINE_API_KEY':'synthetic-comicvine','SERPAPI_API_KEY':'synthetic-retired'}
+        generation='credentials/'+'a'*32+'.dpapi'
+        (self.state/'credentials').mkdir()
+        (self.state/generation).write_bytes(credential_store.encrypt(legacy))
+        self.config({credential_store.POINTER:generation,'automatic':{'library_root':str(self.library)},
+                     'browser_search':{'enabled':False,'serpapi_fallback':True,'serpapi_monthly_limit':250}})
+        (self.state/'.env').write_text('SERPAPI_API_KEY=synthetic-env-retired\n',encoding='utf-8')
+        with patch.object(credential_store,'RETIRED_KEYS',()):
+            self.error('save_failed',setup_state.status)  # Control: without the retired name it fails closed.
+        status=setup_state.status()
+        self.assertEqual(set(status['saved_keys']),set(credential_store.ALLOWED_KEYS))
+        self.assertEqual([name for name,saved in status['saved_keys'].items() if saved],['COMICVINE_API_KEY'])
+        self.assertTrue(credential_store.setting('COMICVINE_API_KEY')=='synthetic-comicvine')
+        self.error('key_invalid',lambda:setup_state.save_keys({'SERPAPI_API_KEY':'synthetic-new'}))
+        setup_state.save_keys({'METRON_API_TOKEN':'synthetic-metron'})
+        self.assertTrue(credential_store.saved()==dict(legacy,METRON_API_TOKEN='synthetic-metron'))
 
 
 @unittest.skipUnless(os.name == 'nt', 'Windows DPAPI only')

@@ -1,12 +1,11 @@
 """v0.1.2 review round 2: Lens holds, dashboard text, post-check reads and lead
 saving (Senua F4-F8; Futaba Q-4, Q-7, Q-9; Judy's string review).
 
-Isolated catalog, mocked browser, SerpApi and Playwright page; no network.
+Isolated catalog, mocked browser and Playwright page; no network.
 """
 import hashlib
 import json
 import os
-import sqlite3
 import time
 import unittest
 from pathlib import Path
@@ -35,9 +34,8 @@ class HeldSearchTests(unittest.TestCase):
         self.enterContext(patch.object(worker.pause_control,'requested',return_value=False))
         self.enterContext(patch.object(worker.search,'cover_bytes',return_value=b'fixture cover'))
         self.enterContext(patch.object(worker.search,'cached',return_value=('fixture-key',None)))
-        self.fallback=self.enterContext(patch.object(worker.search,'serpapi_search',return_value=[]))
         self.browser=Mock();self.browser.search.return_value=[{'url':'https://catalog.example/issue','title':'Issue'}]
-        self.options={'daily_request_limit':100,'serpapi_fallback':False}
+        self.options={'daily_request_limit':100}
         path=self.root/'comic.cbz';path.write_bytes(b'isolated fixture')
         stat=path.stat();self.row={'path':str(path),'size':stat.st_size,'mtime':stat.st_mtime_ns}
         with app.db() as con:
@@ -76,18 +74,18 @@ class HeldSearchTests(unittest.TestCase):
         self.assertEqual(browser_search.legacy_status()['detail'],COOLING_DOWN)
         self.assertIn('Google Lens needs human verification.',self.task()['detail'])
 
-    def test_serpapi_local_failure_during_a_hold_is_not_a_search(self):
-        # Q-9: a locked database in the SerpApi reservation escaped to main()
-        # and moved the comic to the back of the queue for a day.
+    def test_legacy_fallback_setting_during_a_hold_is_not_a_search(self):
+        # SerpApi was removed (Sergei 2026-10-16). An old config that still turns
+        # its fallback on leaves a held comic in place with the Lens reason only.
         browser_search.legacy_status(browser_retry_at=time.time()+1800)
-        self.options['serpapi_fallback']=True
-        self.fallback.side_effect=sqlite3.OperationalError('database is locked')
+        self.options.update(serpapi_fallback=True,serpapi_monthly_limit=250)
         before=self.task()
         hold=worker.process(cover_tasks.claim(),self.browser,self.options)
         task=self.task()
         self.assertEqual((task['state'],task['updated']),(before['state'],before['updated']))
-        self.assertIn('SerpApi fallback unavailable: SerpApi request failed; check account availability.',task['detail'])
+        self.assertEqual(task['detail'],'Google Lens is cooling down. Not searched; kept in its queue place until this clears.')
         self.assertGreater(hold,time.time())
+        self.browser.search.assert_not_called()
 
     def evidence(self):
         target=research.CACHE/('evidence-'+hashlib.sha256(self.row['path'].encode()).hexdigest()+'.json')

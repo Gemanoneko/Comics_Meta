@@ -36,7 +36,6 @@ def locked():
 # shortens the one-hour hold to a few minutes (lens_verification.solved_hold).
 HELD_COOLING_DOWN='Google Lens is cooling down. Queued covers keep their place; searching resumes automatically.'
 HELD_DAILY_LIMIT='Daily Google Lens search limit reached. Queued covers keep their place; searching resumes when the limit resets.'
-FALLBACK_FAILED='SerpApi request failed; check account availability.'
 # Explicit search outcomes. A search that never ran is a Held value, not a result.
 SEARCHED='searched'  # Ran; its result, even an empty one, counts.
 FAILED='failed'      # Started and broke; the usual one-day wait applies.
@@ -84,18 +83,6 @@ def lens_attempt(row,browser,data,options):
     return SEARCHED,leads
 
 
-def fallback_attempt(data,options):
-    """Optional SerpApi search: (SEARCHED, leads), or (reason, None) when it could not run."""
-    try:leads=search.serpapi_search(data,options)
-    except ValueError as exc:
-        search.status(fallback_detail=str(exc));return str(exc),None
-    except Exception:
-        # A local failure (locked database, unreadable key file) is not a search either.
-        search.status(fallback_detail=FALLBACK_FAILED);return FALLBACK_FAILED,None
-    search.status(fallback_detail='')
-    return SEARCHED,leads
-
-
 def process(row,browser,options):
     if pause_control.requested():
         cover_tasks.finish(row,'pending','Paused; search remains queued.');return
@@ -112,18 +99,12 @@ def process(row,browser,options):
     if task and task[0]=='not_needed':return
     search.status(state='searching',current=path.name,detail='Searching the cover; candidate links will be verified before any metadata write.')
     data=search.cover_bytes(path);key,leads=search.cached(data)
-    provider='cache';lens=None;fallback=None
+    provider='cache';lens=None
     if leads is None:
         provider='browser'
         try:lens,leads=lens_attempt(row,browser,data,options)
         except pause_control.PauseRequested:
             cover_tasks.finish(row,'pending','Paused; search remains queued.');return
-        if not leads and options.get('serpapi_fallback'):
-            if pause_control.requested():
-                cover_tasks.finish(row,'pending','Paused; search remains queued.');return
-            provider='serpapi'
-            fallback,found=fallback_attempt(data,options)
-            if fallback==SEARCHED:leads=found
         if leads:search.save_cache(key,leads)
     # Archive bytes may have changed while the browser was running.
     stat=path.stat()
@@ -137,15 +118,14 @@ def process(row,browser,options):
         # verified identity meanwhile is never overwritten.
         if not cover_tasks.record(row,leads,states=SEARCHABLE):return
         search.status(state='candidates_saved',provider=provider,detail=str(len(leads))+' candidate links saved for automatic identity verification.')
-    elif SEARCHED in (lens,fallback):
+    elif lens==SEARCHED:
         cover_tasks.finish(row,'retry_wait','No usable cover-search candidates; retry after one day.')
         search.status(state='waiting',detail='No usable candidates for this cover. Continuing with other comics.')
     elif not isinstance(lens,Held):
         cover_tasks.finish(row,'retry_wait','Cover search could not finish; retry after one day.')
         search.status(state='waiting',detail='Cover search could not finish. Continuing with other comics.')
     else:
-        unavailable=' SerpApi fallback unavailable: '+fallback if fallback else ''
-        cover_tasks.release(row,lens.reason+unavailable+' Not searched; kept in its queue place until this clears.')
+        cover_tasks.release(row,lens.reason+' Not searched; kept in its queue place until this clears.')
         search.status(state='waiting',detail=lens.dashboard)
         return max(lens.until,time.time())
 

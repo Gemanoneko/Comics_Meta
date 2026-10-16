@@ -1,4 +1,4 @@
-"""Project-owned Lens browser and optional quota-limited SerpApi fallback.
+"""Project-owned Lens browser.
 
 Only cover bytes leave the computer. All returned links are unverified leads.
 Human-verification pages are reported, never solved automatically.
@@ -9,9 +9,6 @@ import json
 import os
 import time
 import urllib.parse
-import urllib.request
-import uuid
-from datetime import datetime, timezone
 from PIL import Image
 import app
 import reverse_image
@@ -38,10 +35,6 @@ class HumanVerification(Exception):
 def settings():
     return app.load_config().get('browser_search',{})
 
-
-def api_key():
-    import credential_store
-    return credential_store.setting('SERPAPI_API_KEY')
 
 def legacy_status(**changes):
     path=app.DATA/'browser-search.json'
@@ -88,7 +81,7 @@ def normalize_links(items):
         host=(p.hostname or '').lower()
         if p.scheme!='https' or not host or p.username or p.password:continue
         if host=='google.com' or host.endswith(('.google.com','.gstatic.com','.googleusercontent.com')):continue
-        if host in {'support.google.com','accounts.google.com','policies.google.com','serpapi.com'}:continue
+        if host in {'support.google.com','accounts.google.com','policies.google.com'}:continue
         if url in seen:continue
         seen.add(url);found.append({'url':url,'title':str(item.get('title') or host)[:300]})
     return found[:10]
@@ -312,30 +305,3 @@ class LensBrowser:
         self.context=None;self.runtime=None;self.leased=False
         import lens_verification
         lens_verification.session_closed()
-
-
-def request_json(request):
-    try:
-        with urllib.request.urlopen(request,timeout=60) as response:
-            raw=response.read(5_000_001)
-        if len(raw)>5_000_000:raise ValueError()
-        value=json.loads(raw)
-        if value.get('error'):raise ValueError()
-        return value
-    except Exception:
-        # Do not propagate request URLs, API keys or returned account details.
-        raise ValueError('SerpApi request failed; check account availability.') from None
-
-
-def serpapi_search(data,options):
-    key=api_key()
-    if not key or not options.get('serpapi_fallback'):raise ValueError('SerpApi fallback is not configured.')
-    reserve('serpapi',min(250,int(options.get('serpapi_monthly_limit',250))),datetime.now(timezone.utc).strftime('%Y-%m'))
-    boundary='ComicCover'+uuid.uuid4().hex
-    body=(f'--{boundary}\r\nContent-Disposition: form-data; name="api_key"\r\n\r\n{key}\r\n--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="cover.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'.encode()+data+f'\r\n--{boundary}--\r\n'.encode())
-    upload=request_json(urllib.request.Request('https://serpapi.com/image',data=body,headers={'Content-Type':'multipart/form-data; boundary='+boundary}))
-    image_id=upload.get('image_id')
-    if not isinstance(image_id,str) or not image_id:raise ValueError('SerpApi upload did not return an image identifier.')
-    params=urllib.parse.urlencode({'engine':'google_lens','image_id':image_id,'api_key':key,'hl':'en','safe':'off','type':'all'})
-    result=request_json(urllib.request.Request('https://serpapi.com/search.json?'+params))
-    return normalize_links(result.get('visual_matches',[])+result.get('exact_matches',[]))

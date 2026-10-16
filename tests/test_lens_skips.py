@@ -1,6 +1,6 @@
 """Skipped Lens searches keep their queue place; no cover-search state is final.
 
-Isolated catalog, mocked browser and SerpApi; no public requests or archive writes.
+Isolated catalog and mocked browser; no public requests or archive writes.
 """
 import json
 import time
@@ -26,9 +26,8 @@ class LensSkipTests(unittest.TestCase):
         self.enterContext(patch.object(worker.pause_control,'requested',return_value=False))
         self.enterContext(patch.object(worker.search,'cover_bytes',return_value=b'fixture cover'))
         self.enterContext(patch.object(worker.search,'cached',return_value=('fixture-key',None)))
-        self.fallback=self.enterContext(patch.object(worker.search,'serpapi_search',return_value=[]))
         self.browser=Mock();self.browser.search.return_value=[{'url':'https://catalog.example/issue','title':'Issue'}]
-        self.options={'daily_request_limit':100,'serpapi_fallback':False}
+        self.options={'daily_request_limit':100}
         self.path=self.comic('first.cbz')
         self.other=self.comic('second.cbz')
         self.now=time.time()
@@ -101,13 +100,14 @@ class LensSkipTests(unittest.TestCase):
         self.assertEqual(self.browser.search.call_count,1)
         self.assert_kept_in_place('Google Lens needs human verification.')
 
-    def test_serpapi_cap_during_lens_hold_keeps_queue_position(self):
+    def test_legacy_fallback_setting_during_lens_hold_keeps_queue_position(self):
+        # SerpApi was removed (Sergei 2026-10-16); an old config may still turn it on.
         browser_search.legacy_status(browser_retry_at=self.now+1800)
-        self.options['serpapi_fallback']=True
-        self.fallback.side_effect=ValueError('serpapi request limit reached.')
+        self.options.update(serpapi_fallback=True,serpapi_monthly_limit=250)
         worker.process(self.claim_first(),self.browser,self.options)
-        self.fallback.assert_called_once()
-        self.assert_kept_in_place('SerpApi fallback unavailable: serpapi request limit reached.')
+        self.browser.search.assert_not_called()
+        self.assertNotIn('SerpApi',self.task()['detail'])
+        self.assert_kept_in_place('Google Lens is cooling down.')
 
     def test_genuine_empty_search_still_waits_one_day(self):
         self.browser.search.return_value=[]
@@ -117,11 +117,17 @@ class LensSkipTests(unittest.TestCase):
         self.assertGreater(task['updated'],self.now-1)
         self.assertEqual(cover_tasks.claim()['path'],self.other)  # Moved behind other work.
 
-    def test_empty_serpapi_fallback_is_a_genuine_search(self):
-        browser_search.legacy_status(browser_retry_at=self.now+1800)
-        self.options['serpapi_fallback']=True
-        worker.process(self.claim_first(),self.browser,self.options)
-        self.assertEqual(self.task()['detail'],NO_CANDIDATES)
+    def test_legacy_fallback_setting_leaves_an_empty_lens_search_as_no_candidates(self):
+        # Lens found nothing: the same one-day wait as with the fallback switched
+        # off, and only the Lens search is counted.
+        self.browser.search.return_value=[]
+        self.options.update(serpapi_fallback=True,serpapi_monthly_limit=250)
+        self.assertIsNone(worker.process(self.claim_first(),self.browser,self.options))
+        task=self.task()
+        self.assertEqual((task['state'],task['detail']),('retry_wait',NO_CANDIDATES))
+        self.assertEqual(cover_tasks.claim()['path'],self.other)  # Moved behind other work.
+        with app.db() as con:
+            self.assertEqual([r[0] for r in con.execute('SELECT provider FROM image_search_requests')],['browser'])
 
     def test_browser_failure_is_not_labelled_as_no_candidates(self):
         self.browser.search.side_effect=RuntimeError('synthetic browser failure')

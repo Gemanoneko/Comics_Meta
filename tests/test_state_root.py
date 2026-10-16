@@ -10,7 +10,6 @@ from unittest.mock import patch
 import app
 import app_paths
 import batch
-import browser_search
 import metron
 import providers
 import server_host
@@ -18,6 +17,7 @@ import web_search
 from test_worker import scratch_directory
 
 CODE = Path(__file__).resolve().parents[1]
+# SERPAPI_API_KEY belongs to a removed source; an old .env may still hold it.
 SECRETS = ('COMICVINE_API_KEY', 'METRON_API_TOKEN', 'GCD_EMAIL', 'SERPAPI_API_KEY', 'BRAVE_SEARCH_API_KEY')
 
 
@@ -75,7 +75,7 @@ class StateFilesTests(unittest.TestCase):
 
     def lookups(self):
         return {'comicvine': app.api_key(), 'metron': metron.token(), 'gcd': providers.setting('GCD_EMAIL'),
-                'serpapi': browser_search.api_key(), 'brave': web_search.key()}
+                'brave': web_search.key()}
 
     def test_config_and_secrets_come_from_the_state_root_only(self):
         # Neither the code folder nor the studio root two levels up is a secrets source any more.
@@ -84,8 +84,7 @@ class StateFilesTests(unittest.TestCase):
         self.assertEqual(set(self.lookups().values()), {''})  # Also: no config.json is not an error.
         self.secrets(self.state / '.env', 'state')
         self.assertEqual(self.lookups(), {'comicvine': 'state-comicvine_api_key', 'metron': 'state-metron_api_token',
-                                          'gcd': 'state-gcd_email', 'serpapi': 'state-serpapi_api_key',
-                                          'brave': 'state-brave_search_api_key'})
+                                          'gcd': 'state-gcd_email', 'brave': 'state-brave_search_api_key'})
         (self.state / 'config.json').write_text(json.dumps({'automatic': {'root': 'X:\\Comics'},
                                                             'web_search': {'provider': 'free'}}), encoding='utf-8')
         self.assertEqual(app.live_root(), 'X:\\Comics')
@@ -111,6 +110,21 @@ class StateFilesTests(unittest.TestCase):
         (self.state / 'config.json').write_text(json.dumps({'env_file': str(elsewhere)}), encoding='utf-8')
         self.assertEqual(app.env_files()[-1], elsewhere)
         self.assertEqual(metron.token(), 'absolute-metron_api_token')
+
+    def test_key_names_match_in_any_case_in_every_source(self):
+        # 0.2.2 matched key names exactly; v0.1.4 matched them in any case, and a
+        # live .env spelled a key in mixed case. Controls: an exact name still
+        # matches, and a longer name that only contains a key's name never does.
+        (self.state / '.env').write_text('comicvine_api_key=state-lower\nXMETRON_API_TOKEN=near-miss\n'
+                                         'METRON_API_TOKEN_OLD=near-miss\n', encoding='utf-8')
+        elsewhere = self.root / 'elsewhere' / 'keys.env'
+        elsewhere.parent.mkdir(parents=True)
+        elsewhere.write_text('Metron_Api_Token=configured-mixed\nGCD_EMAIL=configured-exact\n', encoding='utf-8')
+        (self.state / 'config.json').write_text(json.dumps({'env_file': str(elsewhere)}), encoding='utf-8')
+        os.environ['Brave_Search_Api_Key'] = 'environment-mixed'
+        os.environ['COMICVINE_API_KEY_OLD'] = 'environment-near-miss'
+        self.assertEqual((app.api_key(), metron.token(), providers.setting('GCD_EMAIL'), web_search.key()),
+                         ('state-lower', 'configured-mixed', 'configured-exact', 'environment-mixed'))
 
     def test_batch_plans_and_progress_are_written_under_the_state_root(self):
         folder = self.root / 'comics'

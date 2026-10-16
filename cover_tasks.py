@@ -108,7 +108,7 @@ def finish(row,state,detail):
 def release(row,detail):
     """Return a claimed task unsearched: same state, same queue position and wait.
 
-    A blocked provider (cooldown, daily cap, human check, fallback cap) is not
+    A blocked provider (cooldown, daily cap, human check) is not
     a search result, so it must neither reset a retry wait nor requeue at the back.
     """
     state=row.get('task_state') or 'pending'
