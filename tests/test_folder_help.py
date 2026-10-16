@@ -519,6 +519,71 @@ class DeleteBackupTests(Fixture):
         self.refused(lambda: folder_help.delete_backups(TICKET, ['f' * 32]), 'changed')  # Well formed, never issued.
         self.assertTrue(backup.exists())
 
+    def test_only_a_backup_equal_to_the_comic_is_offered_or_deleted(self):
+        """v0.2.5 review M1: an older backup of the same comic, another version, is never offered or deleted."""
+        path = self.comic('Two versions.cbz')
+        version = path.read_bytes().replace(b'aaaa', b'zzzz')  # Same size, same name pattern, other bytes.
+        older = self.backup(path, ns=1_750_000_000_000_000_000, data=version)
+        same = self.backup(path)
+        self.save()
+        result = folder_help.check(TICKET)
+        rows = {r['file']: r for r in result['problems']}
+        self.assertEqual((rows[same.name].get('basis'), rows[older.name].get('basis')), ('original', None))
+        self.assertNotIn('offer', result)
+        for forced in ([rows[older.name]['id']], [rows[same.name]['id'], rows[older.name]['id']]):
+            with self.subTest(forced=len(forced)):
+                exc = self.refused(lambda: folder_help.delete_backups(TICKET, forced), 'changed')
+                self.assertNotIn('offer', exc.payload()['check'])
+                self.assertEqual((older.read_bytes(), same.exists()), (version, True))  # All before any.
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+        older.rename(self.root / older.name)  # Control: the same comic with only its equal backup.
+        ids = self.offered()
+        self.assertEqual(ids, [rows[same.name]['id']])
+        self.assertEqual(folder_help.delete_backups(TICKET, ids), {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1})
+        self.assertFalse(same.exists())
+        self.assertEqual((self.root / older.name).read_bytes(), version)
+
+    def test_a_backup_replaced_after_the_offer_is_kept(self):
+        path = self.comic('Replaced.cbz')
+        backup = self.backup(path)
+        self.save()
+        ids = self.offered()
+        version = path.read_bytes().replace(b'aaaa', b'zzzz')
+        backup.write_bytes(version)  # Between the check and the click.
+        exc = self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
+        self.assertNotIn('offer', exc.payload()['check'])
+        self.assertEqual(backup.read_bytes(), version)
+        backup.write_bytes(path.read_bytes())
+        ids = self.offered()
+        real = kept_backups.delete_one
+
+        def replace_then_delete(target, before_unlink=None):
+            backup.write_bytes(version)  # After the all-before-any proof: proved again under the guard.
+            return real(target, before_unlink=before_unlink)
+        with patch.object(kept_backups, 'delete_one', side_effect=replace_then_delete):
+            self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
+        self.assertEqual(backup.read_bytes(), version)
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+
+    def test_a_skipped_or_failed_comic_must_pass_the_zip_test(self):
+        path = self.comic('Failed.cbz')
+        self.failed.append({'path': str(path.resolve()), 'reason': 'Duplicate ZIP entries require manual review.'})
+        backup = self.backup(path)
+        self.save()
+        self.assertEqual(folder_help.check(TICKET)['offer']['kind'], 'delete_backup')  # Control: an intact failed comic.
+        damaged = path.read_bytes().replace(b'PAGEDATA', b'PAGEDATX', 1)  # Same size, bad CRC...
+        path.write_bytes(damaged)
+        os.utime(path, ns=(MTIME, MTIME))
+        backup.write_bytes(damaged)  # ...and a byte-equal backup, so only the zip test can stop the offer.
+        self.entries[-1]['sha256'] = batch.digest(path)  # Damaged before planning: the plan recorded it so.
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertEqual([(r['finding'], r['file']) for r in result['problems']],
+                         [('zip_failed', 'Failed.cbz'), ('backup_left', backup.name)])
+        self.assertNotIn('offer', result)
+        self.assertEqual(backup.read_bytes(), damaged)
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+
 
 class RevealTests(Fixture):
     def test_open_folder_and_show_in_folder_by_id(self):

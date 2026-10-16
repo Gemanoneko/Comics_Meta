@@ -9,7 +9,8 @@ plan and the files on disk; nothing the page holds is trusted beyond those ids.
 The check only reads. Its one write is the close at the end: the ticket leaves needs_attention and
 the unwritten comics' research records are made due, so the next pass of the folder plans them
 again from what is on disk. Delete backup and requeue deletes only kept backups the check offered,
-each comic proved again under its write guard immediately before its backup is deleted (Amendment A8).
+each comic and backup proved again under its write guard immediately before the backup is deleted
+(Amendment A8; the backup must hash to the comic as planned, v0.2.5 review M1).
 """
 import hashlib
 import hmac
@@ -263,6 +264,17 @@ def prove(path, entry, result, digest=None):
     return None
 
 
+def backup_proved(backup, entry):
+    """True when the backup is byte for byte the comic as the plan recorded it before any write: the
+    SHA-256 rule app.remove_verified_backup applies to the app's own cleanup. For a comic proved
+    'original' that is also the comic as it is now. A backup left by another write holds another
+    version of the comic, so it is never offered and never deleted (v0.2.5 review M1)."""
+    try:
+        return _digest(backup) == entry['sha256']
+    except OSError:
+        return False
+
+
 # The check (read-only until the close) -------------------------------------------------------
 
 def _issue(ticket, code, target):
@@ -326,7 +338,13 @@ def _inspect(folder, entries, finished, skipped):
     for path, entry in entries:
         key, name, digest = str(path), path.name, None
         result = finished.get(key)
-        if key not in skipped:  # A skipped or failed comic has its own wait record; it is not a problem.
+        kept = backups.get(name, [])
+        if key in skipped:
+            # A skipped or failed comic has its own wait record, so it is not a problem by itself. When it has
+            # a kept backup it still takes the zip test: a damaged comic keeps its backups off the offer (M1).
+            if kept and app.filesystem_path(path).is_file() and not _zip_ok(path):
+                findings.append(('zip_failed', name, path, None))
+        else:
             if not app.filesystem_path(path).is_file():
                 findings.append(('missing', name, folder, None))
             elif not _zip_ok(path):
@@ -347,10 +365,10 @@ def _inspect(folder, entries, finished, skipped):
         temporary = path.with_name(name + '.metadata-tmp')
         if os.path.lexists(app.filesystem_path(temporary)):
             findings.append(('temp_left', name, temporary, None))
-        kept = backups.get(name, [])
         if kept:
             basis = prove(path, entry, result, digest)
-            findings.extend(('backup_left', name, backup, basis) for backup in kept)
+            findings.extend(('backup_left', name, backup, basis if basis and backup_proved(backup, entry) else None)
+                            for backup in kept)
     findings.sort(key=lambda f: (f[1].casefold(), FINDINGS.index(f[0]), f[2].name.casefold()))
     return findings
 
@@ -367,8 +385,8 @@ def _closable(findings):
 
 
 def _problems(ident, findings, entries, finished, skipped):
-    """The section 4.2 result, with the Delete backup offer only when every finding is a kept backup
-    of a proved comic and all of them are on screen (Amendment A3, A8.4), or the Close and recheck
+    """The section 4.2 result, with the Delete backup offer only when every finding is a proved kept
+    backup (backup_proved) of a proved comic and all of them are on screen (Amendment A3, A8.4), or the Close and recheck
     offer when every finding is `unwritten_changed` (_closable)."""
     rows = []
     for code, name, target, basis in findings[:LIMIT]:
@@ -489,18 +507,18 @@ def delete_backups(ident, backup_ids):
             if not name:
                 raise HelpError('changed', check=_fresh(ident, item, folder))
             targets.append((Path(found['target']), name))
-        # A8.5: all before any. Every comic is proved before the first delete.
-        for _, name in targets:
+        # A8.5: all before any. Every comic and every backup is proved before the first delete.
+        for backup, name in targets:
             path, entry = comics[name]
-            if not prove(path, entry, finished.get(str(path))):
+            if not prove(path, entry, finished.get(str(path))) or not backup_proved(backup, entry):
                 raise HelpError('changed', check=_fresh(ident, item, folder))
         deleted = 0
         for backup, name in sorted(targets, key=lambda target: target[0].name.casefold()):
             path, entry = comics[name]
 
-            def again(comic, path=path, entry=entry):
-                # Under the comic's write guard, immediately before this delete (A8.2).
-                if not prove(path, entry, finished.get(str(path))):
+            def again(comic, path=path, entry=entry, backup=backup):
+                # Under the comic's write guard, immediately before this delete (A8.2, review M1).
+                if not prove(path, entry, finished.get(str(path))) or not backup_proved(backup, entry):
                     raise HelpError('changed')
             try:
                 kept_backups.delete_one(backup, before_unlink=again)
