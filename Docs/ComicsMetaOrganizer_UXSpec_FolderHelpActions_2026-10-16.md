@@ -1,6 +1,6 @@
 # Folder help lines: Check and requeue, Open folder (0.2.5)
 
-Date: 2026-10-16. Owner: Judy. Status: reviewable; Sully commits before Ender is briefed. **Amended 2026-10-16 with Sergei's §11 answers (Amendment at the end; where it differs from §1 to §10, the Amendment wins).** EXTENDS FailureFilters_2026-10-13 (which left the folder-level "Your help is needed" lines as text; Sergei chose on 2026-10-16 to add actions). Adds two buttons and a result area to each line. No modal, no other copy changes.
+Date: 2026-10-16. Owner: Judy. Status: reviewable; Sully commits before Ender is briefed. **Amended 2026-10-16 with Sergei's §11 answers (Amendment 1; where it differs from §1 to §10, the Amendment wins). Amended again 2026-10-17: Amendment 2 at the very end (a leftover temp file no longer blocks Delete backup and requeue; copy fixes from the 0.2.5 QA); where it differs from anything above, Amendment 2 wins.** EXTENDS FailureFilters_2026-10-13 (which left the folder-level "Your help is needed" lines as text; Sergei chose on 2026-10-16 to add actions). Adds two buttons and a result area to each line. No modal, no other copy changes.
 
 Basis: Sergei's standing rule (recap 2026-10-13: everything that needs his help offers concrete choices); NN/g (error prevention, visibility of status, plain-language recovery, user control); Jakob (Explorer's Show in folder); Hick (two buttons per line, none per reason); WCAG 2.2 AA (1.4.3, 1.4.10, 1.4.11, 2.4.7, 2.5.3, 2.5.8, 4.1.3); ProcessRules § Copy is short, specific, and has no memory, § A new control is born with its tooltip, § No UI element may cover another. Read from: `static/index.html` (line 135, `#queueAttention`, `renderControl`, `request`), `worker.py`, `batch.py`, `app.py` (`write_metadata`, `remove_verified_backup`, `/api/open-folder`), `progress_snapshot.py`, `library_lock.py`, the BackupLocation spec (Kept backups components and conventions).
 
@@ -82,7 +82,7 @@ Problem list directly below it, ordered by comic name (case-insensitive), then b
 | `unwritten_changed` | **Does not match the file this batch planned.** | the comic |
 | `missing` | **Not found in this folder.** | the folder (no file to select) |
 | `temp_left` | **A leftover temporary file is next to this comic: {temp file name}.** | the temp file |
-| `backup_left` | **A recovery backup is kept. Do not delete it until the comic is checked.** (unless the comic is verified: Amendment A6) | the `.bak` file |
+| `backup_left` | **A recovery backup is kept. Do not delete it until the comic is checked.** (wording by what was proved: Amendment A6, amended by Amendment 2 B6) | the `.bak` file |
 
 The row heading is always the comic's file name. A comic with two findings gets two rows; each is self-contained. The backup row carries the only safety sentence: with a damaged or mismatched comic that backup may be the only good copy. Deleting a backup is done in the existing Kept backups panel; nothing here deletes anything. (Amended 2026-10-16: except **Delete backup and requeue**, Amendment A5 and A8; verified-backup row wording: A6.)
 
@@ -193,7 +193,7 @@ All three answered by Sergei on 2026-10-16. The options are kept below for the r
 
 ---
 
-## Amendment — Sergei answers 2026-10-16
+## Amendment 1 — Sergei answers 2026-10-16
 
 Date: 2026-10-16. Owner: Judy. Status: reviewable; Sully commits before Ender is briefed. Adds two buttons, **Delete backup and requeue** and **Close and recheck folder**. Both exist only inside a check result: a card with no result still shows exactly two buttons (§3 unchanged until a check returns). Palette, states, tooltip mechanics and focus rules of §2 to §8 apply unless this section replaces them; where it does, this section wins.
 
@@ -239,7 +239,7 @@ In user terms: the app can prove the comic file is still **exactly one of two fi
 | | Delete backup and requeue | Close and recheck folder |
 |---|---|---|
 | **Appears** | After a check on this line returned problems where **every** finding is a kept backup, every one of those comics is verifiably unchanged (A1), and all of them are in the visible list (20 rows or fewer). The server says so with an `offer`; the page never infers it. | After a check on this line returned `plan_unreadable` (the saved plan is missing or cannot be read; one code for both), **or (Sergei's 2a, 2026-10-16) returned problems where every finding is `unwritten_changed`** (the comics changed after the batch was planned). The server says so with an `offer`. Same placement, style, label, tooltip, success text, failure strings and focus rules in both cases; no confirm. The route re-runs the inspection at the click and closes only if the plan is still unreadable or every finding is still `unwritten_changed`; otherwise it refuses with `plan_readable`: **Not closed: this folder changed since the check, and nothing was changed. Use Check and requeue.**, and the page removes the button. §4.2 summary with this offer: **Not requeued: 1 problem found, and nothing was changed. The comic changed after this batch was planned. Close this item to have the folder checked again at the next folder pass.** ({k} problems: **...{k} problems found, and nothing was changed. These comics changed after this batch was planned. Close this item...**). The row finding is unchanged. |
-| **Never appears** | Before any check. With any other finding on the line, including a leftover temporary file (`temp_left`). With one unverifiable backup among several (all or none). With more than 20 problems. | Before any check, and on any other result, including a list with any finding other than `unwritten_changed`. Not guessed from the reason code `other`: the plan is only known to be unreadable after the check says so. |
+| **Never appears** | Before any check. With any other finding on the line, including a leftover temporary file (`temp_left`) (**amended 2026-10-17: a temporary file no longer blocks the offer when Amendment 2 B2 covers it**). With one unverifiable backup among several (all or none). With more than 20 problems. | Before any check, and on any other result, including a list with any finding other than `unwritten_changed`. Not guessed from the reason code `other`: the plan is only known to be unreadable after the check says so. |
 | **Hidden again** | A new check starts on this line; the ticket leaves; the page reloads (the result lives in the page, not on disk: after a reload, press **Check and requeue** again). | same |
 | **Blocked (shown, `aria-disabled`)** | Paused or pausing; any operation running on any line (one at a time across all lines, shared with the check); this card's own operation running. | same |
 
@@ -291,7 +291,7 @@ Plan unreadable: status node, then **[ Close and recheck folder ]**; there is no
 | 1 backup, comic is **the verified result** | **Delete this backup and requeue?** | **{comic} was written and verified. The backup is the only way to undo that change. Deleting is permanent.** |
 | {n} backups (n of 2 or more) | **Delete {n} backups and requeue?** | One line per group, only for a group above 0: **{a} comics are exactly as they were before the app started writing; there is nothing to undo.** and **{b} comics were written and verified; their backups are the only way to undo those changes.** (singular: "1 comic is", "its backup is"), then **Deleting is permanent.** |
 
-The copy never says the backup is "a spare copy": A1 proves the comic, not the backup's contents.
+**Updated 2026-10-17 (Amendment 2): the backup's contents are proved too.** Since the 0.2.5 M1 fix a backup is offered and deleted only if its SHA-256 equals the plan's before-hash, at the check, before the first delete and again under the write guard (A8.1 as amended). "There is nothing to undo" is therefore true of the backup as well as the comic, and the earlier restriction (never "a spare copy", because only the comic was proved) is lifted; no shipped confirm wording has to change. What the copy still must not do is claim more than was proved: a backup that is not proved is never described as a copy (B6).
 
 ### A6. Progress, success and failure copy
 
@@ -302,7 +302,7 @@ The copy never says the backup is "a spare copy": A1 proves the comic, not the b
 | §4.2 summary when the offer shows (all findings are verified kept backups) | **Not requeued: {k} problems found, and nothing was changed. Delete the kept backup to requeue, or check again.** (k of 2 or more: "backups"; k = 1: **1 problem found**) |
 | §4.2 `backup_left`, comic is **the original** | **A recovery backup is kept. The comic is exactly as it was before the write, so there is nothing to undo.** |
 | §4.2 `backup_left`, comic is **the verified result** | **A recovery backup is kept. The comic was written and verified; the backup is the only way to undo that.** |
-| §4.2 `backup_left`, comic **not verified** | unchanged: **A recovery backup is kept. Do not delete it until the comic is checked.** |
+| §4.2 `backup_left`, **not proved** | Three wordings by `unproved` (Amendment 2 B6). Only "the comic itself is not proved" keeps: **A recovery backup is kept. Do not delete it until the comic is checked.** |
 | §4.4 `plan_unreadable` | **Not checked: the saved plan for this folder cannot be read, and nothing was changed. Check its comics in the folder, then close this item to recheck the folder.** (plus the offer button below it) |
 
 **In flight** (line status node, `role="status"`, same node as §4.1; the confirm stays visible with every button `aria-disabled`, so focus is not dropped):
@@ -330,7 +330,7 @@ The copy never says the backup is "a spare copy": A1 proves the comic, not the b
 | `busy` | **Nothing was deleted: this folder is already being checked. Wait for it to finish.** |
 | `folder_unavailable` | **Nothing was deleted: this folder is unavailable. Check that the library drive is connected.** |
 | `library_busy` | **Nothing was deleted: another copy of the app is using this library. Close it, then try again.** |
-| `changed` (a comic no longer matches at the click) | **Nothing was deleted: a comic changed since the check, so its backup is kept. The list below is updated.** The route returns the fresh check; the page replaces the list and re-evaluates the offer. |
+| `changed` (a comic or one of its files no longer matches at the click) | **Nothing was deleted: a comic or one of its files changed since the check. The list below is updated.** (Replaced 2026-10-17, B5: the old text said "a comic changed" also when a backup was simply gone; that is now `file_gone`.) The route returns the fresh check; the page replaces the list and re-evaluates the offer. |
 | `delete_failed`, none deleted | **Nothing was deleted: the backup could not be deleted. Close any program using it, then try again.** (plural: "a backup", "using them") |
 | `delete_failed`, {d} of {n} deleted | **Deleted {d} of {n} backups. {n-d} could not be deleted, so nothing was requeued. Close any program using them, then check again.** |
 | `not_requeued` (the backups are gone; the re-check or the close then failed) | **Backup deleted, but not requeued: {reason}. Use Check and requeue to finish.** {reason}: "processing was paused", or "the check found {k} problems" (the list below is updated), or the server message with its final full stop removed. (plural: **{b} backups deleted, but not requeued...**) |
@@ -348,7 +348,7 @@ The copy never says the backup is "a spare copy": A1 proves the comic, not the b
 | `gone` | success row **This folder is not waiting for help.** |
 | Any other error, or no answer | **Not closed: {server message, final full stop removed, or "the app did not answer"}. Try again.** (an unanswered press may have closed it; the retry then answers `gone`) |
 
-All of these sit in the same status node (`role="status"`). Focus moves to that node after a failure (A7), so the result, including a partial delete, is read at once; if focus is elsewhere the live region announces it politely.
+(Amended 2026-10-17: `file_gone` and `writing` are new, `delete_failed`, `not_requeued` and the unanswered line are worded for a temporary file too, B5.) All of these sit in the same status node (`role="status"`). Focus moves to that node after a failure (A7), so the result, including a partial delete, is read at once; if focus is elsewhere the live region announces it politely.
 
 ### A7. Focus and keyboard
 
@@ -368,10 +368,10 @@ Tab order per card: **Check and requeue**, **Open folder**, the offer button, th
 
 ### A8. Safety requirements for Ender (requirements, not design)
 
-1. **The one deletion rule.** A comic's backup is deleted **only if that comic matches the plan's before-fingerprint, or the verified after-state recorded in `results.json`, by size, mtime and hash.** All three must match. Size and mtime alone never suffice, and the hash is computed from the file bytes read now, never a cached value. No recorded fingerprint means no match.
+1. **The one deletion rule.** A comic's backup is deleted **only if that comic matches the plan's before-fingerprint, or the verified after-state recorded in `results.json`, by size, mtime and hash.** All three must match. Size and mtime alone never suffice, and the hash is computed from the file bytes read now, never a cached value. No recorded fingerprint means no match. (Amended 2026-10-17, as shipped in 0.2.5 after M1: the backup's own SHA-256 must also equal the plan's before-hash.)
 2. **Proved twice.** In the check (to decide the `offer`), and again inside the click's route, immediately before each delete. The click trusts nothing from the page but the ticket id and the backup ids the check issued (the same ids as the rows' problem ids).
 3. **No paths from the browser.** The delete removes only the ids that the server **now** re-derives as that ticket's kept backups; a backup that appeared after the check is not deleted. Same refusals as Kept backups delete: a `.bak` file inside a `.comic-metadata-backups` folder inside the configured library, no links or reparse points on the file or its folder, the same library-ownership check as `remove_verified_backup`. Reuse that delete path if it fits; a second implementation is Ender's call to justify.
-4. **Offer only when all of it holds:** every finding is `backup_left`, each is verified, and all fit in the 20 visible rows. No `temp_left`, no unverifiable backup, so no backup is deleted that is not on the screen.
+4. **Offer only when all of it holds:** every finding is `backup_left`, each is verified, and all fit in the 20 visible rows. No `temp_left`, no unverifiable backup, so no backup is deleted that is not on the screen. (Amended 2026-10-17: a `temp_left` is allowed when Amendment 2 B2 covers it.)
 5. **All before any.** Prove every comic first; if one fails, delete none (`changed`). Only then delete; a delete that fails stops the loop and reports `delete_failed` with the counts.
 6. **Order and guards.** Pause guard, single flight shared with the check, ticket must be `needs_attention`, folder inside the live library, then prove, delete, run the **full** check again, and close and requeue only if that check is clean (the `scheduler.finish(..., queued=True)` effect of §8.3). Re-read the ticket and the pause state immediately before closing. If any step fails, the later ones do not run, and the code names the step reached (`not_requeued` after a delete).
 7. **Payload.** The check result gains `offer`: `{kind:'delete_backup', backups:[{id, name, basis:'original'|'written'}], unwritten}` or `{kind:'close_recheck'}`, otherwise absent. The page renders from it and never infers. `basis` selects the A5 and A6 wording per row.
@@ -379,9 +379,9 @@ Tab order per card: **Check and requeue**, **Open folder**, the offer button, th
 9. **Tooltips** ship in the same commit as the controls (A2), with the compare-before-set helper.
 10. **Tests that matter:** a comic one byte different with the same size and mtime gets no offer and no delete; a changed mtime gets no offer; matches the before-fingerprint gives `basis:'original'`; matches the after-state gives `basis:'written'`; the comic changes between check and click and nothing is deleted; two backups with one unverifiable give no offer; `temp_left` plus `backup_left` gives no offer; 21 problems of kept backups give no offer; the delete fails on the second of three (partial copy); paused is refused by the server and not only by the page; no request body carries a path; a missing and an unreadable plan both offer **Close and recheck folder** and a new check clears it; a card survives two polls with the confirm open and focus on **Keep it**.
 
-### A9. Offered, not built
+### A9. Offered, not built (resolved 2026-10-17: Sergei said yes; specified in Amendment 2 at the end of this file)
 
-A write interrupted mid-comic "sometimes" leaves a temporary file beside the backup (finding 7). With a `temp_left` finding the offer does not appear, as Sergei's answer reads ("the check's only finding is a leftover recovery backup"), so that case still means deleting the temp file by hand. Offer for Sergei: include a verified-leftover temp file in the same action. Not specified or built unless Sergei says yes.
+A write interrupted mid-comic "sometimes" leaves a temporary file beside the backup (finding 7). With a `temp_left` finding the offer does not appear, as Sergei's answer reads ("the check's only finding is a leftover recovery backup"), so that case still means deleting the temp file by hand. Offer for Sergei: include a verified-leftover temp file in the same action. **Sergei, 2026-10-17: "Let's fix this: a temp file left next to a backup blocks the delete button." Superseded by Amendment 2; the sentence above describes 0.2.5 as shipped, not the behaviour to build.**
 
 ### A10. Acceptance (Futaba, isolated QA; adds to §9)
 
@@ -394,3 +394,149 @@ Measured rects at 320, 640 and 1280 CSS px, 100% and 200% zoom, in each state: o
 ### A11. Brief Decision Log row (append for Ender)
 
 Append to the Decision column of the §10 row: "...and, inside a check result, **Delete backup and requeue** (only when every finding is a verified kept backup; confirmed) and **Close and recheck folder** (only for an unreadable or missing plan; Sergei 2026-10-16)."
+
+---
+
+## Amendment 2 — leftover temp file (Sergei 2026-10-17)
+
+Date: 2026-10-17. Owner: Judy. Status: reviewable; Sully commits before Ender is briefed. Resolves A9. Sergei, 2026-10-17: "Let's fix this: a temp file left next to a backup blocks the delete button." Also carries the copy fixes the 0.2.5 QA asked for (Futaba m1 and m4, and the "Do not delete it" sentence after M1) and the A5 update. Where this section differs from anything above, this section wins. Layout: no change (B8). **Close and recheck folder** is untouched.
+
+Basis: NN/g (match between system and the real world: a button names what it deletes; error prevention; plain-language recovery), Hick (no new button: the same offer, a longer label), WCAG 2.2 AA (2.5.3 label in name, 4.1.3), ProcessRules § Copy is short, specific, and has no memory, § A new control is born with its tooltip, and the 0.2.5 pattern P5 (a sentence may claim only what the check proved). Read 2026-10-17 from `folder_help.py` (`_inspect`, `_problems`, `delete_backups`, `prove`, `backup_proved`), `app.py` (`_write_metadata_guarded`, `comic_write_guard`), `kept_backups.delete_one`, QA_v0.2.5 (M1, m1, m2, m4).
+
+What the code does: the app copies the comic to `.comic-metadata-backups\{comic}.{time}.bak`, **then** writes its new archive to `{comic file name}.metadata-tmp` beside the comic, then swaps it in; a normal failure removes the temp file in a `finally`, so only a hard stop (power loss, killed process) leaves one, and it sits next to a backup copied just before it. Today `temp_left` is a finding like any other, so the offer never shows and Sergei deletes the temp file by hand first.
+
+### B1. Decisions
+
+| Question | Decision | Why |
+|---|---|---|
+| Same button, or a new label | **New label naming both files** (B3). Same place, style, states, focus and confirm as A2 to A7. | The label is the accessible name and the first thing Sergei reads. "Delete backup and requeue" over a button that also deletes a second file understates a permanent delete. The exact counts are on the confirm. |
+| Confirm | **Always**, the A5 confirm plus one sentence naming the temporary file (B4). | Permanent delete. |
+| What is deleted | The kept backups A3 already covers, plus the app's own temporary file for the same comics. Nothing else. | Sergei's sentence. |
+| Order | Per comic: **temporary file first, then its backup(s)**. Every proof before the first delete. | A failure between the two leaves a verified backup alone: the state the existing offer already handles. The reverse leaves a temp file with no backup, which has no offer (unless Question 1 is yes). |
+| A temporary file with no backup | **Recommend yes**, B7. Question 1 (B11). | Rare, low risk, same standing rule as everything else on the card: a blocker Sergei can only clear by hand should be a button. |
+
+### B2. When it is offered
+
+In Sergei's terms: **the app offers the delete when, for every comic on the line, it can show that the comic is untouched, its backup is an identical copy, the only other thing beside it is the app's own temporary file, and the app is not writing that comic right now.** If any one thing is unproved there is no offer; the rows say what is there and nothing is deleted.
+
+The offer shows after a check on this line when **every** finding is covered, at least one covered finding is a `temp_left`, and all findings are in the visible list (20 rows or fewer; each temporary file is a row, so a line with a backup and a temp file per comic covers at most 10 comics). The server says so with an `offer`; the page never infers. A finding is covered when its comic meets all five:
+
+1. **The comic is untouched.** *Ender:* size, mtime and SHA-256 (bytes read in this request) all equal the plan's before-state: `prove(...)` returns `original`. A comic with a verified result (`written`) never qualifies (a temp file beside a written comic is not from the write that made it).
+2. **Every kept backup of the comic is an identical copy.** *Ender:* its SHA-256 equals the plan's before-hash (`backup_proved`, the 0.2.5 M1 rule, unchanged). One unproved backup of that comic uncovers the whole line.
+3. **The temporary file is the app's own, for this comic.** *Ender:* the path is exactly `{comic file name}.metadata-tmp` in the comic's own folder (the name `_write_metadata_guarded` builds); a regular file, not a folder, link or reparse point. Its contents are not read: with 1 and 2 proved it holds nothing the comic lacks. The app's own order (temp check, backup copy, temp file) means a temp file beside a backup comes from that write or a later one, so no timestamp test is added.
+4. **Nothing is writing that comic.** *Ender:* the comic's write guard (`comic_write_guard`) can be taken, tried without waiting. Probed at the check (a held guard means no offer: the temp file may belong to a live write) and taken for real at the click (B9.2).
+5. **It has no other finding.** No `zip_failed`, `unwritten_changed`, `written_changed` or `missing` for the comic.
+
+**Everything is proved again at the click** (B9.1). The page sends only the ticket id and the ids the check issued; the server recomputes the whole offer from disk and refuses unless the ids sent are exactly the files it now offers.
+
+**Never appears:** before any check; with any finding not covered (a different-version or unreadable backup, an unproved or missing comic, a temporary file with any other name or place, a temporary file whose comic is not untouched); while the comic's write guard is held; with more than 20 findings; with Question 1 answered no, a temporary file whose comic has no proved backup. The A3 rows for *Hidden again* and *Blocked* are unchanged.
+
+### B3. Controls and exact copy
+
+Let `b` = backups and `t` = temporary files in the offer, `total = b + t`, and `{P}` = the counts joined by "and", a zero part dropped, each noun singular at 1: **1 backup and 1 temporary file**, **3 backups and 3 temporary files**, **2 backups and 1 temporary file**. With no temporary file (`t = 0`) every A2 string stands as shipped. With one (`t >= 1`; `b = 0` is B7):
+
+| Control / string | Exact copy |
+|---|---|
+| Offer, visible label | **Delete backup and temporary file, then requeue** (1 comic). Each noun is plural by its own count: **Delete backups and temporary files, then requeue** (3 comics), **Delete backups and temporary file, then requeue** (b 2, t 1). |
+| Offer, tooltip | **Delete {P} left in this folder, then close this item and queue the unwritten comics again. You are asked to confirm first.** |
+| Offer, accessible name | the visible label, then **: {folder name}** (2.5.3) |
+| Confirm face | total 1: **Delete and requeue** (as A2). Otherwise **Delete {total} files and requeue** (**Delete 2 files and requeue**, **Delete 6 files and requeue**). The face repeats the total so it cannot be confirmed blind, and never reads the same as the label. |
+| Confirm face, tooltip | **Delete {P} permanently, then requeue.** |
+| Back out | **Keep it** when total is 1, else **Keep them**. Tooltip unchanged: **Go back. Nothing is deleted.** |
+| Paused or pausing (offer and face) | **Processing is paused. Resume processing to delete {P}, then requeue.** |
+| This card's own operation running (offer and face) | **Deleting {P}, then checking again.** |
+| Other blocked states | unchanged (A2): **Another folder is being checked. Wait for it to finish.**; **This folder is being worked on. Wait for it to finish.** |
+| Status summary when the offer shows (replaces A6) | **Not requeued: {k} problems found, and nothing was changed. Delete the kept {backup\|backups} and leftover temporary {file\|files} to requeue, or check again.** (k = rows; 1 problem: **1 problem found**; each noun plural by its own count) |
+| Problem rows | unchanged: `temp_left` **A leftover temporary file is next to this comic: {temp file name}.**; `backup_left` by basis (A6). Both rows keep **Show in folder**. |
+
+Names and paths in all of these are `textContent` with `overflow-wrap:anywhere`, as everywhere in the card.
+
+### B4. Confirm (extends A5)
+
+Heading: **Delete {P}, then requeue?** Body, `{comic}` and `{temp name}` being file names:
+
+| Case | Body |
+|---|---|
+| 1 comic with 1 backup and 1 temporary file | **{comic} is exactly as it was before the app started writing, so there is nothing to undo. Left beside it: {temp name}, a temporary file made by the app. Deleting is permanent.** |
+| Any other mix | The A5 group lines, counted by comics, not files (**{a} comics are exactly as they were before the app started writing; there is nothing to undo.**, **1 comic is exactly as it was...**; the `written` line is kept for completeness and is never produced today), then **Left beside them: {t} temporary files made by the app (listed below).** (**1 temporary file made by the app**), then **Deleting is permanent.** |
+
+Examples. One comic: heading **Delete 1 backup and 1 temporary file, then requeue?**, buttons **Delete 2 files and requeue** and **Keep them**. Three comics: heading **Delete 3 backups and 3 temporary files, then requeue?**, body **3 comics are exactly as they were before the app started writing; there is nothing to undo. Left beside them: 3 temporary files made by the app (listed below). Deleting is permanent.**, buttons **Delete 6 files and requeue** and **Keep them**.
+
+Every sentence states only what was proved: the comic is the plan's before-state (hash), the backup is identical (hash), the temp file has the app's own name for this comic (name) and sits beside it. The copy does not say why the temp file is there.
+
+### B5. In flight, success and failure
+
+In flight (same node and rules as A6): **Deleting {P}, then checking this folder's comics again. This can take a few minutes.** No spinner.
+
+Success: prefix **{P} deleted.** replaces "Backup deleted." / "{b} backups deleted.", then the §4.3 sentence unchanged. For example **1 backup and 1 temporary file deleted. Requeued Batman: 1 unwritten comic will be checked at the next folder pass.** The same prefix goes on the `n` = 0 and "nothing planned" rows of A6. If this click removed nothing (every file was already gone and the check is clean), the prefix is left out.
+
+Failure (line status node; the confirm closes; the page never uses `error()`). Rows not listed stand as in A6 (`paused`, `busy`, `folder_unavailable`, `library_busy`, "Any other error").
+
+| Server code | Text |
+|---|---|
+| `changed` (a comic or one of its files no longer matches) | **Nothing was deleted: a comic or one of its files changed since the check. The list below is updated.** (all offers; replaces A6) |
+| `file_gone` (new, Futaba m1: a file the check offered is no longer there, or the backup folder was replaced) | No temporary file in the offer: **Nothing was deleted: a backup from the check is no longer there. The list below is updated.** With one: **Nothing was deleted: a file from the check is no longer there. The list below is updated.** The route returns the fresh check, as for `changed`. |
+| `writing` (new: the comic's write guard is held) | None deleted: **Nothing was deleted: a comic in this folder is being written now. Wait for it to finish, then try again.** Some deleted: **Deleted {d} of {total} files. A comic in this folder is being written now, so nothing was requeued. Wait for it to finish, then check again.** (backups only: "backups", as A6). Today a held guard falls into `delete_failed` and tells Sergei to close a program that is not the cause. |
+| `delete_failed`, none deleted | With a temporary file: **Nothing was deleted: a file could not be deleted. Close any program using it, then try again.** |
+| `delete_failed`, {d} of {total} deleted | With a temporary file: **Deleted {d} of {total} files. {total-d} could not be deleted, so nothing was requeued. Close any program using them, then check again.** |
+| `not_requeued` (the files are gone; the re-check or close then failed) | **{P} deleted, but not requeued: {reason}. Use Check and requeue to finish.** (reasons as A6) |
+| No answer | With a temporary file: **No answer from the app. The files may already be deleted. Use Check and requeue to see the current state.** |
+
+### B6. Copy fixes from the 0.2.5 QA
+
+**A backup that is not proved no longer says "Do not delete it until the comic is checked" for every cause.** After the M1 fix that sentence is wrong when the comic was checked and is fine: the backup holds another version. The row wording follows what was proved. Priority when several apply: `comic`, then `backup`, then `unread`.
+
+| `unproved` (server, per `backup_left` row with no `basis`) | What was found | Row finding (replaces A6) |
+|---|---|---|
+| `comic` | The comic itself is not proved: changed, damaged, missing or never recorded. | **A recovery backup is kept. Do not delete it until the comic is checked.** (unchanged: the backup may be the only good copy) |
+| `backup` | The comic is proved untouched, but this backup's SHA-256 differs from the plan's. | **A recovery backup is kept. It is not a copy of this comic, so it may hold another version. Decide in Kept backups.** |
+| `unread` | The comic is proved untouched, but the backup could not be read to compare. | **A recovery backup is kept, but the app could not read it to compare it with the comic. Check again.** |
+
+*Kept backups* is the panel's own name. **Show in folder** on the row is unchanged. The summary line keeps **Fix them, then check again.**
+
+**Futaba m1: "a comic changed" when the backup is simply gone.** `changed` now means a comic, or one of its files, no longer matches. A file that is no longer there is its own code, `file_gone` (B5), and the page words it from the offer it holds: a backup, or a file when a temporary file was in the offer. The swapped-folder case (a junction after the check) reads the same, which is true: the app can no longer see the file. **A5** is updated in place above.
+
+### B7. A temporary file with no backup (Sergei 2026-10-17: (a), build it)
+
+**Recommendation: yes, the same action.** A temp file alone next to a comic proved untouched holds nothing the comic lacks. It can only appear if the backup was removed first (Sergei in Kept backups, a cleaner), so it is rare, but it blocks **Check and requeue** exactly like the paired case, and with the order of B1 it is also what a half-failed delete could leave. The check already shows a temp file as a finding; the standing rule is that a blocker Sergei can only clear by hand becomes a button. It is Sergei's call because it deletes a file with no backup beside it.
+
+If yes, the offer uses B2 with condition 2 vacuous (the comic has no kept backup; an unproved one still uncovers the line) and the same route, order, guard and confirm. Only these strings differ from B3 and B4; all others are the B3 templates with `{P}` = `1 temporary file` or `{t} temporary files`:
+
+| String | Copy |
+|---|---|
+| Label | **Delete temporary file, then requeue** (t = 1), **Delete temporary files, then requeue** |
+| Summary | **Not requeued: {k} problems found, and nothing was changed. Delete the leftover temporary {file\|files} to requeue, or check again.** (k = 1: **1 problem found**) |
+| Confirm body, 1 comic | **{comic} is exactly as it was before the app started writing. Beside it: {temp name}, a temporary file made by the app. Deleting is permanent.** |
+| Confirm body, several | **{a} comics are exactly as they were before the app started writing. Beside them: {t} temporary files made by the app (listed below). Deleting is permanent.** |
+| Confirm face | total 1: **Delete and requeue**; else **Delete {t} files and requeue** |
+
+If Sergei says no, or has not answered: not built. A temporary file is then covered only when its comic also has a proved backup in the same offer; a lone one keeps today's behaviour (rows, no offer).
+
+### B8. Layout
+
+No change. The offer block, confirm, list and rows keep A4. Only the strings are longer. The opener label already wraps (`min-height`, never a fixed height); the longest, **Delete backups and temporary files, then requeue** (48 characters), takes two lines at 320 and about three at 320 at 200% zoom. The confirm body gains one sentence and the temp file name (`overflow-wrap:anywhere`, inside the 72ch cap); the confirm face is at most **Delete {total} files and requeue**. Futaba measures (B10).
+
+### B9. Requirements for Ender (requirements, not design)
+
+1. **The click recomputes the offer.** After the guards (A8.6) the route re-derives the offer from disk and requires the ids sent, `backups` and `temps`, to be exactly the ids now offered. An id that is no longer a file of this ticket: `file_gone`, nothing deleted. A file present now that the ids sent leave out, or an offer that no longer exists: `changed`, nothing deleted. Both return the fresh check. Closes Futaba m4 (a hand-made request with a backup id from a check that had a temp file and no offer deleted the backup).
+2. **One guard hold per comic.** The comic's write guard covers that comic's proofs (comic hash, each backup hash, the temp file's identity) and the deletes of its temp file and backups, with no release between them. A temp file is never deleted without the guard held: a live writer owns its temp file and removes it itself. `kept_backups.delete_one` takes the guard on its own, so a nested call would fail: restructure it or add a sibling, Ender's call. Guard not available: `writing`, in the loop as well as before it (today an `ArchiveChanged` becomes `delete_failed`).
+3. **Order and counts.** All proofs for all comics first; then comics in name order, each its temp file first, then its backups. A delete that fails stops the loop and reports `delete_failed` with `deleted` and `total` in files, temp files included. A file already gone at its own delete counts as done, not failed; `deleted` counts only files this click removed. Reuse the Kept backups refusals for the temp file: inside the comic's folder, regular file, no links or reparse points, library ownership as A8.3.
+4. **Payload.** `offer` gains `temps: [{id, name, file}]` beside `backups` (`kind` stays `delete_backup`; `backups` may be empty if Question 1 is yes). The request body is `{ticket, backups:[ids], temps:[ids]}`, never a path. A `backup_left` row with no `basis` carries `unproved: 'comic'|'backup'|'unread'` (B6). New codes: `file_gone`, `writing`. The page counts comics by `basis` once per comic (a comic with a backup and a temp file counts once).
+5. **Tooltips** ship in the same commit as the strings (B3), set with the compare-before-set helper.
+6. **Tests that matter** (A8.10 stands): a backup plus the app's temp file on an untouched comic gives the offer, and a delete removes both, temp first; a comic one byte different at the same size and mtime gives no offer; a changed mtime gives no offer; a different-version backup plus a temp file gives no offer and the `backup` row wording; an unreadable backup gives the `unread` wording; a temp file named `{comic}.metadata-tmp2`, another comic's temp name, one in a subfolder or in `.comic-metadata-backups`, one that is a folder, one that is a link: no offer; the write guard held: no offer at the check and `writing` at the click, nothing deleted; a temp file that appears after a backups-only check: the old ids give `changed`, nothing deleted; a backup removed after the check, and a temp file removed after the check: `file_gone`; the temp delete succeeds and the backup delete fails: the fresh check offers the backup alone and the message counts "1 of 2"; 11 comics with a backup and a temp file each (22 findings): no offer; Question 1 yes: a lone temp file gives the offer and a lone temp file with an unproved backup gives none; no request body carries a path.
+
+### B10. Acceptance (Futaba, isolated QA; adds to A10)
+
+Fixture library only: **Delete backup and temporary file, then requeue deletes real files.** Measured rects at 320, 640 and 1280 CSS px, 100% and 200% zoom: offer showing (1 comic; 3 comics; the longest label), confirm open (1 comic; 3 comics), in flight, each new or changed failure line (`changed`, `file_gone` with and without a temp file, `writing` none and partial, partial delete, `not_requeued`).
+1. A10.1 and A10.2 apply unchanged: disjoint boxes, first two buttons do not move, no horizontal overflow, targets at least 24 px wide and 40 px high, focus ring visible, keyboard run with focus on **Keep them** and back, focus not stolen when elsewhere.
+2. Futaba lists the backup folder and the comic's folder before and after: exactly the backups and temp files offered are gone, the emptied backup folder is gone, nothing else changed, Recycle Bin 0. Temp deleted before backup (hold the backup open to see "1 of 2").
+3. Every B2 "never" shape, and every row of B3 to B6: label per (b, t), tooltips in each blocked state, the three `unproved` row texts (include a backup locked by another program for `unread`), `file_gone` (the m1 repro: delete the backup in Kept backups, then press the offer), `changed`, `writing` (hold the guard).
+4. Backups-only offers still read exactly as in A2 to A6 (regression), and **Close and recheck folder** is unchanged.
+
+### B11. Questions for Sergei
+
+1. **A temp file alone.** If a leftover temp file sits next to a comic that is unchanged and there is no backup, should the same button delete it, and requeue? **(a) Yes: button "Delete temporary file, then requeue", with a confirm (recommended).** (b) No: only a temp file next to a backup is cleaned; a lone one is still deleted by hand. **ANSWERED 2026-10-17 by Sergei: (a). Build B7.**
+
+### B12. Brief Decision Log row (append for Ender)
+
+Append to the Decision column of the §10 row, after A11's text: "...; a leftover temporary file the app made no longer blocks **Delete backup and requeue** when its comic and backup are proved (the button then names both files; Sergei 2026-10-17; `Docs/ComicsMetaOrganizer_UXSpec_FolderHelpActions_2026-10-16.md` Amendment 2)."
