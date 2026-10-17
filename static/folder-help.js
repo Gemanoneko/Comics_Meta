@@ -1,5 +1,6 @@
 'use strict';
-/* Folder help lines (UXSpec FolderHelpActions 2026-10-16 and its Amendment, Sergei's answers).
+/* Folder help lines (UXSpec FolderHelpActions 2026-10-16, its Amendment with Sergei's answers, and
+   Amendment 2: the app's own leftover temporary files in the Delete offer, 2026-10-17).
    One card per "Your help is needed" ticket, updated in place by ticket id: the 2-second poll never
    rebuilds a card, so focus, an operation in flight, a check result and an open confirm survive it.
    The page sends ticket ids and the problem or backup ids a check issued, never a path. Every outcome
@@ -22,11 +23,16 @@ window.FolderHelp = (() => {
     unwritten_changed: () => 'Does not match the file this batch planned.',
     missing: () => 'Not found in this folder.',
     temp_left: row => 'A leftover temporary file is next to this comic: ' + row.file + '.',
+    // A proved backup by its basis (A6); one that is not proved by what was found (Amendment 2 B6).
     backup_left: row => row.basis === 'original'
       ? 'A recovery backup is kept. The comic is exactly as it was before the write, so there is nothing to undo.'
       : row.basis === 'written'
         ? 'A recovery backup is kept. The comic was written and verified; the backup is the only way to undo that.'
-        : 'A recovery backup is kept. Do not delete it until the comic is checked.',
+        : row.unproved === 'backup'
+          ? 'A recovery backup is kept. It is not a copy of this comic, so it may hold another version. Decide in Kept backups.'
+          : row.unproved === 'unread'
+            ? 'A recovery backup is kept, but the app could not read it to compare it with the comic. Check again.'
+            : 'A recovery backup is kept. Do not delete it until the comic is checked.',
   };
   const TIP = {
     check: "Check this folder's comics without changing them. If all is in order, close this item and queue the unwritten comics again.",
@@ -58,8 +64,9 @@ window.FolderHelp = (() => {
     folder_unavailable: 'Nothing was deleted: this folder is unavailable. Check that the library drive is connected.',
     library_busy: 'Nothing was deleted: another copy of the app is using this library. Close it, then try again.',
     outside_library: 'Nothing was deleted: this folder is not in the current library. Set the library back to the one that holds it, then try again.',
-    changed:'Nothing was deleted: a comic changed since the check, so its backup is kept. The list below is updated.',
   };
+  // Amendment 2 B5: "changed" now means a comic or one of its files; a file that is gone is file_gone.
+  const CHANGED = 'Nothing was deleted: a comic or one of its files changed since the check. The list below is updated.';
   const NOT_CLOSED = {
     paused: 'Not closed: processing is paused, and nothing was changed. Resume processing, then try again.',
     busy: 'Not closed: this folder is already being checked. Wait for it to finish.',
@@ -94,6 +101,20 @@ window.FolderHelp = (() => {
   const busy = node => node.getAttribute('aria-disabled') === 'true';
   const stop = text => String(text || '').trim().replace(/\.$/, '');
   const count = (n, one, many) => n === 1 ? '1 ' + one : n + ' ' + many;
+  const noun = (n, one, many) => n === 1 ? one : many;
+  // {P} (Amendment 2 B3): the counts joined by "and", a zero part dropped, each noun singular at 1.
+  function filesText(b, t) {
+    const parts = [];
+    if (b > 0) parts.push(count(b, 'backup', 'backups'));
+    if (t > 0) parts.push(count(t, 'temporary file', 'temporary files'));
+    return parts.join(' and ');
+  }
+  // b backups and t temporary files in the Delete offer; t = 0 keeps every shipped A2 string.
+  function sizes(offer) {
+    const b = offer && Array.isArray(offer.backups) ? offer.backups.length : 0;
+    const t = offer && Array.isArray(offer.temps) ? offer.temps.length : 0;
+    return {b, t, total: b + t, P: filesText(b, t)};
+  }
   const clean = path => window.KeptBackups ? KeptBackups.clean(path) : String(path || '');
   function folderName(path) {
     const text = clean(path).replace(/[\\/]+$/, '');
@@ -141,10 +162,6 @@ window.FolderHelp = (() => {
     tip(node, blockedTip || enabledTip);
     attr(node, 'aria-describedby', describedByNote && paused ? entry.note.id : null);
   }
-  function backupWords(entry) {
-    const n = entry.offer && entry.offer.backups ? entry.offer.backups.length : 1;
-    return {n, word: n === 1 ? 'the backup' : 'the backups'};
-  }
   function paint(entry) {
     entry.note.hidden = !paused;
     state(entry.check, entry, blocked(entry, entry.op === 'check' ? TIP.checking : TIP.working, TIP.pausedCheck), TIP.check, true);
@@ -152,16 +169,25 @@ window.FolderHelp = (() => {
       if (entry.offer.kind === 'close_recheck') {
         state(entry.opener, entry, blocked(entry, entry.op === 'close' ? TIP.closing : TIP.working, TIP.pausedClose), TIP.close, true);
       } else {
-        const {n, word} = backupWords(entry);
-        const pausedTip = 'Processing is paused. Resume processing to delete ' + word + ' and requeue.';
-        state(entry.opener, entry, blocked(entry, TIP.working, pausedTip), n === 1
-          ? "Delete this folder's kept recovery backup, then close this item and queue the unwritten comics again. You are asked to confirm first."
-          : "Delete this folder's " + n + ' kept recovery backups, then close this item and queue the unwritten comics again. You are asked to confirm first.', true);
-        if (entry.confirm) {
-          state(entry.confirm.yes, entry, blocked(entry, entry.op === 'delete' ? 'Deleting ' + word + ', then checking again.' : TIP.working, pausedTip),
-                n === 1 ? 'Delete the backup permanently, then requeue.' : 'Delete the ' + n + ' backups permanently, then requeue.', true);
-          attr(entry.confirm.keep, 'aria-disabled', entry.op === 'delete' ? 'true' : null);  // In flight: every confirm button.
+        const {b, t, P} = sizes(entry.offer);
+        if (t === 0) {  // Backups alone: the A2 strings as shipped.
+          const word = b === 1 ? 'the backup' : 'the backups';
+          const pausedTip = 'Processing is paused. Resume processing to delete ' + word + ' and requeue.';
+          state(entry.opener, entry, blocked(entry, TIP.working, pausedTip), b === 1
+            ? "Delete this folder's kept recovery backup, then close this item and queue the unwritten comics again. You are asked to confirm first."
+            : "Delete this folder's " + b + ' kept recovery backups, then close this item and queue the unwritten comics again. You are asked to confirm first.', true);
+          if (entry.confirm) {
+            state(entry.confirm.yes, entry, blocked(entry, entry.op === 'delete' ? 'Deleting ' + word + ', then checking again.' : TIP.working, pausedTip),
+                  b === 1 ? 'Delete the backup permanently, then requeue.' : 'Delete the ' + b + ' backups permanently, then requeue.', true);
+          }
+        } else {  // With the app's temporary files (Amendment 2 B3, B7): the offer and the face alike.
+          const pausedTip = 'Processing is paused. Resume processing to delete ' + P + ', then requeue.';
+          const own = entry.op === 'delete' ? 'Deleting ' + P + ', then checking again.' : TIP.working;
+          state(entry.opener, entry, blocked(entry, own, pausedTip),
+                'Delete ' + P + ' left in this folder, then close this item and queue the unwritten comics again. You are asked to confirm first.', true);
+          if (entry.confirm) state(entry.confirm.yes, entry, blocked(entry, own, pausedTip), 'Delete ' + P + ' permanently, then requeue.', true);
         }
+        if (entry.confirm) attr(entry.confirm.keep, 'aria-disabled', entry.op === 'delete' ? 'true' : null);  // In flight: every confirm button.
       }
     }
   }
@@ -303,7 +329,12 @@ window.FolderHelp = (() => {
   function summary(data) {
     const k = data.total, kind = data.offer && data.offer.kind;
     const head = 'Not requeued: ' + count(k, 'problem', 'problems') + ' found, and nothing was changed. ';
-    if (kind === 'delete_backup') return head + 'Delete the kept ' + (k === 1 ? 'backup' : 'backups') + ' to requeue, or check again.';
+    if (kind === 'delete_backup') {
+      const {b, t} = sizes(data.offer);
+      if (t === 0) return head + 'Delete the kept ' + (k === 1 ? 'backup' : 'backups') + ' to requeue, or check again.';
+      return head + 'Delete the ' + (b > 0 ? 'kept ' + noun(b, 'backup', 'backups') + ' and ' : '')
+        + 'leftover temporary ' + noun(t, 'file', 'files') + ' to requeue, or check again.';  // B3, B7
+    }
     if (kind === 'close_recheck') {  // Every finding is a comic changed after the batch was planned (Sergei's 2a).
       return head + (k === 1 ? 'The comic changed' : 'These comics changed')
         + ' after this batch was planned. Close this item to have the folder checked again at the next folder pass.';
@@ -328,14 +359,15 @@ window.FolderHelp = (() => {
     entry.offerBox.replaceChildren();
     entry.opener = null;
     const valid = offer && (offer.kind === 'close_recheck'
-      || (offer.kind === 'delete_backup' && Array.isArray(offer.backups) && offer.backups.length > 0));
-    entry.offer = valid ? offer : null;
+      || (offer.kind === 'delete_backup' && Array.isArray(offer.backups) && (offer.temps === undefined || Array.isArray(offer.temps))
+          && offer.backups.length + (offer.temps || []).length > 0));
+    entry.offer = !valid ? null : offer.kind === 'delete_backup' ? {...offer, temps: offer.temps || []} : offer;
     entry.offerBox.hidden = !valid;
     if (!valid) return;
     if (offer.kind === 'close_recheck') {
       entry.opener = button(entry, 'Close and recheck folder', 'help-secondary', () => runClose(entry));
     } else {
-      entry.opener = button(entry, offer.backups.length === 1 ? 'Delete backup and requeue' : 'Delete backups and requeue', 'help-secondary', () => openConfirm(entry));
+      entry.opener = button(entry, openerLabel(sizes(entry.offer)), 'help-secondary', () => openConfirm(entry));
       entry.opener.setAttribute('aria-expanded', 'false');
       entry.opener.setAttribute('aria-controls', 'helpConfirm' + (++serial));
       entry.confirmId = entry.opener.getAttribute('aria-controls');
@@ -345,40 +377,65 @@ window.FolderHelp = (() => {
     paint(entry);
   }
 
-  function confirmLines(backups) {
-    const n = backups.length;
-    if (n === 1) {
+  // The offer's visible label (A2; Amendment 2 B3 and B7: each noun plural by its own count).
+  function openerLabel({b, t}) {
+    if (t === 0) return b === 1 ? 'Delete backup and requeue' : 'Delete backups and requeue';
+    const temps = noun(t, 'temporary file', 'temporary files');
+    return 'Delete ' + (b > 0 ? noun(b, 'backup', 'backups') + ' and ' : '') + temps + ', then requeue';
+  }
+  // The confirm face never reads the same as the label; with a temporary file it repeats the total (B3).
+  function faceLabel({b, t, total}) {
+    if (t === 0) return b === 1 ? 'Delete and requeue' : 'Delete ' + b + ' backups and requeue';
+    return total === 1 ? 'Delete and requeue' : 'Delete ' + total + ' files and requeue';
+  }
+  function confirmLines(offer) {
+    const backups = offer.backups, temps = offer.temps, {b: n, t, P} = sizes(offer);
+    const names = list => list.map(item => String(item.name || ''));
+    const comics = new Set([...names(backups), ...names(temps)]);
+    if (t > 0 && comics.size === 1 && n <= 1) {  // One comic: its own sentence (B4, B7).
+      const comic = names(temps)[0], temp = String(temps[0].file || '');
+      return ['Delete ' + P + ', then requeue?', n === 1
+        ? comic + ' is exactly as it was before the app started writing, so there is nothing to undo. Left beside it: ' + temp + ', a temporary file made by the app. Deleting is permanent.'
+        : comic + ' is exactly as it was before the app started writing. Beside it: ' + temp + ', a temporary file made by the app. Deleting is permanent.'];
+    }
+    if (t > 0 && n === 0) {  // B7, several comics.
+      return ['Delete ' + P + ', then requeue?', comics.size + ' comics are exactly as they were before the app started writing. Beside them: '
+        + count(t, 'temporary file', 'temporary files') + ' made by the app (listed below). Deleting is permanent.'];
+    }
+    if (t === 0 && n === 1) {
       const comic = String(backups[0].name || '');
       return ['Delete this backup and requeue?', backups[0].basis === 'written'
         ? comic + ' was written and verified. The backup is the only way to undo that change. Deleting is permanent.'
         : comic + ' is exactly as it was before the app started writing, so there is nothing to undo. Deleting is permanent.'];
     }
+    // Counted by comics, once per comic: a temporary file is offered only beside a comic proved untouched.
     const group = basis => backups.filter(b => b.basis === basis);
-    const comics = basis => new Set(group(basis).map(b => b.name)).size;
-    const a = comics('original'), b = comics('written'), lines = ['Delete ' + n + ' backups and requeue?'];
+    const a = new Set([...names(group('original')), ...names(temps)]).size, b = new Set(names(group('written'))).size;
+    const lines = [t === 0 ? 'Delete ' + n + ' backups and requeue?' : 'Delete ' + P + ', then requeue?'];
     if (a > 0) lines.push(a === 1 ? '1 comic is exactly as it was before the app started writing; there is nothing to undo.'
       : a + ' comics are exactly as they were before the app started writing; there is nothing to undo.');
     // One comic with several backups: "its backups are" (Judy's wording verdict 2, 2026-10-16).
     if (b > 0) lines.push(b === 1 ? '1 comic was written and verified; ' + (group('written').length > 1 ? 'its backups are' : 'its backup is') + ' the only way to undo that change.'
       : b + ' comics were written and verified; their backups are the only way to undo those changes.');
+    if (t > 0) lines.push('Left beside them: ' + count(t, 'temporary file', 'temporary files') + ' made by the app (listed below).');
     lines.push('Deleting is permanent.');
     return lines;
   }
   function openConfirm(entry) {
     if (!entry.offer || entry.offer.kind !== 'delete_backup' || blocked(entry, TIP.working, true)) return;
     closeConfirm(entry, false);
-    const backups = entry.offer.backups, n = backups.length;
+    const size = sizes(entry.offer);
     const box = el('div', undefined, 'help-confirm');
     box.id = entry.confirmId;
     box.setAttribute('role', 'group');
-    const [title, ...body] = confirmLines(backups);
+    const [title, ...body] = confirmLines(entry.offer);
     const heading = el('p', title, 'help-confirm-title');
     heading.id = box.id + 'Title';
     box.setAttribute('aria-labelledby', heading.id);
     box.append(heading, ...body.map(line => el('p', line)));
     const row = el('div', undefined, 'help-confirm-actions');
-    const yes = button(entry, n === 1 ? 'Delete and requeue' : 'Delete ' + n + ' backups and requeue', 'help-danger', () => runDelete(entry, yes));
-    const keep = button(entry, n === 1 ? 'Keep it' : 'Keep them', 'help-secondary', () => closeConfirm(entry, true));
+    const yes = button(entry, faceLabel(size), 'help-danger', () => runDelete(entry, yes));
+    const keep = button(entry, size.total === 1 ? 'Keep it' : 'Keep them', 'help-secondary', () => closeConfirm(entry, true));
     tip(keep, TIP.keep);
     row.append(yes, keep);
     box.append(row);
@@ -432,49 +489,74 @@ window.FolderHelp = (() => {
   }
 
   async function runDelete(entry, pressed) {
-    const backups = entry.offer.backups, n = backups.length;
-    begin(entry, 'delete', n === 1
-      ? "Deleting the backup, then checking this folder's comics again. This can take a few minutes."
-      : 'Deleting ' + n + " backups, then checking this folder's comics again. This can take a few minutes.");
-    const data = await post('attention/delete-backups', {ticket: entry.id, backups: backups.map(b => b.id)});
+    const offer = entry.offer, {b: n, t, total: offered, P} = sizes(offer);
+    begin(entry, 'delete', t > 0
+      ? 'Deleting ' + P + ", then checking this folder's comics again. This can take a few minutes."
+      : n === 1
+        ? "Deleting the backup, then checking this folder's comics again. This can take a few minutes."
+        : 'Deleting ' + n + " backups, then checking this folder's comics again. This can take a few minutes.");
+    const data = await post('attention/delete-backups', {ticket: entry.id, backups: offer.backups.map(b => b.id), temps: offer.temps.map(x => x.id)});
     end(entry);
     const move = focusAllowed(entry, pressed);
     if (data && (data.ok || Number(data.deleted) > 0) && window.KeptBackups) KeptBackups.refresh();
+    // What this click removed, by kind; a file already gone at its own delete is not counted (B5, B9.3).
+    const d = data ? Number(data.deleted) || 0 : 0, total = data ? Number(data.total) || offered : offered;
+    const db = t === 0 ? d : data ? Number(data.deleted_backups) || 0 : 0, dt = t === 0 ? 0 : data ? Number(data.deleted_temps) || 0 : 0;
     if (data && data.ok) {
-      const b = Number(data.deleted) || n;
-      return succeed(entry, requeued(entry, data, b === 1 ? 'Backup deleted. ' : b + ' backups deleted. '), pressed);
+      const prefix = db + dt === 0 ? '' : t > 0 ? filesText(db, dt) + ' deleted. ' : db === 1 ? 'Backup deleted. ' : db + ' backups deleted. ';
+      return succeed(entry, requeued(entry, data, prefix), pressed);
     }
     if (data && data.code === 'gone') return succeed(entry, GONE, pressed);
     closeConfirm(entry, false);  // Every failure closes the confirm (A6).
+    const fresh = () => { if (isProblems(data.check)) showProblems(entry, data.check); else clearResult(entry); };
+    const unit = t > 0 ? ' files' : ' backups';
     let text;
     if (!data) {
-      text = n === 1
-        ? 'No answer from the app. The backup may already be deleted. Use Check and requeue to see the current state.'
-        : 'No answer from the app. Some or all of the backups may already be deleted. Use Check and requeue to see the current state.';
+      text = t > 0
+        ? 'No answer from the app. The files may already be deleted. Use Check and requeue to see the current state.'
+        : n === 1
+          ? 'No answer from the app. The backup may already be deleted. Use Check and requeue to see the current state.'
+          : 'No answer from the app. Some or all of the backups may already be deleted. Use Check and requeue to see the current state.';
     } else if (data.code === 'changed') {
-      if (isProblems(data.check)) showProblems(entry, data.check);
-      else clearResult(entry);
-      text = NOT_DELETED.changed;
+      fresh();
+      text = CHANGED;
+    } else if (data.code === 'file_gone') {  // Futaba m1: a file the check offered is no longer there.
+      fresh();
+      text = t > 0 ? 'Nothing was deleted: a file from the check is no longer there. The list below is updated.'
+        : 'Nothing was deleted: a backup from the check is no longer there. The list below is updated.';
+    } else if (data.code === 'writing') {
+      if (d > 0) setOffer(entry, null);  // Some offered files are gone: the offer is stale.
+      text = d === 0 ? 'Nothing was deleted: a comic in this folder is being written now. Wait for it to finish, then try again.'
+        : 'Deleted ' + d + ' of ' + total + unit + '. A comic in this folder is being written now, so nothing was requeued. Wait for it to finish, then check again.';
     } else if (NOT_DELETED[data.code]) {
       text = NOT_DELETED[data.code];
     } else if (data.code === 'delete_failed') {
-      const d = Number(data.deleted) || 0, total = Number(data.total) || n;
-      if (d > 0) setOffer(entry, null);  // Some offered backups are gone: the offer is stale.
-      text = d === 0
-        ? (total === 1 ? 'Nothing was deleted: the backup could not be deleted. Close any program using it, then try again.'
-          : 'Nothing was deleted: a backup could not be deleted. Close any program using them, then try again.')
-        : 'Deleted ' + d + ' of ' + total + ' backups. ' + (total - d) + ' could not be deleted, so nothing was requeued. Close any program using them, then check again.';
+      if (d > 0) setOffer(entry, null);  // Some offered files are gone: the offer is stale.
+      if (d > 0) {
+        text = 'Deleted ' + d + ' of ' + total + unit + '. ' + (total - d) + ' could not be deleted, so nothing was requeued. Close any program using them, then check again.';
+      } else if (t > 0) {
+        text = 'Nothing was deleted: a file could not be deleted. Close any program using it, then try again.';
+      } else {
+        text = total === 1 ? 'Nothing was deleted: the backup could not be deleted. Close any program using it, then try again.'
+          : 'Nothing was deleted: a backup could not be deleted. Close any program using them, then try again.';
+      }
     } else if (data.code === 'not_requeued') {
-      const b = Number(data.deleted) || n;
       let reason = stop(data.error) || 'the check did not finish';
       if (data.reason === 'paused') reason = 'processing was paused';
       if (data.reason === 'problems' && isProblems(data.check)) {
         showProblems(entry, data.check);
         reason = 'the check found ' + count(data.check.total, 'problem', 'problems');
       } else {
-        setOffer(entry, null);  // The deleted backups are gone: the offer is stale.
+        setOffer(entry, null);  // The deleted files are gone: the offer is stale.
       }
-      text = (b === 1 ? 'Backup deleted' : b + ' backups deleted') + ', but not requeued: ' + reason + '. Use Check and requeue to finish.';
+      let head;
+      if (t > 0) {
+        head = db + dt > 0 ? filesText(db, dt) : P;
+      } else {
+        const b = d || n;
+        head = b === 1 ? 'Backup' : b + ' backups';
+      }
+      text = head + ' deleted, but not requeued: ' + reason + '. Use Check and requeue to finish.';
     } else {
       text = 'Could not finish: ' + (stop(data.error) || 'the app did not answer') + '. Use Check and requeue to see what was changed.';
     }

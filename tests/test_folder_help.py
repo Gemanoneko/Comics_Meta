@@ -1,5 +1,6 @@
-"""Folder help lines (UXSpec FolderHelpActions 2026-10-16 and its Amendment): reason codes, Check and
-requeue, Delete backup and requeue, Close and recheck folder, Open folder and Show in folder.
+"""Folder help lines (UXSpec FolderHelpActions 2026-10-16, its Amendment and Amendment 2): reason codes,
+Check and requeue, Delete backup (and temporary file) and requeue, Close and recheck folder, Open folder
+and Show in folder.
 
 Throwaway fixture library and queue only (spec 9.6, A10.4): Check and requeue closes tickets and
 Delete backup and requeue deletes files. File Explorer is stubbed."""
@@ -79,6 +80,12 @@ class Fixture(unittest.TestCase):
         target.write_bytes(data if data is not None else path.read_bytes())
         return target
 
+    def temp(self, path, data=b'partial archive'):
+        """The app's own leftover temporary file for this comic, as an interrupted write leaves it."""
+        target = path.with_name(path.name + '.metadata-tmp')
+        target.write_bytes(data)
+        return target
+
     def save(self, error=folder_help.INTERRUPTED, code='interrupted', state='needs_attention'):
         (self.batch / 'plan.json').write_text(json.dumps({'folder': str(self.folder), 'entries': self.entries}), encoding='utf-8')
         if self.results:
@@ -107,6 +114,19 @@ class Fixture(unittest.TestCase):
             call()
         self.assertEqual(caught.exception.code, code)
         return caught.exception
+
+    def after_the_clicks_check(self, change):
+        """Patch the click's own inspection: `change` runs once, after it proved everything and before the
+        write guards are taken, so only the proof under the guards can catch it."""
+        real, done = folder_help._inspect, []
+
+        def inspect_then_change(*args):
+            found = real(*args)
+            if not done:
+                done.append(True)
+                change()
+            return found
+        return patch.object(folder_help, '_inspect', side_effect=inspect_then_change)
 
 
 class ReasonCodeTests(unittest.TestCase):
@@ -226,7 +246,7 @@ class CheckTests(Fixture):
             ('c edited.cbz', 'unwritten_changed', 'c edited.cbz'), ('D gone.cbz', 'missing', self.folder.name),
             ('e left.cbz', 'temp_left', 'e left.cbz.metadata-tmp'), ('e left.cbz', 'backup_left', backup.name)])
         self.assertEqual(result['problems'][-1]['basis'], 'original')
-        self.assertNotIn('offer', result)  # temp_left with backup_left: no offer (A3).
+        self.assertNotIn('offer', result)  # Other findings on the line: no offer (A3, Amendment 2 B2).
         for row in result['problems']:
             self.assertRegex(row['id'], '^[0-9a-f]{32}$')
             self.assertNotIn(str(self.root), json.dumps(row))
@@ -426,7 +446,8 @@ class DeleteBackupTests(Fixture):
         self.save()
         ids = self.offered()
         comics = {p.name: p.read_bytes() for p in (first, second)}
-        self.assertEqual(folder_help.delete_backups(TICKET, ids), {'ok': True, 'unwritten': 2, 'written': 0, 'deleted': 2})
+        self.assertEqual(folder_help.delete_backups(TICKET, ids), {'ok': True, 'unwritten': 2, 'written': 0, 'deleted': 2,
+                                                                   'deleted_backups': 2, 'deleted_temps': 0})
         self.assertEqual([p.exists() for p in backups], [False, False])
         self.assertTrue(unrelated.exists())
         self.assertEqual({p.name: p.read_bytes() for p in (first, second)}, comics)
@@ -451,27 +472,25 @@ class DeleteBackupTests(Fixture):
         backup = self.backup(path)
         self.save()
         ids = self.offered()
-        real = kept_backups.delete_one
 
-        def change_then_delete(target, before_unlink=None):
+        def change():
             path.write_bytes(path.read_bytes().replace(b'aaaa', b'aaab'))
             os.utime(path, ns=(MTIME, MTIME))
-            return real(target, before_unlink=before_unlink)
-        with patch.object(kept_backups, 'delete_one', side_effect=change_then_delete):
-            self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
+        with self.after_the_clicks_check(change):
+            exc = self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
         self.assertTrue(backup.exists())
+        self.assertNotIn('offer', exc.payload()['check'])
 
-    def test_a_backup_that_appeared_after_the_check_is_kept(self):
+    def test_a_backup_that_appeared_after_the_check_stops_the_delete(self):
+        """Amendment 2 B9.1: the ids sent must be exactly what the click's own check offers."""
         path = self.comic('Late backup.cbz')
         offered = self.backup(path)
         self.save()
         ids = self.offered()
         late = self.backup(path, ns=1_770_000_000_000_000_000)
-        exc = self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'not_requeued')
-        payload = exc.payload()
-        self.assertEqual((payload['deleted'], payload['reason'], payload['check']['total']), (1, 'problems', 1))
-        self.assertFalse(offered.exists())
-        self.assertTrue(late.exists())
+        exc = self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
+        self.assertEqual(len(exc.payload()['check']['offer']['backups']), 2)  # The fresh check offers both.
+        self.assertEqual((offered.exists(), late.exists()), (True, True))
         self.assertEqual(self.ticket()['state'], 'needs_attention')
 
     def test_a_failed_delete_stops_the_loop_and_reports_the_counts(self):
@@ -497,13 +516,13 @@ class DeleteBackupTests(Fixture):
         self.backup(path)
         self.save()
         ids = self.offered()
-        real = kept_backups.delete_one
+        real = kept_backups.delete_held
 
         def delete_then_pause(*args, **kwargs):
             freed = real(*args, **kwargs)
             self.paused = True
             return freed
-        with patch.object(kept_backups, 'delete_one', side_effect=delete_then_pause):
+        with patch.object(kept_backups, 'delete_held', side_effect=delete_then_pause):
             payload = self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'not_requeued').payload()
         self.assertEqual((payload['deleted'], payload['reason']), (1, 'paused'))
         self.assertEqual(self.ticket()['state'], 'needs_attention')
@@ -516,7 +535,11 @@ class DeleteBackupTests(Fixture):
         for bad in (ids + ids, [], ['../x'], [str(backup)], 'abc', [1]):
             with self.subTest(bad=bad):
                 self.refused(lambda: folder_help.delete_backups(TICKET, bad), 'invalid')
+        for bad in (ids, [str(self.folder / 'Ids.cbz.metadata-tmp')], 'abc', [1], ['%032x' % n for n in range(20)]):
+            with self.subTest(temps=bad):  # A repeated id, a path, not a list, not an id, over 20 in all.
+                self.refused(lambda: folder_help.delete_backups(TICKET, ids, bad), 'invalid')
         self.refused(lambda: folder_help.delete_backups(TICKET, ['f' * 32]), 'changed')  # Well formed, never issued.
+        self.refused(lambda: folder_help.delete_backups(TICKET, [], ids), 'changed')  # A backup id sent as a temp id.
         self.assertTrue(backup.exists())
 
     def test_only_a_backup_equal_to_the_comic_is_offered_or_deleted(self):
@@ -529,6 +552,7 @@ class DeleteBackupTests(Fixture):
         result = folder_help.check(TICKET)
         rows = {r['file']: r for r in result['problems']}
         self.assertEqual((rows[same.name].get('basis'), rows[older.name].get('basis')), ('original', None))
+        self.assertEqual((rows[same.name].get('unproved'), rows[older.name].get('unproved')), (None, 'backup'))  # B6
         self.assertNotIn('offer', result)
         for forced in ([rows[older.name]['id']], [rows[same.name]['id'], rows[older.name]['id']]):
             with self.subTest(forced=len(forced)):
@@ -539,7 +563,8 @@ class DeleteBackupTests(Fixture):
         older.rename(self.root / older.name)  # Control: the same comic with only its equal backup.
         ids = self.offered()
         self.assertEqual(ids, [rows[same.name]['id']])
-        self.assertEqual(folder_help.delete_backups(TICKET, ids), {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1})
+        self.assertEqual(folder_help.delete_backups(TICKET, ids), {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1,
+                                                                   'deleted_backups': 1, 'deleted_temps': 0})
         self.assertFalse(same.exists())
         self.assertEqual((self.root / older.name).read_bytes(), version)
 
@@ -555,12 +580,7 @@ class DeleteBackupTests(Fixture):
         self.assertEqual(backup.read_bytes(), version)
         backup.write_bytes(path.read_bytes())
         ids = self.offered()
-        real = kept_backups.delete_one
-
-        def replace_then_delete(target, before_unlink=None):
-            backup.write_bytes(version)  # After the all-before-any proof: proved again under the guard.
-            return real(target, before_unlink=before_unlink)
-        with patch.object(kept_backups, 'delete_one', side_effect=replace_then_delete):
+        with self.after_the_clicks_check(lambda: backup.write_bytes(version)):  # Proved again under the guard.
             self.refused(lambda: folder_help.delete_backups(TICKET, ids), 'changed')
         self.assertEqual(backup.read_bytes(), version)
         self.assertEqual(self.ticket()['state'], 'needs_attention')
@@ -583,6 +603,291 @@ class DeleteBackupTests(Fixture):
         self.assertNotIn('offer', result)
         self.assertEqual(backup.read_bytes(), damaged)
         self.assertEqual(self.ticket()['state'], 'needs_attention')
+
+
+class TemporaryFileTests(Fixture):
+    """Amendment 2 (Sergei 2026-10-17): the app's own leftover temporary file no longer blocks the offer."""
+    def offer(self):
+        result = folder_help.check(TICKET)
+        self.assertIn('offer', result, result)
+        return [b['id'] for b in result['offer']['backups']], [t['id'] for t in result['offer']['temps']]
+
+    def test_a_backup_and_the_apps_temp_file_are_offered_then_deleted_temp_first(self):
+        path, other = self.comic('One.cbz'), self.comic('Two.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        result = folder_help.check(TICKET)
+        rows = result['problems']
+        self.assertEqual([(r['finding'], r['file']) for r in rows], [('temp_left', temp.name), ('backup_left', backup.name)])
+        self.assertEqual(result['offer'], {'kind': 'delete_backup', 'unwritten': 2,
+                                           'backups': [{'id': rows[1]['id'], 'name': 'One.cbz', 'basis': 'original'}],
+                                           'temps': [{'id': rows[0]['id'], 'name': 'One.cbz', 'file': 'One.cbz.metadata-tmp'}]})
+        self.assertNotIn(str(self.root), json.dumps(result))
+        comics = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in (path, other)}
+        real, order = kept_backups._unlink, []
+
+        def record(target):
+            order.append(Path(target).name)
+            return real(target)
+        with patch.object(kept_backups, '_unlink', side_effect=record):
+            self.assertEqual(folder_help.delete_backups(TICKET, [rows[1]['id']], [rows[0]['id']]),
+                             {'ok': True, 'unwritten': 2, 'written': 0, 'deleted': 2, 'deleted_backups': 1, 'deleted_temps': 1})
+        self.assertEqual(order, [temp.name, backup.name])  # The temporary file first (B1, B9.3).
+        self.assertEqual((temp.exists(), backup.exists(), backup.parent.exists()), (False, False, False))  # B10.2
+        self.assertEqual({p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in (path, other)}, comics)
+        self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['One.cbz', 'Two.cbz'])
+        self.assertEqual(self.ticket()['state'], 'closed')
+
+    def test_a_lone_temp_file_beside_an_untouched_comic_is_offered(self):
+        """B7, Sergei 2026-10-17 (a): the same action with no backup beside the comic."""
+        path = self.comic('Alone.cbz')
+        temp = self.temp(path)
+        self.save()
+        backups, temps = self.offer()
+        self.assertEqual((backups, len(temps)), ([], 1))
+        self.assertEqual(folder_help.delete_backups(TICKET, backups, temps),
+                         {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1, 'deleted_backups': 0, 'deleted_temps': 1})
+        self.assertEqual((temp.exists(), path.exists()), (False, True))
+
+    def test_a_different_version_backup_with_a_temp_file_is_not_offered(self):
+        """B9.6: no offer, and the `backup` row wording; also the lone-temp case with an unproved backup."""
+        path = self.comic('Versions.cbz')
+        temp = self.temp(path)
+        backup = self.backup(path, data=path.read_bytes().replace(b'aaaa', b'zzzz'))
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertEqual([(r['finding'], r.get('basis'), r.get('unproved')) for r in result['problems']],
+                         [('temp_left', None, None), ('backup_left', None, 'backup')])
+        self.assertNotIn('offer', result)
+        backup.write_bytes(path.read_bytes())  # Control: an identical copy.
+        self.assertEqual(len(self.offer()[1]), 1)
+        self.assertTrue(temp.exists())
+
+    def test_an_unreadable_backup_is_worded_unread_and_not_offered(self):
+        path = self.comic('Locked.cbz')
+        self.temp(path)
+        backup = self.backup(path)
+        self.save()
+        real = folder_help._digest
+
+        def locked(target):
+            if Path(target).name == backup.name:
+                raise PermissionError('in use by another program')
+            return real(target)
+        with patch.object(folder_help, '_digest', side_effect=locked):
+            result = folder_help.check(TICKET)
+        self.assertEqual([(r['finding'], r.get('unproved')) for r in result['problems']], [('temp_left', None), ('backup_left', 'unread')])
+        self.assertNotIn('offer', result)
+        self.assertEqual(len(self.offer()[0]), 1)  # Control: readable again.
+
+    def test_a_temp_file_beside_a_comic_not_proved_untouched_is_not_offered(self):
+        path = self.comic('Edited.cbz')
+        self.backup(path)
+        self.temp(path)
+        self.save()
+        self.offer()  # Control first: as planned, offered.
+        path.write_bytes(path.read_bytes().replace(b'aaaa', b'aaab'))
+        os.utime(path, ns=(MTIME, MTIME))  # One byte different, same size and mtime.
+        result = folder_help.check(TICKET)
+        self.assertEqual([(r['finding'], r.get('unproved')) for r in result['problems']],
+                         [('unwritten_changed', None), ('temp_left', None), ('backup_left', 'comic')])
+        self.assertNotIn('offer', result)
+        path.write_bytes(path.read_bytes().replace(b'aaab', b'aaaa'))
+        os.utime(path, ns=(MTIME, MTIME + 10**7))  # The same bytes, the mtime moved by 10 ms.
+        self.assertNotIn('offer', folder_help.check(TICKET))
+
+    def test_a_temp_file_beside_a_written_comic_is_not_offered(self):
+        """B2.1: a temporary file beside a comic with a verified result is not from the write that made it."""
+        path = self.comic('Written.cbz')
+        self.backup(path)
+        path.write_bytes(path.read_bytes().replace(b'aaaa', b'bbbb'))
+        os.utime(path, ns=(MTIME, MTIME + 10**9))
+        self.written(path, sha256=True)
+        temp = self.temp(path)
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertEqual([(r['finding'], r.get('basis')) for r in result['problems']], [('temp_left', None), ('backup_left', 'written')])
+        self.assertNotIn('offer', result)
+        temp.unlink()
+        self.assertEqual(folder_help.check(TICKET)['offer']['backups'][0]['basis'], 'written')  # Control: the backup alone.
+
+    def test_only_the_apps_own_temp_name_beside_the_comic_is_a_finding(self):
+        """Another name or place is never the app's: it is not a finding, never offered, never deleted."""
+        path = self.comic('Named.cbz')
+        backup = self.backup(path)
+        (self.folder / 'sub').mkdir()
+        foreign = [self.folder / 'Named.cbz.metadata-tmp2', self.folder / 'Other.cbz.metadata-tmp', self.folder / 'Named.metadata-tmp',
+                   self.folder / 'sub' / 'Named.cbz.metadata-tmp', backup.parent / 'Named.cbz.metadata-tmp']
+        for item in foreign:
+            item.write_bytes(b'not the app temporary file')
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertEqual([r['finding'] for r in result['problems']], ['backup_left'])
+        self.assertEqual(result['offer']['temps'], [])  # The backup alone, as in 0.2.5.
+        self.assertTrue(folder_help.delete_backups(TICKET, [b['id'] for b in result['offer']['backups']], [])['ok'])
+        self.assertEqual([item.read_bytes() for item in foreign], [b'not the app temporary file'] * 5)
+        self.assertFalse(backup.exists())
+
+    def test_the_temp_name_as_a_folder_or_a_link_is_not_offered(self):
+        path = self.comic('Shape.cbz')
+        self.backup(path)
+        temp = path.with_name(path.name + '.metadata-tmp')
+        self.save()
+        elsewhere = self.root / 'elsewhere'
+        elsewhere.mkdir()
+        (elsewhere / 'file.bin').write_bytes(b'outside')
+
+        def junction():
+            import _winapi
+            _winapi.CreateJunction(str(elsewhere), str(temp))
+        shapes = [('folder', temp.mkdir, temp.rmdir), ('junction', junction, lambda: os.rmdir(temp)),
+                  ('file link', lambda: os.symlink(elsewhere / 'file.bin', temp), temp.unlink)]
+        for label, make, undo in shapes:
+            with self.subTest(shape=label):
+                try:
+                    make()
+                except (OSError, ImportError) as exc:
+                    self.skipTest('cannot make a %s here: %s' % (label, exc))
+                try:
+                    result = folder_help.check(TICKET)
+                    self.assertEqual([r['finding'] for r in result['problems']], ['temp_left', 'backup_left'])
+                    self.assertNotIn('offer', result)
+                finally:
+                    undo()
+        self.assertEqual((elsewhere / 'file.bin').read_bytes(), b'outside')
+        self.assertEqual(self.offer()[1], [])  # Control: nothing at that name, the backup alone.
+
+    def test_the_temp_file_is_proved_again_under_the_guard(self):
+        path = self.comic('Swapped.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        backups, temps = self.offer()
+
+        def swap():
+            temp.unlink()
+            temp.mkdir()  # After the click's own check, before the guards: a folder now.
+        with self.after_the_clicks_check(swap):
+            exc = self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'changed')
+        self.assertEqual((temp.is_dir(), backup.exists()), (True, True))
+        self.assertNotIn('offer', exc.payload()['check'])
+
+    def test_a_held_write_guard_gives_no_offer_and_writing_at_the_click(self):
+        """B2.4 and B9.2: a live writer owns its temporary file; nothing is deleted while it may run."""
+        path = self.comic('Busy.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        with app.comic_write_guard(path):
+            result = folder_help.check(TICKET)
+        self.assertEqual([r['finding'] for r in result['problems']], ['temp_left', 'backup_left'])
+        self.assertNotIn('offer', result)
+        backups, temps = self.offer()  # Control: the guard released, offered.
+        with app.comic_write_guard(path):
+            payload = self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'writing').payload()
+        self.assertEqual((payload['deleted'], payload['total']), (0, 2))
+        self.assertEqual((temp.exists(), backup.exists()), (True, True))
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+
+    def test_a_temp_file_that_appears_after_a_backups_only_check_stops_the_delete(self):
+        path = self.comic('Later.cbz')
+        backup = self.backup(path)
+        self.save()
+        backups, temps = self.offer()
+        self.assertEqual(temps, [])
+        temp = self.temp(path)
+        exc = self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'changed')
+        self.assertEqual(len(exc.payload()['check']['offer']['temps']), 1)
+        self.assertEqual((temp.exists(), backup.exists()), (True, True))
+
+    def test_ids_must_be_exactly_the_offer(self):
+        """Futaba m4: a hand-made request with a backup id from a check that had no offer deletes nothing."""
+        path = self.comic('Hand made.cbz')
+        backup = self.backup(path)
+        temp = path.with_name(path.name + '.metadata-tmp')
+        temp.mkdir()  # Not a regular file: no offer.
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertNotIn('offer', result)
+        rows = {r['finding']: r['id'] for r in result['problems']}
+        for sent in (([rows['backup_left']], []), ([rows['backup_left']], [rows['temp_left']])):
+            with self.subTest(sent=sent):
+                self.refused(lambda: folder_help.delete_backups(TICKET, *sent), 'changed')
+        self.assertEqual((backup.exists(), temp.is_dir()), (True, True))
+        temp.rmdir()
+        temp = self.temp(path)
+        backups, temps = self.offer()
+        for sent in ((backups, []), ([], temps), (temps, backups)):
+            with self.subTest(sent=sent):
+                self.refused(lambda: folder_help.delete_backups(TICKET, *sent), 'changed')
+        self.assertEqual((backup.exists(), temp.exists()), (True, True))
+        self.assertTrue(folder_help.delete_backups(TICKET, backups, temps)['ok'])  # Control: exactly the offer.
+
+    def test_a_file_gone_since_the_check_is_file_gone(self):
+        """Futaba m1: a file the check offered is no longer there; nothing else is deleted."""
+        path = self.comic('Gone.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        backups, temps = self.offer()
+        aside = self.root / 'aside'
+        aside.mkdir()
+        for label, target in (('backup', backup), ('temporary file', temp)):
+            with self.subTest(gone=label):
+                target.rename(aside / target.name)
+                try:
+                    exc = self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'file_gone')
+                    self.assertEqual(exc.payload()['check']['code'], 'problems')
+                finally:
+                    (aside / target.name).rename(target)
+        self.assertEqual((temp.exists(), backup.exists()), (True, True))
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows junctions')
+    def test_a_backup_folder_replaced_by_a_junction_is_file_gone(self):
+        import _winapi
+        path = self.comic('Junction.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        backups, temps = self.offer()
+        moved = self.root / 'moved backups'
+        backup.parent.rename(moved)
+        _winapi.CreateJunction(str(moved), str(backup.parent))
+        try:
+            self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'file_gone')
+            self.assertEqual(((moved / backup.name).read_bytes(), temp.exists()), (path.read_bytes(), True))
+        finally:
+            os.rmdir(backup.parent)  # The junction only.
+
+    def test_temp_deleted_then_the_backup_fails_counts_one_of_two(self):
+        path = self.comic('Half.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        backups, temps = self.offer()
+        real, calls = kept_backups._unlink, []
+
+        def locked_second(target):
+            calls.append(target)
+            if len(calls) == 2:
+                raise PermissionError('in use')
+            return real(target)
+        with patch.object(kept_backups, '_unlink', side_effect=locked_second):
+            payload = self.refused(lambda: folder_help.delete_backups(TICKET, backups, temps), 'delete_failed').payload()
+        self.assertEqual((payload['deleted'], payload['total'], payload['deleted_temps'], payload['deleted_backups']), (1, 2, 1, 0))
+        self.assertEqual((temp.exists(), backup.exists()), (False, True))
+        result = folder_help.check(TICKET)
+        self.assertEqual((len(result['offer']['backups']), result['offer']['temps']), (1, []))  # The backup alone (B1).
+        self.assertEqual(self.ticket()['state'], 'needs_attention')
+
+    def test_eleven_comics_with_a_backup_and_a_temp_file_each_get_no_offer(self):
+        for path in [self.comic('Issue %02d.cbz' % n) for n in range(11)]:
+            self.backup(path)
+            self.temp(path)
+        self.save()
+        result = folder_help.check(TICKET)
+        self.assertEqual((result['total'], len(result['problems'])), (22, 20))
+        self.assertNotIn('offer', result)
+        self.entries.pop()
+        self.save()
+        backups, temps = self.offer()  # Control: 10 comics, 20 rows on screen.
+        self.assertEqual((len(backups), len(temps)), (10, 10))
 
 
 class RevealTests(Fixture):
@@ -660,8 +965,28 @@ class RouteTests(Fixture):
         self.assertTrue(backup.exists())
         self.paused = False
         status, reply = self.handler('/api/attention/delete-backups', {'ticket': TICKET, 'backups': ids})
-        self.assertEqual((status, reply), (200, {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1}))
+        self.assertEqual((status, reply), (200, {'ok': True, 'unwritten': 1, 'written': 0, 'deleted': 1,
+                                                 'deleted_backups': 1, 'deleted_temps': 0}))
         self.assertFalse(backup.exists())
+
+    def test_delete_route_takes_temp_ids_never_paths(self):
+        """Amendment 2 B9.4: the body is {ticket, backups, temps}, ids only."""
+        path = self.comic('Route temp.cbz')
+        backup, temp = self.backup(path), self.temp(path)
+        self.save()
+        status, reply = self.handler('/api/attention/check', {'ticket': TICKET})
+        backups, temps = [b['id'] for b in reply['offer']['backups']], [t['id'] for t in reply['offer']['temps']]
+        for body in ({'ticket': TICKET, 'backups': backups, 'temps': [str(temp)]},
+                     {'ticket': TICKET, 'backups': [str(backup)], 'temps': temps},
+                     {'ticket': TICKET, 'backups': backups, 'temps': temps, 'paths': [str(temp)]}):
+            status, reply = self.handler('/api/attention/delete-backups', body)
+            self.assertEqual((status, reply['code']), (400, 'invalid'), body)
+        status, reply = self.handler('/api/attention/delete-backups', {'ticket': TICKET, 'backups': backups})
+        self.assertEqual((status, reply['code']), (400, 'changed'))  # No temps sent: not the offer.
+        self.assertEqual((temp.exists(), backup.exists()), (True, True))
+        status, reply = self.handler('/api/attention/delete-backups', {'ticket': TICKET, 'backups': backups, 'temps': temps})
+        self.assertEqual((status, reply['deleted'], reply['deleted_backups'], reply['deleted_temps']), (200, 2, 1, 1))
+        self.assertEqual((temp.exists(), backup.exists()), (False, False))
 
 
 if __name__ == '__main__':

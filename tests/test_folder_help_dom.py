@@ -77,6 +77,26 @@ def problems(total, offer=None, finding='zip_failed', basis=None):
     return reply
 
 
+def temp_problems(comics, backups=1):
+    """A check with the Delete offer of Amendment 2: per comic its temporary file, then `backups` backups."""
+    rows, offer_backups, offer_temps = [], [], []
+    for n in range(comics):
+        name = 'Batman %03d (2019).cbz' % n
+        ident = '%032x' % (len(rows) + 1)
+        rows.append({'id': ident, 'name': name, 'finding': 'temp_left', 'file': name + '.metadata-tmp'})
+        offer_temps.append({'id': ident, 'name': name, 'file': name + '.metadata-tmp'})
+        for k in range(backups):
+            ident = '%032x' % (len(rows) + 1)
+            rows.append({'id': ident, 'name': name, 'finding': 'backup_left', 'file': name + '.17600000000000%05d.bak' % k, 'basis': 'original'})
+            offer_backups.append({'id': ident, 'name': name, 'basis': 'original'})
+    return {'code': 'problems', 'total': len(rows), 'problems': rows,
+            'offer': {'kind': 'delete_backup', 'unwritten': 2, 'backups': offer_backups, 'temps': offer_temps}}
+
+
+CHANGED = 'Nothing was deleted: a comic or one of its files changed since the check. The list below is updated.'
+ONE = 'Batman 000 (2019).cbz'
+
+
 @unittest.skipUnless(os.environ.get('COMICS_TEST_CDP'), 'Requires owned offline headless fixture')
 class FolderHelpDOMTests(YandexDOMTests):
     def setUp(self):
@@ -298,7 +318,7 @@ class FolderHelpDOMTests(YandexDOMTests):
         self.assertEqual(self.page.evaluate('document.activeElement.textContent'), 'Delete and requeue')
         self.page.keyboard.press('Enter')
         self.page.wait_for_function("!document.querySelector('[data-ticket=\"1\"]')")
-        self.assertEqual(self.posts[-1], ('/api/attention/delete-backups', {'ticket': '1', 'backups': ['%032x' % 1]}))
+        self.assertEqual(self.posts[-1], ('/api/attention/delete-backups', {'ticket': '1', 'backups': ['%032x' % 1], 'temps': []}))
         done = self.page.locator('#attentionDone')
         self.assertEqual((done.text_content(), done.get_attribute('role')),
                          ('Backup deleted. Requeued X-Men: 2 unwritten comics will be checked at the next folder pass.', 'status'))
@@ -331,8 +351,14 @@ class FolderHelpDOMTests(YandexDOMTests):
                   '3 backups deleted, but not requeued: the check found 2 problems. Use Check and requeue to finish.'),
                  ((400, {'error': 'processing is paused.', 'code': 'not_requeued', 'deleted': 3, 'reason': 'paused'}),
                   '3 backups deleted, but not requeued: processing was paused. Use Check and requeue to finish.'),
-                 ((400, {'error': 'x', 'code': 'changed', 'check': problems(1)}),
-                  'Nothing was deleted: a comic changed since the check, so its backup is kept. The list below is updated.')]
+                 ((400, {'error': 'x', 'code': 'changed', 'check': problems(1)}), CHANGED),
+                 # Amendment 2 B5, backups only: file_gone (Futaba m1) and writing.
+                 ((400, {'error': 'x', 'code': 'file_gone', 'check': problems(1)}),
+                  'Nothing was deleted: a backup from the check is no longer there. The list below is updated.'),
+                 ((400, {'error': 'x', 'code': 'writing', 'deleted': 0, 'total': 3}),
+                  'Nothing was deleted: a comic in this folder is being written now. Wait for it to finish, then try again.'),
+                 ((400, {'error': 'x', 'code': 'writing', 'deleted': 1, 'total': 3}),
+                  'Deleted 1 of 3 backups. A comic in this folder is being written now, so nothing was requeued. Wait for it to finish, then check again.')]
         for answer, text in cases:
             with self.subTest(text=text):
                 self.card('1').locator('button', has_text='Check and requeue').click()
@@ -462,14 +488,169 @@ class FolderHelpDOMTests(YandexDOMTests):
         text = 'No answer from the app. The backup may already be deleted. Use Check and requeue to see the current state.'
         self.page.wait_for_function('t=>document.querySelector("[data-ticket=\\"1\\"] .help-status").textContent===t', arg=text)
 
+    def confirm_text(self, ident='1'):
+        return self.page.evaluate('i=>[...document.querySelectorAll(`[data-ticket="${i}"] .help-confirm p`)].map(p=>p.textContent)', ident)
+
+    def offered(self, reply, ident='1'):
+        self.replies['/api/attention/check'] = (200, reply)
+        self.card(ident).locator('button', has_text='Check and requeue').click()
+        self.page.wait_for_function('i=>document.querySelector(`[data-ticket="${i}"] .help-offer button`)', arg=ident)
+
+    def test_temp_offer_labels_tooltips_and_confirm(self):
+        """Amendment 2 B3, B4 and B7: every (b, t) shape of the offer with the app's temporary files."""
+        status = self.card('1').locator('.help-status')
+        opener = self.card('1').locator('.help-offer button')
+        two_backups = temp_problems(1, backups=2)
+        cases = [
+            (temp_problems(1), 'Delete backup and temporary file, then requeue', '1 backup and 1 temporary file',
+             'Not requeued: 2 problems found, and nothing was changed. Delete the kept backup and leftover temporary file to requeue, or check again.',
+             ['Delete 1 backup and 1 temporary file, then requeue?', ONE + ' is exactly as it was before the app started writing, so there is nothing to undo. '
+              'Left beside it: ' + ONE + '.metadata-tmp, a temporary file made by the app. Deleting is permanent.'],
+             'Delete 2 files and requeue', 'Keep them'),
+            (temp_problems(3), 'Delete backups and temporary files, then requeue', '3 backups and 3 temporary files',
+             'Not requeued: 6 problems found, and nothing was changed. Delete the kept backups and leftover temporary files to requeue, or check again.',
+             ['Delete 3 backups and 3 temporary files, then requeue?', '3 comics are exactly as they were before the app started writing; there is nothing to undo.',
+              'Left beside them: 3 temporary files made by the app (listed below).', 'Deleting is permanent.'],
+             'Delete 6 files and requeue', 'Keep them'),
+            (two_backups, 'Delete backups and temporary file, then requeue', '2 backups and 1 temporary file',
+             'Not requeued: 3 problems found, and nothing was changed. Delete the kept backups and leftover temporary file to requeue, or check again.',
+             ['Delete 2 backups and 1 temporary file, then requeue?', '1 comic is exactly as it was before the app started writing; there is nothing to undo.',
+              'Left beside them: 1 temporary file made by the app (listed below).', 'Deleting is permanent.'],
+             'Delete 3 files and requeue', 'Keep them'),
+            (temp_problems(1, backups=0), 'Delete temporary file, then requeue', '1 temporary file',
+             'Not requeued: 1 problem found, and nothing was changed. Delete the leftover temporary file to requeue, or check again.',
+             ['Delete 1 temporary file, then requeue?', ONE + ' is exactly as it was before the app started writing. Beside it: ' + ONE
+              + '.metadata-tmp, a temporary file made by the app. Deleting is permanent.'],
+             'Delete and requeue', 'Keep it'),
+            (temp_problems(2, backups=0), 'Delete temporary files, then requeue', '2 temporary files',
+             'Not requeued: 2 problems found, and nothing was changed. Delete the leftover temporary files to requeue, or check again.',
+             ['Delete 2 temporary files, then requeue?', '2 comics are exactly as they were before the app started writing. Beside them: '
+              '2 temporary files made by the app (listed below). Deleting is permanent.'],
+             'Delete 2 files and requeue', 'Keep them'),
+        ]
+        for reply, label, files, summary, lines, face, keep in cases:
+            with self.subTest(label=label, files=files):
+                self.offered(reply)
+                self.assertEqual(status.text_content(), summary)
+                self.assertEqual((opener.text_content(), opener.get_attribute('aria-label'), opener.get_attribute('title')),
+                                 (label, label + ': X-Men', 'Delete ' + files + ' left in this folder, then close this item and queue the '
+                                  'unwritten comics again. You are asked to confirm first.'))
+                opener.click()
+                self.assertEqual(self.confirm_text(), lines)
+                yes = self.card('1').locator('.help-confirm .help-danger')
+                self.assertEqual((yes.text_content(), yes.get_attribute('title')), (face, 'Delete ' + files + ' permanently, then requeue.'))
+                self.assertEqual(self.active()[2], keep)
+                self.assertEqual(self.card('1').locator('.help-confirm .help-secondary').get_attribute('title'), 'Go back. Nothing is deleted.')
+                self.page.keyboard.press('Escape')
+                self.assertEqual(self.active()[2], label)
+        rows = self.card('1').locator('.help-row-finding').all_text_contents()
+        self.assertEqual(rows, ['A leftover temporary file is next to this comic: ' + ONE + '.metadata-tmp.',
+                                'A leftover temporary file is next to this comic: Batman 001 (2019).cbz.metadata-tmp.'])
+
+    def test_temp_offer_paused_in_flight_and_success(self):
+        opener = self.card('1').locator('.help-offer button')
+        self.offered(temp_problems(1))
+        self.assertEqual(self.card('1').locator('.help-row-finding').all_text_contents(), [
+            'A leftover temporary file is next to this comic: ' + ONE + '.metadata-tmp.',
+            'A recovery backup is kept. The comic is exactly as it was before the write, so there is nothing to undo.'])
+        opener.click()
+        yes = self.card('1').locator('.help-confirm .help-danger')
+        keep = self.card('1').locator('.help-confirm .help-secondary')
+        self.control = {'requested': True, 'phase': 'paused'}
+        self.poll(1)
+        paused = 'Processing is paused. Resume processing to delete 1 backup and 1 temporary file, then requeue.'
+        for node in (opener, yes):
+            self.assertEqual((node.get_attribute('aria-disabled'), node.get_attribute('title')), ('true', paused))
+        self.assertEqual((keep.get_attribute('aria-disabled'), self.active()[2]), (None, 'Keep them'))
+        self.control = {}
+        self.poll(1)
+        self.held.add('/api/attention/delete-backups')
+        yes.click()
+        status = self.card('1').locator('.help-status')
+        self.page.wait_for_function("document.querySelector('[data-ticket=\"1\"] .help-status').textContent.startsWith('Deleting')")
+        self.assertEqual(status.text_content(), "Deleting 1 backup and 1 temporary file, then checking this folder's comics again. This can take a few minutes.")
+        own = 'Deleting 1 backup and 1 temporary file, then checking again.'
+        for node in (opener, yes):
+            self.assertEqual((node.get_attribute('aria-disabled'), node.get_attribute('title')), ('true', own))
+        self.assertEqual(keep.get_attribute('aria-disabled'), 'true')
+        self.release('/api/attention/delete-backups', 200, {'ok': True, 'unwritten': 2, 'written': 0, 'deleted': 2, 'deleted_backups': 1, 'deleted_temps': 1})
+        self.page.wait_for_function("!document.querySelector('[data-ticket=\"1\"]')")
+        self.assertEqual(self.page.locator('#attentionDone').text_content(),
+                         '1 backup and 1 temporary file deleted. Requeued X-Men: 2 unwritten comics will be checked at the next folder pass.')
+        self.assertEqual(self.posts[-1], ('/api/attention/delete-backups', {'ticket': '1', 'backups': ['%032x' % 2], 'temps': ['%032x' % 1]}))
+        # This click removed nothing (every file was already gone): no prefix (B5).
+        self.offered(temp_problems(1, backups=0), '2')
+        self.card('2').locator('.help-offer button').click()
+        self.replies['/api/attention/delete-backups'] = (200, {'ok': True, 'unwritten': 0, 'written': 3, 'deleted': 0, 'deleted_backups': 0, 'deleted_temps': 0})
+        self.card('2').locator('.help-confirm .help-danger').click()
+        self.page.wait_for_function("!document.querySelector('[data-ticket=\"2\"]')")
+        self.assertEqual(self.page.locator('#attentionDone').text_content(), 'Closed Batman: all 3 comics in the batch were written and verified.')
+        self.assertEqual(self.posts[-1][1], {'ticket': '2', 'backups': [], 'temps': ['%032x' % 1]})
+
+    def test_temp_offer_failures_and_unproved_backup_rows(self):
+        status = self.card('1').locator('.help-status')
+        cases = [((400, {'error': 'x', 'code': 'changed', 'check': problems(1)}), CHANGED),
+                 ((400, {'error': 'x', 'code': 'file_gone', 'check': problems(1)}),
+                  'Nothing was deleted: a file from the check is no longer there. The list below is updated.'),
+                 ((400, {'error': 'x', 'code': 'writing', 'deleted': 0, 'total': 2}),
+                  'Nothing was deleted: a comic in this folder is being written now. Wait for it to finish, then try again.'),
+                 ((400, {'error': 'x', 'code': 'writing', 'deleted': 1, 'total': 2, 'deleted_temps': 1}),
+                  'Deleted 1 of 2 files. A comic in this folder is being written now, so nothing was requeued. Wait for it to finish, then check again.'),
+                 ((400, {'error': 'x', 'code': 'delete_failed', 'deleted': 0, 'total': 2}),
+                  'Nothing was deleted: a file could not be deleted. Close any program using it, then try again.'),
+                 ((400, {'error': 'x', 'code': 'delete_failed', 'deleted': 1, 'total': 2, 'deleted_temps': 1}),
+                  'Deleted 1 of 2 files. 1 could not be deleted, so nothing was requeued. Close any program using them, then check again.'),
+                 ((400, {'error': 'the check found problems', 'code': 'not_requeued', 'deleted': 2, 'deleted_backups': 1, 'deleted_temps': 1,
+                         'reason': 'problems', 'check': problems(1)}),
+                  '1 backup and 1 temporary file deleted, but not requeued: the check found 1 problem. Use Check and requeue to finish.'),
+                 ((400, {'error': 'processing is paused.', 'code': 'not_requeued', 'deleted': 1, 'deleted_backups': 0, 'deleted_temps': 1, 'reason': 'paused'}),
+                  '1 temporary file deleted, but not requeued: processing was paused. Use Check and requeue to finish.'),
+                 ((400, {'error': 'x', 'code': 'paused'}), 'Nothing was deleted: processing is paused. Resume processing, then try again.'),
+                 (None, 'No answer from the app. The files may already be deleted. Use Check and requeue to see the current state.')]
+        for answer, text in cases:
+            with self.subTest(text=text):
+                self.offered(temp_problems(1))
+                self.card('1').locator('.help-offer button').click()
+                self.replies['/api/attention/delete-backups'] = answer
+                self.card('1').locator('.help-confirm .help-danger').click()
+                self.page.wait_for_function('t=>document.querySelector("[data-ticket=\\"1\\"] .help-status").textContent===t', arg=text)
+                self.assertEqual(self.card('1').locator('.help-confirm').count(), 0)
+                self.assertEqual(self.active()[1], 'help-status')
+                if answer and answer[1]['code'] in ('changed', 'file_gone'):  # The fresh check replaces the list and the offer.
+                    self.assertEqual((self.card('1').locator('.help-row').count(), self.card('1').locator('.help-offer').is_hidden()), (1, True))
+        # B6: a backup that is not proved says what was found.
+        reply = problems(3, finding='backup_left')
+        for row, unproved in zip(reply['problems'], ('comic', 'backup', 'unread')):
+            row['unproved'] = unproved
+        self.replies['/api/attention/check'] = (200, reply)
+        self.card('1').locator('button', has_text='Check and requeue').click()
+        self.page.wait_for_function("document.querySelectorAll('[data-ticket=\"1\"] .help-row').length===3")
+        self.assertEqual(self.card('1').locator('.help-row-finding').all_text_contents(), [
+            'A recovery backup is kept. Do not delete it until the comic is checked.',
+            'A recovery backup is kept. It is not a copy of this comic, so it may hold another version. Decide in Kept backups.',
+            'A recovery backup is kept, but the app could not read it to compare it with the comic. Check again.'])
+        self.assertEqual(status.text_content(), 'Not requeued: 3 problems found, and nothing was changed. Fix them, then check again.')
+
     def test_layout_rects_at_every_width_and_zoom(self):
         output = Path(os.environ['COMICS_TEST_EVIDENCE']) / 'folder-help'
         output.mkdir(parents=True, exist_ok=True)
         self.attention = [item('1', folder=LONG), item('2', 'other', 'D:\\Comics\\DC\\Batman [1940]', 'Readback verification failed for ' + 'Characters' * 12),
-                          item('3', 'not_verified', 'D:\\Comics\\Сага', 'Archive validation failed.'), item('4'), item('5')]
+                          item('3', 'not_verified', 'D:\\Comics\\Сага', 'Archive validation failed.'), item('4'), item('5'),
+                          item('6', folder='D:\\Comics\\Temp'), item('7', folder='D:\\Comics\\Writing')]
         self.poll(1)
         # Card 2: three problems with a row error. Card 3: the offer with its confirm open.
         # Card 4: the Close and recheck offer and a line error. Card 5: idle.
+        # Card 6 (Amendment 2 B8, B10): the longest label, 3 backups and 3 temporary files, its confirm open.
+        # Card 7: a partial delete stopped by a write (the longest new failure line).
+        self.offered(temp_problems(3), '6')
+        self.assertEqual(self.card('6').locator('.help-offer button').text_content(), 'Delete backups and temporary files, then requeue')
+        self.card('6').locator('.help-offer button').click()
+        self.offered(temp_problems(1), '7')
+        self.card('7').locator('.help-offer button').click()
+        self.replies['/api/attention/delete-backups'] = (400, {'error': 'x', 'code': 'writing', 'deleted': 1, 'total': 2, 'deleted_temps': 1})
+        self.card('7').locator('.help-confirm .help-danger').click()
+        self.page.wait_for_function("document.querySelector('[data-ticket=\"7\"] .help-status').textContent.startsWith('Deleted 1 of 2 files')")
+        self.replies['/api/attention/check'] = (200, problems(3))
         self.card('2').locator('button', has_text='Check and requeue').click()
         self.page.wait_for_function("document.querySelectorAll('[data-ticket=\"2\"] .help-row').length===3")
         self.replies['/api/attention/reveal'] = (400, {'error': 'x', 'code': 'not_found'})
@@ -497,7 +678,7 @@ class FolderHelpDOMTests(YandexDOMTests):
                         self.page.evaluate('z=>document.body.style.zoom=z', str(zoom))
                         found = self.page.evaluate(GEOMETRY)
                         rows.append({'width': width, 'zoom': zoom, 'paused': paused, **found})
-                        self.assertEqual(found['cards'], 5)
+                        self.assertEqual(found['cards'], 7)
                         self.assertEqual(found['clashes'], [])
                         self.assertLessEqual(found['overflow'], 0)
                         if zoom == 1:
@@ -507,7 +688,7 @@ class FolderHelpDOMTests(YandexDOMTests):
                             self.assertGreaterEqual(button['h'], 40, button)
                             self.assertTrue(button['ring'], button)
                         confirm = [button for button in found['buttons'] if button['confirm']]
-                        self.assertEqual(len(confirm), 2)
+                        self.assertEqual(len(confirm), 4)  # Cards 3 and 6.
                         if zoom == 1:  # Judy's wording verdict 4: break-word keeps the 100 px minimum.
                             for button in confirm:
                                 self.assertGreaterEqual(button['w'], 100, button)

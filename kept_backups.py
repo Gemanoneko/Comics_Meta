@@ -267,11 +267,19 @@ def _unlink(path):
         path.unlink()
 
 
+def _tidy(path):
+    _forget(path)
+    try:
+        path.parent.rmdir()  # Only when empty, as the verified-backup cleanup does.
+    except OSError:
+        pass
+
+
 def delete_one(path, before_unlink=None):
     """Permanently delete one backup under its comic's write guard; returns the bytes freed.
 
     before_unlink(comic), when given, runs under the guard right before the delete; whatever it
-    raises stops the delete and propagates (FolderHelpActions Amendment A8.2 proves the comic there)."""
+    raises stops the delete and propagates."""
     import library_lock
     path, comic = checked(path)
     library_lock.require(path)  # Raises before any change if another copy owns the library.
@@ -281,11 +289,22 @@ def delete_one(path, before_unlink=None):
             before_unlink(comic)
         size = path.lstat().st_size
         _unlink(path)
-    _forget(path)
-    try:
-        path.parent.rmdir()  # Only when empty, as the verified-backup cleanup does.
-    except OSError:
-        pass
+    _tidy(path)
+    return size
+
+
+def delete_held(path):
+    """delete_one for a caller that already holds the comic's write guard and has proved the comic
+    and the backup under it (FolderHelpActions Amendment 2 B9.2: one guard hold covers a comic's
+    proofs and deletes). The same refusals as delete_one; returns the bytes freed."""
+    import library_lock
+    path, comic = checked(path)
+    library_lock.require(path)  # Raises before any change if another copy owns the library.
+    if not app.write_guard_held(comic):
+        raise app.ArchiveChanged('Metadata write guard was not held; nothing deleted.')
+    size = path.lstat().st_size
+    _unlink(path)
+    _tidy(path)
     return size
 
 

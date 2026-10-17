@@ -504,6 +504,12 @@ def comic_write_guard(path):
         finally:os.close(fd)
 
 
+def write_guard_held(path):
+    """True when this thread holds comic_write_guard for this archive."""
+    import library_lock
+    return library_lock.identity(filesystem_path(path)) in getattr(_write_guard_state,'held',set())
+
+
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
                    expected=None, history_source=None, attempt=None, writer='manual',
                    expected_snapshot=None, verify_readback=False, guard_held=False):
@@ -929,18 +935,19 @@ class Handler(BaseHTTPRequestHandler):
             if getattr(self.server, 'setup_required', False):
                 return self.respond({'error': 'Finish setup before starting processing.'}, 403)
             if self.path in ('/api/attention/check','/api/attention/delete-backups','/api/attention/close'):
-                # FolderHelpActions 8.3 and Amendment A8: the ticket id (and the offered backup ids),
-                # never a path. Each refuses with its own 'paused' code, ahead of the generic guard below.
+                # FolderHelpActions 8.3, Amendment A8 and Amendment 2 B9.4: the ticket id (and the offered
+                # backup and temporary-file ids), never a path. Each refuses with its own 'paused' code,
+                # ahead of the generic guard below.
                 import folder_help
                 try:
-                    keys={'/api/attention/delete-backups':{'ticket','backups'}}.get(self.path,{'ticket'})
-                    if not isinstance(body,dict) or set(body)!=keys:
+                    keys={'/api/attention/delete-backups':({'ticket','backups'},{'ticket','backups','temps'})}.get(self.path,({'ticket'},))
+                    if not isinstance(body,dict) or set(body) not in keys:
                         raise folder_help.HelpError('invalid','choose a folder that needs help')
                     if self.path == '/api/attention/check':
                         return self.respond(folder_help.check(body['ticket']))
                     if self.path == '/api/attention/close':
                         return self.respond(folder_help.close_recheck(body['ticket']))
-                    return self.respond(folder_help.delete_backups(body['ticket'],body['backups']))
+                    return self.respond(folder_help.delete_backups(body['ticket'],body['backups'],body.get('temps',[])))
                 except folder_help.HelpError as exc:
                     return self.respond(exc.payload(),400)
             if pause_control.requested():

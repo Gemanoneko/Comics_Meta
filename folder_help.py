@@ -8,9 +8,11 @@ plan and the files on disk; nothing the page holds is trusted beyond those ids.
 
 The check only reads. Its one write is the close at the end: the ticket leaves needs_attention and
 the unwritten comics' research records are made due, so the next pass of the folder plans them
-again from what is on disk. Delete backup and requeue deletes only kept backups the check offered,
-each comic and backup proved again under its write guard immediately before the backup is deleted
-(Amendment A8; the backup must hash to the comic as planned, v0.2.5 review M1).
+again from what is on disk. Delete backup and requeue deletes only the kept backups, and the app's
+own leftover temporary files, that the check offered and the click offers again from disk: every
+comic, backup and temporary file is proved again with that comic's write guard held, and the deletes
+run under the same hold (Amendment A8; the backup must hash to the comic as planned, v0.2.5 review
+M1; temporary files and the recomputed offer, Amendment 2 B2 and B9).
 """
 import hashlib
 import hmac
@@ -23,8 +25,9 @@ import threading
 import time
 import zipfile
 from collections import OrderedDict
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from typing import NamedTuple
 import app
 import storage
 
@@ -33,6 +36,7 @@ INTERRUPTED = 'Interrupted batch; inspect results and retained backups before re
 FINDINGS = ('zip_failed', 'written_changed', 'unwritten_changed', 'missing', 'temp_left', 'backup_left')  # Section 4.2 order.
 LIMIT = 20  # Problem rows returned; the page says how many more there are.
 BACKUPS = '.comic-metadata-backups'
+TEMPORARY = '.metadata-tmp'  # app._write_metadata_guarded writes '{comic file name}.metadata-tmp' beside the comic.
 _NOT_VERIFIED = ('Archive validation failed.', 'Archive contents changed unexpectedly.', 'Backup verification failed.')
 _NOT_VERIFIED_PREFIXES = ('Temporary archive metadata verification failed for', 'Readback verification failed for')
 _LIBRARY_BUSY_PREFIXES = ('The library lock is busy.', 'Another Comics Meta copy is using this library',
@@ -55,6 +59,9 @@ MESSAGES = {
     'outside_library': 'this folder is not in the current library.',
     'library_busy': 'another copy of the app is using this library.',
     'plan_unreadable': 'the saved plan for this folder cannot be read.',
+    'changed': 'a comic or one of its files changed since the check.',
+    'file_gone': 'a file from the check is no longer there.',
+    'writing': 'a comic in this folder is being written now.',
     'not_found': 'file not found.',
     'failed': 'File Explorer could not be opened.',
 }
@@ -69,6 +76,25 @@ class HelpError(Exception):
 
     def payload(self):
         return {'error': str(self), 'code': self.code, **self.extra}
+
+
+class _Refused(Exception):
+    """A proof failed with a comic's write guard held; the caller words it once the guards are released."""
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+class Finding(NamedTuple):
+    """One problem row. `basis` is the comic's proof ('original', 'written' or None) for a backup or a
+    temporary file; `covered` says the Delete offer may include it (A3, Amendment 2 B2); `unproved` says
+    why a backup is not covered: 'comic', 'backup' or 'unread' (Amendment 2 B6)."""
+    code: str
+    name: str
+    target: Path
+    basis: str | None = None
+    covered: bool = False
+    unproved: str | None = None
 
 
 def classify(value):
@@ -264,15 +290,76 @@ def prove(path, entry, result, digest=None):
     return None
 
 
-def backup_proved(backup, entry):
-    """True when the backup is byte for byte the comic as the plan recorded it before any write: the
-    SHA-256 rule app.remove_verified_backup applies to the app's own cleanup. For a comic proved
-    'original' that is also the comic as it is now. A backup left by another write holds another
-    version of the comic, so it is never offered and never deleted (v0.2.5 review M1)."""
+def backup_state(backup, entry):
+    """'same' when the backup is byte for byte the comic as the plan recorded it before any write (the
+    SHA-256 rule app.remove_verified_backup applies to the app's own cleanup), 'differs' when it holds
+    other bytes, 'unread' when it cannot be read to compare (Amendment 2 B6)."""
     try:
-        return _digest(backup) == entry['sha256']
+        return 'same' if _digest(backup) == entry['sha256'] else 'differs'
+    except OSError:
+        return 'unread'
+
+
+def backup_proved(backup, entry):
+    """True when backup_state is 'same'. For a comic proved 'original' that is also the comic as it is
+    now. A backup left by another write holds another version of the comic, so it is never offered and
+    never deleted (v0.2.5 review M1)."""
+    return backup_state(backup, entry) == 'same'
+
+
+# The app's own temporary file (Amendment 2 B2.3, B9.3) ----------------------------------------
+
+def temporary_path(comic):
+    """Exactly the name app._write_metadata_guarded gives its temporary archive: beside the comic,
+    '{comic file name}.metadata-tmp'. No other name or place is ever the app's."""
+    return comic.with_name(comic.name + TEMPORARY)
+
+
+def _plain_file(path):
+    """A regular file that is not a link or reparse point, by lstat. False if it cannot be read."""
+    try:
+        info = app.filesystem_path(path).lstat()
     except OSError:
         return False
+    return stat.S_ISREG(info.st_mode) and not getattr(info, 'st_file_attributes', 0) & _REPARSE
+
+
+def _temporary_checked(temp, comic, folder):
+    """The refusals Kept backups applies to a backup, applied to the temporary file: the exact name for
+    this comic, in the comic's own folder (a real folder, no link), inside the configured library, a
+    regular file with no link or reparse point. _Refused('file_gone') when it is not there."""
+    import library_lock
+    root = app.live_root()
+    if temp != temporary_path(comic) or comic.parent != folder or not root:
+        raise _Refused('changed')
+    if not library_lock.contains(library_lock.identity(root), library_lock.identity(temp)):
+        raise _Refused('changed')
+    try:
+        info = app.filesystem_path(folder).lstat()
+    except OSError:
+        raise _Refused('file_gone') from None
+    if not stat.S_ISDIR(info.st_mode) or getattr(info, 'st_file_attributes', 0) & _REPARSE:
+        raise _Refused('changed')
+    try:
+        info = app.filesystem_path(temp).lstat()
+    except FileNotFoundError:
+        raise _Refused('file_gone') from None
+    except OSError:
+        raise _Refused('changed') from None
+    if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & _REPARSE:
+        raise _Refused('changed')
+
+
+def _delete_temporary(temp, comic, folder):
+    """Delete the app's temporary file for this comic. The caller holds the comic's write guard and has
+    proved the comic under it: a live writer owns its temporary file and removes it itself (B9.2)."""
+    import kept_backups
+    import library_lock
+    if not app.write_guard_held(comic):
+        raise app.ArchiveChanged('Metadata write guard was not held; nothing deleted.')
+    _temporary_checked(temp, comic, folder)  # Again, right before the unlink.
+    library_lock.require(temp)  # Raises before any change if another copy owns the library.
+    kept_backups._unlink(app.filesystem_path(temp))
 
 
 # The check (read-only until the close) -------------------------------------------------------
@@ -329,7 +416,8 @@ def _zip_ok(path):
 
 
 def _inspect(folder, entries, finished, skipped):
-    """Every finding for the plan's comics, sorted, each backup with its comic's proof. Reads only."""
+    """Every finding for the plan's comics, sorted, each backup and temporary file with its comic's
+    proof and whether the Delete offer may cover it. Reads only."""
     findings = []
     try:
         backups = _kept_backups(folder, {path.name for path, _ in entries})
@@ -339,21 +427,23 @@ def _inspect(folder, entries, finished, skipped):
         key, name, digest = str(path), path.name, None
         result = finished.get(key)
         kept = backups.get(name, [])
+        temporary = temporary_path(path)
+        temp_left = os.path.lexists(app.filesystem_path(temporary))
         if key in skipped:
             # A skipped or failed comic has its own wait record, so it is not a problem by itself. When it has
-            # a kept backup it still takes the zip test: a damaged comic keeps its backups off the offer (M1).
-            if kept and app.filesystem_path(path).is_file() and not _zip_ok(path):
-                findings.append(('zip_failed', name, path, None))
+            # a kept backup or a temporary file it still takes the zip test: a damaged comic keeps them off the offer (M1).
+            if (kept or temp_left) and app.filesystem_path(path).is_file() and not _zip_ok(path):
+                findings.append(Finding('zip_failed', name, path))
         else:
             if not app.filesystem_path(path).is_file():
-                findings.append(('missing', name, folder, None))
+                findings.append(Finding('missing', name, folder))
             elif not _zip_ok(path):
-                findings.append(('zip_failed', name, path, None))
+                findings.append(Finding('zip_failed', name, path))
             else:
                 info = app.filesystem_path(path).stat()
                 if result is not None:
                     if result.get('output_signature') != [info.st_size, info.st_mtime_ns]:
-                        findings.append(('written_changed', name, path, None))
+                        findings.append(Finding('written_changed', name, path))
                 else:
                     recorded = before_state(entry)
                     try:
@@ -361,15 +451,22 @@ def _inspect(folder, entries, finished, skipped):
                     except OSError:
                         raise HelpError('other', name + ' could not be read') from None
                     if digest != entry['sha256'] or (recorded is not None and (info.st_size, info.st_mtime_ns) != recorded[:2]):
-                        findings.append(('unwritten_changed', name, path, None))
-        temporary = path.with_name(name + '.metadata-tmp')
-        if os.path.lexists(app.filesystem_path(temporary)):
-            findings.append(('temp_left', name, temporary, None))
-        if kept:
-            basis = prove(path, entry, result, digest)
-            findings.extend(('backup_left', name, backup, basis if basis and backup_proved(backup, entry) else None)
-                            for backup in kept)
-    findings.sort(key=lambda f: (f[1].casefold(), FINDINGS.index(f[0]), f[2].name.casefold()))
+                        findings.append(Finding('unwritten_changed', name, path))
+        if not (kept or temp_left):
+            continue
+        basis = prove(path, entry, result, digest)
+        if temp_left:
+            # B2.1 and B2.3: only beside a comic proved untouched since before the write (never 'written'),
+            # and only a regular file. Its contents are not read.
+            findings.append(Finding('temp_left', name, temporary, basis, basis == 'original' and _plain_file(temporary)))
+        for backup in kept:
+            state = backup_state(backup, entry) if basis else None
+            if state == 'same':
+                findings.append(Finding('backup_left', name, backup, basis, True))
+            else:
+                findings.append(Finding('backup_left', name, backup, unproved='backup' if state == 'differs'
+                                        else 'unread' if state == 'unread' else 'comic'))
+    findings.sort(key=lambda f: (f.name.casefold(), FINDINGS.index(f.code), f.target.name.casefold()))
     return findings
 
 
@@ -381,23 +478,44 @@ def _closable(findings):
     """Close and recheck folder is offered for a readable plan only when every finding is a comic that
     changed after the batch was planned (Sergei's 2a, 2026-10-16): nothing is damaged or left behind,
     and the next folder pass plans those comics again from what is on disk."""
-    return bool(findings) and all(f[0] == 'unwritten_changed' for f in findings)
+    return bool(findings) and all(f.code == 'unwritten_changed' for f in findings)
+
+
+def _deletable(findings):
+    """Every finding a covered kept backup or app temporary file, and all of them on screen (A3, A8.4,
+    Amendment 2 B2 conditions 1, 2, 3 and 5). The write-guard condition (B2.4) is the caller's."""
+    return bool(findings) and len(findings) <= LIMIT and all(f.covered for f in findings)
+
+
+def _writing(findings, entries):
+    """B2.4 at the check: True while a writer holds the write guard of any comic on the line."""
+    import kept_backups
+    comics = {path.name: path for path, _ in entries}
+    return any(kept_backups.writing(comics[name]) for name in {f.name for f in findings})
 
 
 def _problems(ident, findings, entries, finished, skipped):
-    """The section 4.2 result, with the Delete backup offer only when every finding is a proved kept
-    backup (backup_proved) of a proved comic and all of them are on screen (Amendment A3, A8.4), or the Close and recheck
+    """The section 4.2 result, with the Delete offer only when every finding is a proved kept backup of a
+    proved comic or the app's own temporary file beside an untouched comic, all of them are on screen and
+    no comic on the line is being written (Amendment A3, A8.4, Amendment 2 B2), or the Close and recheck
     offer when every finding is `unwritten_changed` (_closable)."""
     rows = []
-    for code, name, target, basis in findings[:LIMIT]:
-        row = {'id': _issue(ident, code, target), 'name': name, 'finding': code, 'file': target.name}
-        if code == 'backup_left' and basis:
-            row['basis'] = basis
+    for finding in findings[:LIMIT]:
+        row = {'id': _issue(ident, finding.code, finding.target), 'name': finding.name, 'finding': finding.code,
+               'file': finding.target.name}
+        if finding.code == 'backup_left':
+            if finding.covered:
+                row['basis'] = finding.basis
+            else:
+                row['unproved'] = finding.unproved
         rows.append(row)
     result = {'code': 'problems', 'total': len(findings), 'problems': rows}
-    if findings and len(findings) <= LIMIT and all(f[0] == 'backup_left' and f[3] for f in findings):
+    if _deletable(findings) and not _writing(findings, entries):
         result['offer'] = {'kind': 'delete_backup', 'unwritten': len(_unwritten(entries, finished, skipped)),
-                           'backups': [{'id': r['id'], 'name': r['name'], 'basis': r['basis']} for r in rows]}
+                           'backups': [{'id': r['id'], 'name': r['name'], 'basis': r['basis']}
+                                       for r in rows if r['finding'] == 'backup_left'],
+                           'temps': [{'id': r['id'], 'name': r['name'], 'file': r['file']}
+                                     for r in rows if r['finding'] == 'temp_left']}
     elif _closable(findings):
         result['offer'] = {'kind': 'close_recheck'}
     return result
@@ -484,51 +602,115 @@ def close_recheck(ident):
         return {'ok': True}
 
 
-def delete_backups(ident, backup_ids):
-    """Delete backup and requeue (Amendment A8): prove every offered backup's comic, then delete each
-    under its comic's write guard after proving it again, run the full check again, close only if clean."""
+def _ids(value):
+    return isinstance(value, list) and all(isinstance(i, str) and _ID.fullmatch(i) for i in value)
+
+
+def _matched(ident, findings, backup_ids, temp_ids, fresh):
+    """B9.1: the ids sent must name exactly the files this click's own check offers. An id issued for a
+    file that is no longer one of this ticket's findings (deleted, or its backup folder replaced) is
+    `file_gone`; any other difference, including no offer at all, is `changed`. Nothing is deleted yet."""
+    present = {(f.code, os.path.normcase(str(f.target))) for f in findings}
+    sent, unknown = set(), False
+    for ids, code in ((backup_ids, 'backup_left'), (temp_ids, 'temp_left')):
+        for sent_id in ids:
+            found = _issued(sent_id, ident)
+            if not found or found['code'] != code:
+                unknown = True
+                continue
+            key = (code, os.path.normcase(found['target']))
+            if key not in present:
+                raise HelpError('file_gone', check=fresh())
+            sent.add(key)
+    if unknown or not _deletable(findings) or sent != present:
+        raise HelpError('changed', check=fresh())
+
+
+def delete_backups(ident, backup_ids, temp_ids=None):
+    """Delete backup (and temporary file) and requeue (Amendment A8, Amendment 2 B9).
+
+    The click checks the folder again and goes on only when the ids sent are exactly the files that check
+    offers (B9.1). It then takes the write guard of every comic in the offer and keeps each until the end
+    (one hold per comic over its proofs and deletes, B9.2), proves every comic, backup and temporary file
+    again under the guards, and only then deletes, comic by comic in name order, the temporary file first
+    and then the backups (B9.3). Last, the full check runs again and closes only if it is clean."""
     import kept_backups
-    if (not isinstance(backup_ids, list) or not 0 < len(backup_ids) <= LIMIT
-            or not all(isinstance(i, str) and _ID.fullmatch(i) for i in backup_ids) or len(set(backup_ids)) != len(backup_ids)):
+    import library_lock
+    temp_ids = [] if temp_ids is None else temp_ids
+    if (not _ids(backup_ids) or not _ids(temp_ids) or not 0 < len(backup_ids) + len(temp_ids) <= LIMIT
+            or len(set(backup_ids + temp_ids)) != len(backup_ids) + len(temp_ids)):
         raise HelpError('invalid', 'choose the offered backups')
     with _guarded(ident) as (ticket_path, item, folder):
         entries, finished, skipped = _plan(item, folder)
         comics = {path.name: (path, entry) for path, entry in entries}
-        try:
-            current = _kept_backups(folder, set(comics))
-        except OSError:
-            raise HelpError('other', 'the recovery backup folder could not be read') from None
-        # A8.3: only ids this check issued that are still this ticket's kept backups now.
-        now = {os.path.normcase(str(path)): name for name, paths in current.items() for path in paths}
-        targets = []
-        for backup_id in backup_ids:
-            found = _issued(backup_id, ident)
-            name = found and found['code'] == 'backup_left' and now.get(os.path.normcase(found['target']))
-            if not name:
-                raise HelpError('changed', check=_fresh(ident, item, folder))
-            targets.append((Path(found['target']), name))
-        # A8.5: all before any. Every comic and every backup is proved before the first delete.
-        for backup, name in targets:
-            path, entry = comics[name]
-            if not prove(path, entry, finished.get(str(path))) or not backup_proved(backup, entry):
-                raise HelpError('changed', check=_fresh(ident, item, folder))
-        deleted = 0
-        for backup, name in sorted(targets, key=lambda target: target[0].name.casefold()):
-            path, entry = comics[name]
+        findings = _inspect(folder, entries, finished, skipped)
+        _matched(ident, findings, backup_ids, temp_ids, lambda: _problems(ident, findings, entries, finished, skipped))
+        names = sorted({f.name for f in findings}, key=lambda name: (name.casefold(), name))
+        counts = {'backup_left': 0, 'temp_left': 0}
 
-            def again(comic, path=path, entry=entry, backup=backup):
-                # Under the comic's write guard, immediately before this delete (A8.2, review M1).
-                if not prove(path, entry, finished.get(str(path))) or not backup_proved(backup, entry):
-                    raise HelpError('changed')
-            try:
-                kept_backups.delete_one(backup, before_unlink=again)
-            except HelpError:
-                if not deleted:
-                    raise HelpError('changed', check=_fresh(ident, item, folder)) from None
-                raise HelpError('delete_failed', deleted=deleted, total=len(targets)) from None
-            except Exception:
-                raise HelpError('delete_failed', deleted=deleted, total=len(targets)) from None
-            deleted += 1
+        def tally():
+            return {'deleted': sum(counts.values()), 'total': len(findings),
+                    'deleted_backups': counts['backup_left'], 'deleted_temps': counts['temp_left']}
+
+        def stop(code=None):
+            """A delete that cannot go on: before the first delete nothing changed, after it the counts."""
+            if code and not sum(counts.values()):
+                return HelpError(code) if code != 'changed' else _Refused(code)
+            return HelpError('delete_failed', **tally())
+        try:
+            with ExitStack() as held:
+                for name in names:
+                    path = comics[name][0]
+                    try:
+                        held.enter_context(app.comic_write_guard(path))
+                    except app.ArchiveChanged:
+                        if kept_backups.writing(path):
+                            raise HelpError('writing', **tally()) from None
+                        raise HelpError('other', 'a comic could not be locked for the delete') from None
+                for name in names:  # All proofs for all comics before the first delete (A8.5).
+                    path, entry = comics[name]
+                    mine = [f for f in findings if f.name == name]
+                    if prove(path, entry, finished.get(str(path))) != mine[0].basis:
+                        raise _Refused('changed')
+                    for f in mine:
+                        if f.code == 'temp_left':
+                            _temporary_checked(f.target, path, folder)
+                            continue
+                        try:
+                            kept_backups.checked(f.target)
+                        except kept_backups.BackupError as exc:
+                            raise _Refused('file_gone' if exc.code == 'not_found' else 'changed') from None
+                        if not backup_proved(f.target, entry):
+                            raise _Refused('changed')
+                for name in names:
+                    path = comics[name][0]
+                    for f in sorted((f for f in findings if f.name == name),
+                                    key=lambda f: (f.code != 'temp_left', f.target.name.casefold())):
+                        try:
+                            if f.code == 'temp_left':
+                                _delete_temporary(f.target, path, folder)
+                            else:
+                                kept_backups.delete_held(f.target)
+                        except FileNotFoundError:
+                            continue  # Already gone at its own delete: done, not failed, not counted.
+                        except _Refused as exc:
+                            if exc.code == 'file_gone':
+                                continue
+                            raise stop('changed') from None
+                        except kept_backups.BackupError as exc:
+                            if exc.code == 'not_found':
+                                continue
+                            raise stop('changed') from None
+                        except app.ArchiveChanged:
+                            raise HelpError('writing', **tally()) from None
+                        except library_lock.LibraryBusy:
+                            raise stop('library_busy') from None
+                        except Exception:
+                            raise stop() from None
+                        counts[f.code] += 1
+        except _Refused as exc:
+            raise HelpError(exc.code, check=_fresh(ident, item, folder)) from None  # The guards are released.
+        deleted = tally()
         try:
             if _paused():
                 raise HelpError('paused')
@@ -536,10 +718,11 @@ def delete_backups(ident, backup_ids):
         except HelpError as exc:
             if exc.code == 'gone':
                 raise
-            raise HelpError('not_requeued', str(exc), deleted=deleted, reason='paused' if exc.code == 'paused' else 'other') from None
+            raise HelpError('not_requeued', str(exc), reason='paused' if exc.code == 'paused' else 'other', **deleted) from None
         if result.get('ok'):
-            return dict(result, deleted=deleted)
-        raise HelpError('not_requeued', 'the check found problems', deleted=deleted, reason='problems', check=result)
+            return dict(result, deleted=deleted['deleted'], deleted_backups=deleted['deleted_backups'],
+                        deleted_temps=deleted['deleted_temps'])
+        raise HelpError('not_requeued', 'the check found problems', reason='problems', check=result, **deleted)
 
 
 # Open folder and Show in folder (section 6) --------------------------------------------------
