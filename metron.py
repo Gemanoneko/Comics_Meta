@@ -32,8 +32,8 @@ def request(endpoint, **params):
     url = 'https://metron.cloud/api/' + endpoint + '?' + urllib.parse.urlencode(params)
     cache_key = 'metron:' + url
     with LOCK:
-        import pause_control
-        if pause_control.requested():raise pause_control.PauseRequested()
+        import pause_control, research_runtime
+        research_runtime.research_checkpoint()
         with app.db() as con:
             row = con.execute('SELECT value FROM cache WHERE key=? AND fetched>?', (cache_key, time.time()-7*86400)).fetchone()
         if row:
@@ -42,6 +42,7 @@ def request(endpoint, **params):
         if state.get('retry_at', 0) > time.time():
             raise ProviderDeferred('Metron is waiting before retrying; other sources remain available.','metron',state['retry_at'])
         pause_control.sleep(max(0, state.get('last_request', 0)+3.2-time.time()))
+        research_runtime.research_checkpoint()
         state.update(last_request=time.time(), status='requesting')
         storage.save(STATE, state)
         req = urllib.request.Request(url, headers={'Authorization':'Bearer '+secret, 'Accept':'application/json', 'User-Agent':'ComicMetadata/0.4 (personal catalog)'})
@@ -90,6 +91,7 @@ def candidates(series,number,year):
 
 def verified_cover(path,url):
     import automatic,reverse_image,research_runtime
+    research_runtime.research_checkpoint()
     parsed=urllib.parse.urlparse(url)
     if parsed.scheme!='https' or parsed.hostname!='static.metron.cloud' or parsed.username or parsed.password or parsed.port not in (None,443):return False
     with research_runtime.stage('Metron cover verification'):

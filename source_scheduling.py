@@ -48,10 +48,19 @@ def available_free_alternative(name,attempt,statuses,now):
 def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
-    if previous.get('retry_at',0)<=now:return True
     import pipeline_config
     # A source switched off in config.json never makes a comic due again.
     attempts={name:a for name,a in previous.get('source_schedule',{}).items() if pipeline_config.source_enabled(name)}
+    if previous.get('retry_at',0)<=now:
+        # An unchanged, unresolved comic cannot gain a match by repeating a pass
+        # whose recorded sources are all still waiting. Keep legacy/no-schedule,
+        # successful, conflicting and held records on their existing retry path.
+        # New evidence, matcher changes and changed archives returned above.
+        if (previous.get('outcome')=='needs_identity_lookup' and not previous.get('hold')
+                and attempts and all(name in attempts for name in KEYS if pipeline_config.source_enabled(name))
+                and all(not ready(name,a,statuses,now) for name,a in attempts.items())):
+            return False
+        return True
     if any(available_free_alternative(name,attempt,statuses,now) for name,attempt in attempts.items()):return True
     if any(a.get('result')=='error' and a.get('next_at',0)<=now and
            (name not in FREE_SOURCES or not blocked(attempt_status(name,a,statuses),now))

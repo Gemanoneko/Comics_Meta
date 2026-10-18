@@ -74,8 +74,9 @@ class ComicVineOrderTests(unittest.TestCase):
         import archive_conversion, cover_tasks, discovery_state, getcomics, local_model, metron, open_library, providers, publisher_catalogs, research_runtime
         with app.db() as con:
             discovery_state.initialize(con)
+            stat=self.path.stat()
             con.execute('INSERT INTO comics(path,root,size,mtime,series,number,year,metadata,status,seen) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                        (str(self.path), str(self.folder), 16, 1, 'Example', '1', '2024', json.dumps(old), 'embedded', 1))
+                        (str(self.path), str(self.folder), stat.st_size, stat.st_mtime_ns, 'Example', '1', '2024', json.dumps(old), 'embedded', 1))
         def comicvine(resource, **params):
             self.calls.append('ComicVine ' + resource)
             if not resource.startswith('issue/'):

@@ -295,6 +295,41 @@ def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False,r
 
 @research_runtime.timed("Research pass")
 def discover(root,coverage_only=False):
+    # All speculative readers finish before this returns to the serial writer.
+    with research_runtime.ComicLookahead() as lookahead:
+        return _discover(root,coverage_only,lookahead)
+
+
+def lookahead_rows(rows,state,root,source_statuses,saved_for):
+    """Select only the first bounded pass's definitely Metron-first candidates."""
+    import in_book, source_scheduling, pipeline_config
+    candidates=[]
+    research_count=0
+    for candidate in rows:
+        candidate_path=Path(candidate['path']).resolve()
+        if candidate_path.parent!=root or candidate_path.suffix.lower()!='.cbz':continue
+        previous=state['checked'].get(str(candidate_path),{})
+        saved=saved_for(candidate_path)
+        if not coverage_priority.lookup_flags(candidate,previous,source_statuses,MATCHER_VERSION,saved,time.time())[0]:continue
+        old=json.loads(candidate['metadata'])
+        if in_book.ready(candidate,saved,previous):continue
+        research_count+=1
+        if research_count>20:break
+        schedule=previous.get('source_schedule',{}) if previous.get('signature')==[candidate['size'],candidate['mtime']] and previous.get('version')==MATCHER_VERSION else {}
+        # No speculative ComicVine, ISBN, publisher-first, held, in-book or
+        # reusable-evidence work. Only cover reads overlap; requests still pace.
+        names=[(name,None) for name in ('Metron','GCD','Google Books','Open Library local index','Dark Horse','Image Comics')]
+        if (language_eligible(candidate,old) and not old.get('Web') and not previous.get('hold')
+                and not saved.get('verified_evidence') and pipeline_config.source_enabled('Metron')
+                and source_scheduling.order(names,candidate,old)[0][0]=='Metron'
+                and source_scheduling.ready('Metron',schedule.get('Metron',{}),source_statuses,time.time())
+                and not source_scheduling.blocked(source_statuses.get('metron',{}),time.time())):
+            series,number=research.query_identity(candidate,old)
+            if series and number and (old.get('Year') or candidate.get('year')):candidates.append(candidate)
+    return candidates
+
+
+def _discover(root,coverage_only,lookahead):
     root = Path(root).resolve()
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
@@ -320,6 +355,9 @@ def discover(root,coverage_only=False):
     checked = 0
     plan = PassPlan(root)  # Every comic queued in this pass shares one plan and one write cycle.
     import in_book
+    import metron
+    candidates=lookahead_rows(rows,state,root,source_statuses,saved_for)
+    lookahead.configure(candidates if candidates and metron.token() else [],metron.lookup)
     for row in rows:
         import pause_control
         if pause_control.requested():return True  # Retain a due folder; resume from persisted per-file state.
@@ -334,6 +372,7 @@ def discover(root,coverage_only=False):
             continue
         if plan.full():
             return True  # Write this pass's plan; the folder continues in the next pass.
+        lookahead.advance()
         old = json.loads(row['metadata'])
         eligible=language_eligible(row,old)
         if eligible:
@@ -454,7 +493,7 @@ def discover(root,coverage_only=False):
         if (not found or not old.get('Summary')) and not external and not wait_only:
             import providers, open_library, getcomics, publisher_catalogs, metron
             # While a conflict stands or is unchecked, web-verified sources need a named creator and an agreeing cover.
-            sources=[('Metron',lambda row,old:metron.lookup(row,old) if metron.token() else None),
+            sources=[('Metron',lambda row,old:lookahead.result(row,old,metron.lookup) if metron.token() else None),
                      ('GCD',providers.gcd_lookup),('Google Books',providers.google_lookup),('Open Library local index',open_library.lookup),
                      ('Dark Horse',lambda row,old:publisher_catalogs.lookup(row,old,'darkhorse_catalog',strict=strict)),
                      ('Image Comics',lambda row,old:publisher_catalogs.lookup(row,old,'image_catalog',strict=strict)),

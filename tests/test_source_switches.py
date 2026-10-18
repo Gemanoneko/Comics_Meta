@@ -109,8 +109,9 @@ class SourceSwitchTests(unittest.TestCase):
         path.write_bytes(b'isolated fixture')
         with app.db() as con:
             discovery_state.initialize(con)
+            stat=path.stat()
             con.execute('INSERT INTO comics(path,root,size,mtime,series,number,year,metadata,status,seen) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                        (str(path), str(folder), 16, 1, 'Example', '1', '2024', json.dumps(metadata), 'missing', 1))
+                        (str(path), str(folder), stat.st_size, stat.st_mtime_ns, 'Example', '1', '2024', json.dumps(metadata), 'missing', 1))
         called = []
         def source(name):
             return lambda *args, **kwargs: called.append((name, kwargs.get('strict', False)))

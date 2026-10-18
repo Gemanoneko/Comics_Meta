@@ -4,11 +4,95 @@ import json
 import time
 import zipfile
 import sqlite3
+import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, CancelledError
 from contextlib import contextmanager
 from functools import wraps
 import app
 import pause_control
+
+_comic_work = threading.local()
+
+
+def research_checkpoint():
+    """Cooperative cancellation belongs only to the current lookahead thread."""
+    cancelled = getattr(_comic_work, 'cancelled', None)
+    if (cancelled is not None and cancelled.is_set()) or pause_control.requested():
+        raise pause_control.PauseRequested()
+
+
+class ComicLookahead:
+    """Two read-only Metron lookups; the discovery owner alone publishes plans.
+
+    Futures are local to one folder pass, never persisted or reused after restart.
+    Provider request locks and pacing still apply inside lookup. No browser or
+    local-model operations run here. Shutdown drains running work before writing.
+    """
+    def __init__(self):
+        self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='comic-research')
+        self.pending = {}
+        self.rows = iter(())
+        self.cancelled = threading.Event()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.cancelled.set()
+        for future in self.pending.values():
+            future.cancel()
+        self.pool.shutdown(wait=True, cancel_futures=True)
+
+    def configure(self, rows, lookup):
+        self.rows = iter(rows)
+        self.lookup = lookup
+
+    @staticmethod
+    def unchanged(row):
+        from pathlib import Path
+        try:
+            stat = Path(app.filesystem_path(row['path'])).stat()
+            return [stat.st_size, stat.st_mtime_ns] == [row['size'], row['mtime']]
+        except OSError:
+            return False
+
+    def advance(self):
+        if self.cancelled.is_set() or pause_control.requested():
+            return
+        while len(self.pending) < 2:
+            row = next(self.rows, None)
+            if row is None:
+                break
+            path = row['path']
+            if path not in self.pending:
+                self.pending[path] = self.pool.submit(self._run, dict(row))
+
+    def _run(self, row):
+        if self.cancelled.is_set() or pause_control.requested():
+            raise pause_control.PauseRequested()
+        if not self.unchanged(row):
+            raise ValueError('Comic changed before parallel research.')
+        _comic_work.cancelled = self.cancelled
+        try:
+            result = self.lookup(row, json.loads(row['metadata']))
+        finally:
+            del _comic_work.cancelled
+        if self.cancelled.is_set() or pause_control.requested():
+            raise pause_control.PauseRequested()
+        if not self.unchanged(row):
+            raise ValueError('Comic changed during parallel research.')
+        return result
+
+    def result(self, row, old, fallback):
+        future = self.pending.pop(row['path'], None)
+        if future is None:
+            return fallback(row, old)
+        result = future.result()
+        if pause_control.requested():
+            raise pause_control.PauseRequested()
+        if not self.unchanged(row):
+            raise ValueError('Comic changed after parallel research.')
+        return result
 
 
 @contextmanager

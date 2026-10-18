@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.3.0] - 2026-10-18
+
+### Changed
+
+- Prioritize comics with fresh evidence or sources ready to retry, avoiding repeated checks while providers are waiting.
+- Research comics with bounded parallel lookahead while retaining provider pacing, daily limits, pause handling and serialized metadata writes.
+- Preserve metadata verification, archive-change guards and recovery-backup safety checks.
+
+### Validation
+
+- Independent focused correctness checks: 94 passed, with no errors or skips; source review RELEASE CLEAR.
+- Source-only candidate checkpoint. Full discovery remains limited by native-launch refusals; packaged installation/update and formal handoff certification are pending. No installer release or live deployment.
+
 ## [v0.2.1] - 2026-10-14
 
 ### Fixed
