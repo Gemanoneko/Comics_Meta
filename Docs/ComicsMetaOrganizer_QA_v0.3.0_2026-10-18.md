@@ -4,9 +4,9 @@ Futaba, 2026-10-18. Correctness regression only; no speed benchmark or throughpu
 
 **Source correctness:** GO for the frozen candidate and tested scope below.
 
-**Verdict:** NO-GO
+**Verdict:** GO
 
-The overall verdict is for installer release: native installation/update, packaged behavior and tray Quit/descendant exit are not certified. No product correctness failure remains in this focused pass. This report does not authorize publishing or replacing the running app.
+Final clearance follows the successful actual 0.2.6-to-0.3.0 installer upgrade, state preservation audit and installed-runtime checks recorded below. Earlier pending/NO-GO statements are historical checkpoints superseded by the final continuation. No speed improvement is claimed.
 
 ## Candidate identity
 
@@ -64,3 +64,55 @@ Pinned Python executable SHA-256: `434b361fe0c5960d404974feed493db47f2603a1ace25
 Pattern alert: repeated developer lease termination during this session. Disposition: defer shared-runner investigation; preserve evidence, retain fail-closed behavior. Full03 and independent focused subsequently completed with no lease failure; no claim of a proven repair to the earlier cause.
 
 Session scratch is retained for Sergei under `C:/Users/AnGeLZzZ/AppData/Local/Temp/codex-comics-perf-20261018`, per the per-session cleanup exception. No QA artifacts were created elsewhere outside this report.
+
+## Packaged runtime continuation — 2026-10-18
+
+Candidate is now committed as `e61c9baf958a2f117a081e1ba10e8a8a86547e9c`. The earlier source-test scratch was deleted by the user; the durable source results above remain historical evidence. New build/package evidence occupies the rebuilt session scratch.
+
+Build02 produced `dist/Comic-Metadata-Setup-0.3.0.exe`, 149,488,082 bytes, independently verified SHA-256 `3bb315e591aa2c51e7c4d9cf2a115e16a2ff325149d804df9db4acfc2da54bc6`. `latest.yml` names 0.3.0 and matching size. No rebuild is authorized by this report.
+
+Independent packaged runtime check: **PASS**. Actual `dist/win-unpacked/ComicMetadata.exe` launched twice under its existing private QA policy, with isolated profile/state/library/ports, offscreen windows, blocked external provider traffic and a local model stand-in. Dashboard displayed v0.3.0 and the desktop bridge was present. Durable pause, config bytes and a preservation marker survived ordinary restart. Both product Quit calls exited successfully; engine/CDP ports closed; the external 600000ms Job owner reported `completed`, `root_exit=0`, `active_after=0`, and no lease failure. This proves the dashboard Quit path (same implementation as tray Quit), not every top-level screen. No physical input, real browser, GPU inference or real comic was used. Existing QA mode still creates a tray icon, which was not interacted with.
+
+The first harness attempt had a JavaScript syntax error before any app launched; Ender corrected its missing brace and syntax-checked it. Senua approved the corrected runner and fresh output slot before QA ran it. No product files were changed for this correction.
+
+Retained SHA-256 identities under rebuilt session `shared/`:
+
+| File | SHA-256 |
+|---|---|
+| package-qa.cjs | 8a7a1562499932906225553549a0448f9278b3e4cca6d33b6e69ef32310ae771 |
+| package-controller.py | 68ef8088c3eac2ec87a94563f8d40143593127c5527da5f6cd7c0b7faeae94ce |
+| package-qa-pins.json | 1f64acdeb6fb82382604b608483ce5e8a7707d0ced93dbfe45e9b80e5450ee52 |
+| result-package-02.json | 4a8fdb1000386c4a8d8f7273ecc3a0b865effdce1820a78ca93f53c5e716334d |
+| package-qa-result.json | 5d843ef6d86444a8f9c3b36073cf892dc50806e8633e54b9611eddd1ed83d7a4 |
+
+The installer was not executed in this packaged-runtime pass; ordinary restart is not an old-to-new update. Sergei subsequently authorized checking his closed installed app. Read-only preflight found installed version 0.2.6, no installed app/engine family or port 8765 listener, and durable pause set. Actual installer-based upgrade requires a separately reviewed bounded route and verified state preservation before release clearance. No in-app updater UI coverage is claimed.
+
+## Final actual upgrade and installed-runtime acceptance — 2026-10-18
+
+**PASS.** With Sergei's explicit authorization after he closed the app, the exact installer above upgraded the existing per-user installation from **0.2.6 to 0.3.0**, using silent NSIS `/S` without `--force-run`. This is actual installer-based update evidence; **the in-app updater UI was not exercised**. Senua checked the exact publication contract and confirmed it requires the real version transition/relaunch, not that particular transport.
+
+Before replacement, the reviewed route proved the installed process family and production engine port were closed. It preserved and verified **85,808 files** across the real engine state, shell profile and updater roots under `shared/live-state-backup030`. The manifest SHA-256 is `c2087ab93ef496798d9b13b7df9f77b0d42607275198966abcbcd31efc48e1c9`. Counts come from the complete hashed manifest. The initial combined run stopped before installation at its internal deadline while validating the completed backup; root exited 1 and owned descendants were zero. The approved split continuation verified and reused every copied file (0 recopied), then independently checked the live preimage before installation. No backup was silently assumed complete.
+
+Silent installation exited 0, installed `resources/engine/VERSION` became 0.3.0, and no app automatically launched. The separate post-audit passed: all backed-up user state remained byte-identical with unchanged recorded metadata, except the expected generated updater `installer.exe`, which exactly matched the pinned new artifact. Configuration, credentials, catalog, recovery data and saved pause were preserved. No real comic was opened or written by QA.
+
+The actual newly installed `ComicMetadata.exe` then passed two independent private QA-mode launch/Quit cycles. All **609 pinned packaged files** matched before launch; the real installed server displayed v0.3.0; private configuration, marker and user pause survived restart; both product Quit calls exited 0 and engine/CDP ports closed. Its external Job ended with `completed`, `root_exit=0`, `active_after=0`. The same results held for backup-resume, installation and post-audit stage owners, each using its own original 600000ms deadline and foreground lease. The real profile remains closed and paused; the installed binary was tested against a private empty library to avoid comic mutations. No foreground input or in-app updater UI coverage is claimed.
+
+Sully's parity check additionally matched 61 staged engine source mappings against the committed candidate and installed package inputs, and all 609 package pins. Staged manifest SHA-256: `87814c13832cb7d87e7a293f88fb3016b5585e6d00da8488744c97acc3fb1f8d`. Source identity `a9369126d9d96627b60a9571e56cedcea1881e9294ce2a23f554fd858f8b1f10` binds the exact committed Git tree; file parity supplements that identity.
+
+Final evidence SHA-256 under session `shared/`:
+
+| File | SHA-256 |
+|---|---|
+| backup-resume-proof.json | d1c7827bb4bc84780397a3db002325dd74ba06bb4950cceeb9a787a626721861 |
+| install-stage-proof.json | 7fef33e4862d93f68cfa42b837140d2d79134808d6048a1b72bc811f4578283d |
+| install-proof.json | 2f7ee8bce4829da5d0b732fa7ff815375b98927b44c63cbb60292a93ed56fe3e |
+| result-install-stage-01.json | b2c081dc64b57f2d6a457673ff7c8d384c0c0f0fa86592aacd20046b326e88dc |
+| result-install-post-01.json | ffda8eab5bab0366937f606263846c89d2fd7d92057e4ff99747d6454bad9b86 |
+| result-installed-package-01.json | 42fdbf55a34f3171acd0546da4159edafd53bf796abccaf5e9d2213ad900c3d1 |
+| installed-package-qa-result.json | 0254e04ba257d62ec6247f2a8c26bbe69d459d5fe92f802e560681d5ac3bab00 |
+| release-parity.json | 268a619b6c8cedd1547ec5af63d9004c24360748ba9df265466d6bf1ff3e630a |
+| release-qa-receipt.json | f006866cfcc03e7eb7deb25b2d7af161706c9924a1f860e0f153e03159c21f41 |
+
+The final machine-readable receipt records actual installed upgrade/relaunch, preserved state, exact artifact hashes and the explicit `transport: silent NSIS installer`, `updaterUIExercised: false` limitation. It is a publication QA receipt, not an invented canonical protocol-2 handoff receipt. Sergei's requested lean scope is satisfied by the reviewed native and source evidence above. Native every-screen interactions, full live-library processing and in-app updater UI are not claimed.
+
+No new product Blocker/Major was found. Existing QA tray-visibility limitation remains deferred. The retained state backup contains private user data; keep it local and exclude it from commits/publication. Session scratch is left for Sergei as instructed; no further QA execution or edits are pending.
