@@ -1,5 +1,7 @@
 # Held pathname and logger recovery
 
+> **Removed 2026-10-24:** `scratch/cmo-hold-recovery-20261015/` and `scratch/cmo-protection-policy-20261015/`, cited below. Record: `ComicsMetaOrganizer_ScratchRecord_2026-10-24.md`. `scratch/cmo-packaging-recovery-20261015/` is kept as the build toolchain, but it now holds only `runtime-assemble-13/` and `prepare-08/`. Its other subfolders cited below (`read-01`, `prepare-04`, `b24`, `compile-baseline-*`, `freeze-gen-24` and the rest) were removed on 2026-10-24; their aggregate hashes are in the same record. The `WIP/Comics Meta Organizer-m1/` paths below no longer exist: that checkout was retired on 2026-10-16.
+
 2026-10-15, Ender. SOURCE ONLY. Native execution remains held pending Senua's exact derivative/graph review and Iris clearance. No tests, native app, packaging, installer, update, or browser were run for this correction. Version remains 0.2.1; Sully alone owns Git/version/publication.
 
 ## Missing historical inputs

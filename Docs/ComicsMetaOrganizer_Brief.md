@@ -42,7 +42,12 @@ How it works:
   - dependencies from `prepare-08`, copied into `node_modules/` on the first run;
   - the Python/7-Zip runtime and the Electron/NSIS/rcedit tools from `runtime-assemble-13`.
   - Pass `--inputs <dir>` to point elsewhere. Nothing is downloaded: a network connect fails the build.
-  - **DO NOT clean `scratch/cmo-packaging-recovery-20261015/`.** It is gitignored and is the only build toolchain, so the installer builds on this machine only until it is moved (Senua v0.2.2 N2).
+  - **Do not delete `scratch/cmo-packaging-recovery-20261015/`.** It is gitignored and is the only build toolchain, so the installer builds on this machine only until it is moved (Senua v0.2.2 N2).
+  - Since 2026-10-24 it holds only the two inputs above, `runtime-assemble-13/` and `prepare-08/` (8,717 files, 878,563,659 bytes). An offline `npm run pack` from a fresh worktree of `91543bd`, reading only that folder, printed `BUILD OK`, with an installer of 149,488,082 bytes.
+  - The other 45 entries (historical recovery evidence, 2.69 GB) were removed. Record: `Docs/ComicsMetaOrganizer_ScratchRecord_2026-10-24.md`.
+  - Aggregate SHA-256 for checking the inputs:
+    - `runtime-assemble-13`: `fc5dd6534bb38347cc9acf4791777b8c15decd84312eb80da65a1078ac0326e3`
+    - `prepare-08`: `4e5b59f84c12ed8bb51a1783388744c24247a958c71ed28932b8e536c4db6310`
 - **Staging.** The driver stages `build/staged` (runtime, engine sources, licences) and its manifest.
 - **Build.** It runs electron-builder in a child process, `scripts/packaging/build-lean.cjs`. `node_modules/`, `build/` and `dist/` are gitignored.
 - **Uninstaller stub (hard rule, kept).** The generated NSIS `BUILD_UNINSTALLER` stub is never executed. The pinned safe route (`nsis-safe/`) extracts the uninstaller with the pure-JS decoder and checks it byte-for-byte against upstream's pure `UninstallerReader`.
