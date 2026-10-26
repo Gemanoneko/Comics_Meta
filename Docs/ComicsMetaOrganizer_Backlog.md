@@ -42,6 +42,18 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Sources:** `Docs/ComicsMetaOrganizer_CodeReview_v0.4.0_2026-10-26.md`, `Docs/ComicsMetaOrganizer_QA_v0.4.0_2026-10-26.md`.
 - **Owner:** Ender fixes. Futaba checks what changed. Senua reviews. Sully releases.
 
+### Install offer reappears during pause-and-install (Sergei bug, 2026-10-26) — fix in progress
+- **Repro (Sergei, 0.3.0 → 0.4.0):** he checked for updates and pressed Install, then "Pause and install". The Install button came back. The install itself carried on and succeeded; 0.4.0 is running.
+- **Root cause (Ender):** `desktop/updates.cjs:56` puts the update state back to `'ready'` as soon as "Pause and install" is pressed, and `static/shell-ui.js` draws `'ready'` as "Install and restart". The DesktopShell spec §4 "After confirm" says "Banner returns to Ready underneath", which is now out of date.
+- **Fix (Ender, uncommitted):** a new `'parking'` state. The banner shows a waiting status with no buttons, Check for updates and API keys are disabled, and the tray says "Installing update…".
+- **Wanted (Sergei):** no second install offer. Show a waiting message instead, something like "Please wait while we park the process and install the new version". Judy sets the final wording.
+- **No Cancel on the waiting message (Sergei):** cancel stays in the Installing window.
+- **Timeout message says why (Sergei):** after the 10-minute timeout, the banner says that processing didn't pause in time, not just "did not start".
+- **Lock "Pause & release GPU" (Sergei, ruled "Yes, lock it"):** the dashboard's "Pause & release GPU" button is disabled from the press of "Pause and install" until the app restarts, so a stray click can't leave a user pause behind. Ender confirms it is feasible.
+- **Copy:** Judy's revision of the DesktopShell spec §4 (2026-10-26) has the final wording.
+- **Note:** the running version drives its own update, so the 0.4.0 → 0.4.1 update will still show the old button once.
+- **Owner:** Judy sets the copy, the spec row and focus. Ender fixes. Futaba verifies, including the tray tooltip.
+
 ### "This month" period in update statistics (Sergei, 2026-10-26)
 - **Wanted (Sergei):** add a "This month" period to the update statistics panel, as seen on the running 0.4.0.
 - **Rule (by analogy with Sergei's other rulings):** the current calendar month in local time. Judy specs placement, bar unit and copy.

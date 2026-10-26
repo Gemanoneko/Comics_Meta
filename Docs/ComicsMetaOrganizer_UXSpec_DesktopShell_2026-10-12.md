@@ -4,6 +4,8 @@ Date: 2026-10-12, revision 2 (same day). Owner: Judy. Status: reviewable draft; 
 
 Revision 2 folds in Sergei's answers of 2026-10-12 to the ten open questions. Each place an answer changed the spec is tagged `(Sergei 2026-10-12, A{n})`; the full record is §11. Nothing else in the first draft changed.
 
+**Revised 2026-10-26 (Sergei bug).** `Install and restart` was offered again while Pause and install was still running. §4 now has a Waiting state (the "After confirm" row is replaced) and a timeout failure that says why; the focus rule in §4, the Installing rows in §2, the Cancel line in §3, the §4a blocked row, §6, §9 and §11 follow. Every changed place is tagged `(Revised 2026-10-26, Sergei bug)`. Sergei's rulings are in §11; the copy, look and focus are Judy's.
+
 Classification: NEW shell surfaces (window, tray, stopping dialog, startup/failure page, app icon) plus one EXTEND of `static/index.html`: one banner slot under the header and one `Check for updates` button in the header, both rendered only inside the app shell. Dashboard content, the verification rows and the earlier specs (Yandex, VerificationLabels, Version) are unchanged. Tooltips for the existing bare dashboard controls are a separate doc: `ComicsMetaOrganizer_UXSpec_DashboardTooltips_2026-10-12.md`.
 
 Sergei's decisions applied. Round 1: close hides to the tray and processing continues; tray menu is Open, Pause & release GPU, Quit; Quit pauses, waits for Paused, then exits; no start at sign-in; update check only, and installing pauses and stops processing first. Round 2 (2026-10-12): §11.
@@ -80,7 +82,7 @@ State source: the **main process** polls a light status call every 3 s whether o
 | Service unreachable | `Local service not responding. Open the window for details.` |
 | Worker stopped (optional) | `Worker stopped. Open the window for details.` |
 | Quitting | `Quitting…` |
-| Installing | `Installing update…` |
+| Installing (from `Pause and install` until the app closes; Revised 2026-10-26, Sergei bug) | `Installing update…` |
 
 Suffix ` · Update available` on Processing, Paused and Needs verification while an update is available and not dismissed. Reuses the dashboard's own words ("Processing enabled", "Pausing", "Paused") so the same word means the same thing.
 
@@ -89,7 +91,7 @@ Suffix ` · Update available` on Processing, Paused and Needs verification while
 | # | Label | Behaviour |
 |---|---|---|
 | 1 | `&Open` | Shows, restores and focuses the window. |
-| 2 | `&Pause && release GPU` / `&Resume processing` | Label mirrors the dashboard button (follows `requested`, so it reads Resume while Pausing). Disabled while Starting, Quitting, Installing or service unreachable. |
+| 2 | `&Pause && release GPU` / `&Resume processing` | Label mirrors the dashboard button (follows `requested`, so it reads Resume while Pausing). Disabled while Starting, Quitting, Installing or service unreachable. Installing means the whole span from `Pause and install` until the app closes, not only while the stopping flow runs: the installer check and the update-helper copy come first and take time (Revised 2026-10-26, Sergei bug). |
 | | separator | |
 | 3 | `&Quit` | Starts §3. While stopping it reads `Quitting…` and is disabled. |
 
@@ -175,7 +177,7 @@ Install reuses every stage below, including the GPU release (Judy's extension of
 
 - `waiting_for` values map `metadata` to `comic processing` and `browser` to `browser search` (Ender confirms the mapping; internal names never reach the screen). The detail line is plain text, written only when its content changes.
 - Both buttons are disabled once the engine stop has begun (stage 3), so no click can race the exit.
-- Cancel returns to the state at the moment the flow began (see Pause ownership): if processing was running it resumes; if Sergei had paused it, it stays paused. Dialog closes, tray tooltip and menu restore, focus returns to the window's `#pauseControl`.
+- Cancel returns to the state at the moment the flow began (see Pause ownership): if processing was running it resumes; if Sergei had paused it, it stays paused. Dialog closes, tray tooltip and menu restore, focus returns to the window's `#pauseControl` for Quit. For Install the banner is back at Ready and focus goes to its `Install and restart`, where Sergei started (§4; Revised 2026-10-26, Sergei bug).
 - `Quit now` stops the service immediately and exits. No further confirmation: it is the escape hatch and the dialog already names the consequence. It sits in the same place in every stage.
 - Second launch during the dialog focuses it. Tray Open focuses it.
 
@@ -198,7 +200,7 @@ One in-flow block directly after `</header>` and before `#error`. Header and Pau
 - Box: background `#24364c`, 4 px left bar `#bcd8f9`, radius 14 px, padding 12×16, margin-bottom 20 px (same rhythm as `.panel`), min height 56 px. Text 16 px / 1.5, `#e7eaf1` on `#24364c` = **10.21:1**. Failure variant: background `#402b29` (the existing `#error` colour), left bar `#e08a7e` (5.08:1 on that background), text `#e7eaf1` = **10.93:1**.
 - Row: text grows (`min-width: 0`, wraps anywhere), actions on the right with an 8 px gap; at narrow widths actions drop below the text, left aligned. A state word opens every message, so meaning never depends on colour.
 - Buttons: native `<button>`, tab order after the header, Enter and Space activate. Primary: 10×14 padding, min height 40, `#385ea1` fill, `#eef2fb` text (**5.70:1**), 1 px `#bcd8f9` border (**8.39:1** on the banner). Hover keeps the fill and adds an inset 1 px `#bcd8f9` (do not inherit `#4776c6`, 4.01:1). Focus-visible: 2 px `#bcd8f9`, 2 px offset. Secondary: `#242c3b` fill, `#eef2fb` text (12.50:1), 1 px `#aab4c6` border (**5.89:1** on the banner). Dismiss: 32×32, `×` glyph, transparent, 1 px `#aab4c6` border, `aria-label="Dismiss update notice"`.
-- Focus never moves on its own. After a click removes the focused button, focus goes to the banner's next button, else `#pauseControl`. Do not jump to the page top.
+- Focus never moves on its own. After a click removes the focused button, focus goes to the banner's next button; if the banner has no button left (Waiting, below), to the banner's message line; only if the banner itself goes away, to `#pauseControl`. Do not jump to the page top. (Revised 2026-10-26, Sergei bug: the middle clause is new.)
 - Download progress uses a native `<progress>` (6 px high, fill `#bcd8f9`, track `#12151c`, accessible name `Update download`) under the text. Update it at most twice a second and do not announce percentages; announce only the state changes (start, ready, failed).
 
 ### States
@@ -209,10 +211,11 @@ One in-flow block directly after `</header>` and before `#error`. Header and Pau
 | Downloading | `Downloading v{X} — {n}%` plus the progress bar | none |
 | Ready | `Update ready — v{X}` | `Install and restart` (`Pause processing, install v{X} and restart the app.`); `×` (same dismiss tooltip) |
 | Confirm (after Install and restart) | `Install v{X}? Processing pauses first, then the app restarts.` | `Pause and install` (`Pause processing, then install and restart.`); `Cancel` (`Go back. The update stays downloaded.`). Default focus on Cancel. |
-| After confirm | Banner returns to Ready underneath; the §3 stopping dialog opens (Install column). | |
+| Waiting: from `Pause and install` until the installer starts (Revised 2026-10-26, Sergei bug) | `Installing v{X}… Processing pauses first, then the app restarts.` The §3 stopping window (Install column) opens over it if the pause runs past 1.5 s. | none, and no `×`. No Cancel here: Cancel lives in the stopping window (`Cancel install`), by Sergei's ruling. Detail in "Waiting and timeout" below. |
 | Failed, download | `Could not download v{X}. Check your connection and try again.` | `Try again` (`Download v{X} again.`); `×` |
 | Failed, damaged download | `The download of v{X} is damaged. Download it again.` | `Try again` (`Download v{X} again.`); `×` |
-| Failed, installer | `Could not start the installer. Try again.` Processing is resumed to its earlier state first. | `Try again` (`Install v{X} again.`); `×` |
+| Failed, installer | `Could not start the installer. Try again.` Processing is resumed to its earlier state first. The wording of this row is superseded by `ComicsMetaOrganizer_UXSpec_UpdateOutcome_2026-10-14.md` ("Proved not started": `The installer for v{X} did not start.`, `Try again`, `Open log folder`). | `Try again` (`Install v{X} again.`); `×` |
+| Failed, installer: processing did not pause in time (Revised 2026-10-26, Sergei bug) | `The installer for v{X} did not start because processing did not finish pausing within 10 minutes.` Detail line as UpdateOutcome: `The downloaded installer is kept. You can try installing again.` | `Try again` (`Try starting the downloaded installer for v{X} again.`); `Open log folder` (`Open the logs for this update attempt.`); `×`. Detail in "Waiting and timeout" below. |
 | Failed, unknown | `The update failed. Try again.` | `Try again` (`Try the update again.`); `×` |
 | Check failed (manual check only, §4a) | `Could not check for updates. Check your connection and try again.` | `Try again` (`Check for updates again.`); `×` |
 
@@ -222,7 +225,48 @@ One in-flow block directly after `</header>` and before `#error`. Header and Pau
 - Automatic checks are silent when up to date or when they fail (offline is not news). Cadence: once at launch after the service is ready (QuickLaunch checks 5 s after launch), then every 24 h while running; the manual check is in addition (A7). A long-running tray app that checks only at launch would sit on stale versions.
 - Update states survive the window being hidden; the banner reflects the current state on show. Dismiss clears the tray suffix too.
 - Check only, no auto-install, no install on quit: electron-updater `autoDownload` and `autoInstallOnAppQuit` stay off, as in QuickLaunch. Ender verifies the downloaded file before quitting; on any failure resume the earlier state and show the matching Failed row.
-- Install sequence after confirm: pause, wait for Paused and the GPU release (same stuck copy, Cancel only), stop the service, install, relaunch. The relaunched window opens at its remembered bounds. Processing resumes on that start unless Sergei had paused it himself (§3 pause ownership; Sergei 2026-10-12, A1).
+- Install sequence after confirm: pause, wait for Paused and the GPU release (same stuck copy, Cancel only), stop the service, install, relaunch. The relaunched window opens at its remembered bounds. Processing resumes on that start unless Sergei had paused it himself (§3 pause ownership; Sergei 2026-10-12, A1). The banner shows Waiting from the press to the app closing (Revised 2026-10-26, Sergei bug).
+
+### Waiting and timeout (Revised 2026-10-26, Sergei bug)
+
+Why it exists. Until 0.3.0 the banner went back to Ready the moment `Pause and install` was pressed, so `Install and restart` was offered a second time while the pause ran. Sergei's rulings: no second offer; no Cancel on the waiting banner (Cancel stays in the stopping window); the timeout banner says why.
+
+**Waiting.**
+
+- **Text.** `Installing v{X}… Processing pauses first, then the app restarts.` Why not Sergei's interim sentence (`Please wait while we park the process and install the new version.`): the copy standard cuts "Please wait" (the banner has no control, so waiting is the only thing there is to do), "we" (nobody to name) and "park the process" (internal word; the dashboard says pause). What stays is the state word first (§4 rule), the same verb as the stopping window's title and the tray (`Installing…`), and the restart promise from the Confirm banner, which is the one thing Sergei must expect. The version is always known in this state, as in Confirm.
+- **One banner for both updater phases.** The updater publishes `parking` (until the installer launches) and `installing` (launched, app about to exit). They render identically and the banner is not rebuilt between them: same render key, so nothing is re-announced and focus is not re-placed.
+- **Look.** The default variant (`#24364c`, 4 px left bar `#bcd8f9`; not the failure variant), text 16 px `#e7eaf1` (**10.21:1**), min height 56 px. No buttons, no `×`, no progress bar, no spinner; no new colour or token. Why no spinner: the Downloading bar shows measurable progress and this wait has none; the other no-button waiting banner (service Restarting, §5) is text only, so Sergei meets one idiom; a loop running for up to 10 minutes is the ambient animation this studio avoids; and liveness belongs to the stopping window, which opens after 1.5 s with stage text and the stuck copy. The `…` is the only motion cue. If Sergei wants motion anyway, the §5 spinner applies unchanged.
+- **Height and gaps.** Confirm is 64 px high (40 px buttons); Waiting is 56 px. Content below moves up 8 px, which the placement rule allows; the header and Pause never move. The actions container is not rendered when it has no buttons (Waiting, and Downloading, which has none either): an empty flex item still adds the 16 px column gap beside the text, and at 640 px and narrower its 100% basis puts it on its own line and adds 8 px of dead space under the text (read from the CSS; Futaba measures).
+- **Announcement.** The existing `role="status"` message, once, on entering the state. The text has no percent or count, so nothing changes while it is shown.
+
+**Controls while Waiting** (the set Downloading, Confirm and Quitting already lock; Sergei sees one rule):
+
+| Control | State | Tooltip |
+|---|---|---|
+| `Check for updates` | label unchanged, disabled | `Unavailable while updating or quitting.` |
+| `API keys` | disabled | `Unavailable while updating or quitting.` |
+| Tray menu item 2 | disabled from the press (§2) | none: native menu items carry none (F2); the tray tooltip is `Comic Metadata — Installing update…` |
+
+Both header strings are the existing ones; Futaba hovers each disabled control and reads the tooltip as rendered, since a native `title` on a disabled button is the case §4a already relies on. **Open (Sergei, below in the report, not decided here):** whether the dashboard's own `Pause & release GPU` is also locked from the press until the stopping window opens. Today it is not, so a click in that gap sets a user pause that would survive the restart (§3 pause ownership).
+
+**Focus after `Pause and install`: the banner's message line** (`tabindex="-1"`, focused by script, not in the tab order). The press removes the focused button and Waiting has no other, so the §4 rule applies. Why not `#pauseControl`, where 0.3.0 lands: Space or Enter there pauses or resumes processing, and a pause set by a stray key during the wait is a user pause that survives the restart. Why not `body`: the keyboard and screen-reader position is lost. The message line is inert (stray keys do nothing), sits where Sergei was looking, and matches the §5 failure page (after Try again, focus goes to the status line). It happens only when focus was inside the banner, which is always true after pressing a banner button, so it never takes focus from anywhere else. From the message line focus follows the rest of the flow by the same rule: a failure puts it on `Try again`; `Cancel install` in the stopping window leaves the banner at Ready with focus on `Install and restart`; an installer start closes the app.
+
+**Timeout (10 minutes without a pause).** The install gives up, processing returns to the state it had (the §3 Cancel rule), the service is restarted if it was stopped, and the banner changes to the failure variant:
+
+| Part | Text |
+|---|---|
+| Message (`role="status"`, announced) | `The installer for v{X} did not start because processing did not finish pausing within 10 minutes.` |
+| Detail | `The downloaded installer is kept. You can try installing again.` Only when the service did not restart, add: `The local service did not restart. Processing stays stopped.` (both as UpdateOutcome) |
+| Buttons | `Try again` (primary; `Try starting the downloaded installer for v{X} again.`), `Open log folder` (`Open the logs for this update attempt.`), `×` (`Hide this notice until the app restarts.`) |
+
+- **Reason in the message, not the detail.** The detail line is not a live region, so a reason there is not announced, and "did not start" alone leaves Sergei nothing to decide on.
+- **"Did not finish pausing", not "did not pause".** The same cap covers the GPU release after Paused, where the stopping window says `Paused. Releasing Gemma from GPU…`; "did not pause" would contradict what he just read. "Pausing" here is the whole pause-and-release that the dashboard button names.
+- **The number is the cap.** `10` comes from the constant that sets the cap, not a second copy. If Ender retunes the cap (§3 placeholder), the string follows.
+- **Other pre-launch failures** (installer check fails, service not responding, launch refused) keep the generic UpdateOutcome title with no reason until a reason is known and written for each.
+- **Try again** returns to Waiting without a second Confirm (Sergei already confirmed) and focus moves to the message line again.
+- **For Ender.** The failed state carries a reason, and the timeout throw gets a code so the banner does not match on message text (today a bare `Error`). The 10-minute figure and its cap share one constant.
+
+**Nothing covers anything.** Checked from the code and CSS, not measured: the app was not launched. The Waiting banner is in flow under the header, has no control and adds no overlay. The stopping window (§3) is the one sanctioned modal over it, with its own `Cancel install`. `#error` can still slide over the banner's text when the page scrolls (§6, existing risk); the banner holds no hit area for it to steal. Futaba measures rects at 640 and 1280 px: banner box, both disabled buttons, `#pauseControl`, the version badge, and that the header and Pause do not move on the Confirm to Waiting change.
 
 ### 4a. Check for updates control (Sergei 2026-10-12, A7: yes)
 
@@ -239,7 +283,7 @@ One in-flow block directly after `</header>` and before `#error`. Header and Pau
 | Up to date | `Up to date` for 5 s, then Idle | `You have the latest version.` | Live region: `Comic Metadata is up to date.` |
 | Update found | Idle at once | as Idle | Banner shows Available (§4), even if it was dismissed; the tray suffix returns. |
 | Check failed | Idle at once | as Idle | Banner shows the Check failed row (§4). Its `Try again` runs a check and the button shows Checking until the result replaces the banner. |
-| Downloading, Confirm, Installing or Quitting | `Check for updates`, disabled | `Unavailable while updating or quitting.` | |
+| Downloading, Confirm, Waiting, Installing or Quitting | `Check for updates`, disabled | `Unavailable while updating or quitting.` | Waiting is the span from `Pause and install` until the installer starts (§4; Revised 2026-10-26, Sergei bug). |
 | Ready | Idle (enabled) | as Idle | A check re-shows the Ready banner if dismissed; it never downloads again. |
 
 - Live region: `<span id="updateCheckStatus" class="sr-only" role="status" aria-live="polite">` beside the button, written only on a state change.
@@ -298,7 +342,7 @@ Three attempts, spaced as today's scheduled-task behaviour (README: up to three 
 
 ## 6. Hit areas and focus (every state)
 
-No new element overlaps another on the same plane. The banner, the header's version row, the startup page and the failure page are in flow. The only overlay is the stopping dialog, a modal and dismissible. Existing `#error` is `position: sticky` and can slide over the banner while the page scrolls; this spec does not change it, Futaba measures it (§9). New controls: banner buttons, `×` dismiss, `Check for updates`, failure-page buttons, dialog buttons. Each ships with the tooltip above in its creating commit, as the native `title`, which the browser also exposes as the accessible description when the control already has its own name; Futaba confirms that in the accessibility tree. Dismiss and dialog buttons have `aria-label` or visible text that matches. Ctrl+Q has no control.
+No new element overlaps another on the same plane. The banner, the header's version row, the startup page and the failure page are in flow. The only overlay is the stopping dialog, a modal and dismissible. Existing `#error` is `position: sticky` and can slide over the banner while the page scrolls; this spec does not change it, Futaba measures it (§9). New controls: banner buttons, `×` dismiss, `Check for updates`, failure-page buttons, dialog buttons. Each ships with the tooltip above in its creating commit, as the native `title`, which the browser also exposes as the accessible description when the control already has its own name; Futaba confirms that in the accessibility tree. Dismiss and dialog buttons have `aria-label` or visible text that matches. Ctrl+Q has no control. Waiting banner (Revised 2026-10-26, Sergei bug): in flow, no control of its own, no overlay; the stopping window is the sanctioned modal over it; the two disabled header buttons keep `Unavailable while updating or quitting.`; focus sits on the banner's message line (§4).
 
 ## 7. Process flags (ProcessRules)
 
@@ -337,6 +381,7 @@ Nothing here is rendered or measured yet. Futaba, per state, reports viewport, m
 - Tray: all four icon states on a light and a dark taskbar at 100% and 200% scale (crops, pixel-sampled badge contrast); each tooltip at or below 127 characters; menu labels as rendered, including `Pause & release GPU` with the ampersand visible; stale-label click does nothing; left click, double-click, right click, keyboard (Win+B, Enter, Shift+F10).
 - Quit: already Paused and released (exits at once, no window), running (dialog at 1.5 s, stages 1 to 3 in order), Paused with Gemma still unloading (inject a slow unload: stage 2 copy, then stage 3), release error (stage 3 error copy, exits), Pausing already requested, service dead, Cancel from running, from stage 2 and from manually paused, Quit now in stage 1 during an in-flight write (recovery backup retained) and in stage 2, 60 s and 30 s stuck copy (inject), 10-minute fallback (inject), renderer crashed, dashboard failed to load, shutdown. Next-start state after each exit path: Processing, except after a user pause, which stays paused (A1), including after Quit now, the fallback and a sign-out. A force-kill invalidates any shutdown claim (ProcessRules § Verification Discipline). Close-timing runs use a clean profile and the real data moved aside, restored byte-identical. The shell's Quit through the tray path is the smoke path. Observe each check fail once on a known-bad input.
 - Update: against a local mock feed only (no real release, no real install): available, downloading, ready, confirm, cancel, failed (three kinds), dismiss, relaunch at remembered bounds, relaunch state per A1.
+- Waiting and timeout (Revised 2026-10-26, Sergei bug), same mock feed: press `Pause and install` and read the banner at every state the updater publishes (before the stopping window opens, with a slow installer check to widen that gap; window open at each stage; installer launch). Expect the exact Waiting text, no buttons and no `×`, `Check for updates` and `API keys` disabled (hover each and read the tooltip as rendered), the tray tooltip `Comic Metadata — Installing update…` with tray item 2 disabled, and no `Install and restart` at any moment. Focus lands on the message line, Space and Enter there do nothing, and nothing is announced again between the two updater phases. End states: `Cancel install` (Ready returns, focus on `Install and restart`); a 10-minute timeout, injected (exact timeout message and detail, `Try again` returns to Waiting); a launcher refusal (generic did-not-start title, no reason). Rects at 640 and 1280 px, including the 640 px dead-space check under the text. Run the no-second-offer check once against 0.3.0 behaviour as the known-bad input and see it fail.
 - Startup: slow start, exit-code start, port taken, missing files, dashboard load failure, Try again, reduced-motion.
 - Notifications: first close shows the first-time notice once (silent, no focus change); the `failed` path retries; second close shows nothing. Tray-started pause: one toast on finish (released, and a forced release error), none for the dashboard button, none for a shell pause, none when the window is visible and focused, none after Resume mid-pause; verification-needed raises no toast.
 - Icon: §10 review gates.
@@ -416,6 +461,10 @@ The ten open questions are closed. Source for every row: Sergei's answers of 202
 | A10 | Tooltip pass over bare dashboard controls | Yes, as a separate spec | `ComicsMetaOrganizer_UXSpec_DashboardTooltips_2026-10-12.md` |
 
 **Judy's calls beyond the answers** (Sergei can overrule any; none blocks Ender): install also waits for the GPU release (§3); the tray-pause toast is suppressed while the window is visible and focused (§2); the tray's Quit item shows no `Ctrl+Q` (§2); Check for updates reports Checking and Up to date on its own button instead of the banner, to avoid a page jump when the notice vanishes (§4a); the icon is teal, to stand apart from ComixManagementTool (§10).
+
+### Revision 2026-10-26 (Sergei bug)
+
+Sergei's rulings: the waiting banner has no Cancel (Cancel stays in the stopping window), and after the 10-minute timeout the banner says why processing did not pause in time. His interim sentence was a placeholder; the final copy, the look and the focus rule are in §4 "Waiting and timeout". One question for him is open there: whether the dashboard's own Pause button is also locked during the wait.
 
 **Remaining items** (none needs Sergei):
 
