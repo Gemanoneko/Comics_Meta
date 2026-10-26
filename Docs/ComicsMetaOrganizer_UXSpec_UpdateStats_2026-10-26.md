@@ -261,7 +261,7 @@ The chart's own hover tooltip is the tooltip for the chart control. The native `
 | Appears | immediately when the pointer enters an active slot; no delay, no fade |
 | Hides | when the pointer leaves the plot, on `Escape`, on chart blur |
 | Position | above the bar, 8 px gap, centred on the slot; for an empty slot, 8 px above the baseline. Clamped so it stays inside the chart wrapper horizontally. If there is no room above (tooltip top would be above the wrapper), move it beside the slot instead: right of the slot, or left if the right side clips. |
-| Style | fill `#242c3b`, 1 px `#485771` border, 8 px radius, padding 8 px 12 px, shadow `0 4px 16px #000a`, `white-space:nowrap` |
+| Style | fill `#242c3b`, 1 px `#485771` border, 8 px radius, padding 8 px 12 px, shadow `0 4px 16px #000a`, `width:max-content; max-width:100%; overflow-wrap:anywhere` instead of `white-space:nowrap` (Judy 2026-10-26, QA-1: keep the wrap): a line wraps only when wider than the chart, which the horizontal clamp above requires; at 320 CSS px a full-width wrapped tooltip can cover the hovered bar (read from `place()`, not measured), accepted as transient with no hit area |
 | Text | line 1 14 px / 1.5 weight 600 `#eef2fb`; line 2 14 px / 1.5 `#e7eaf1` (12.5:1 and 13:1 on the fill) |
 | Layering | `position:absolute`, `z-index:1` (the sticky error banner is 2), **`pointer-events:none`** so it never steals a hover from the slot beneath it |
 
