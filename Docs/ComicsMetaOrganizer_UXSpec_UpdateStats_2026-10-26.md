@@ -407,3 +407,129 @@ Bars as a pointer target: they perform no action, so WCAG 2.5.8 target size does
 ## Questions for Sergei
 
 1. The table rows say `Updated by this tool` for the state the counter now calls `Currently tagged by this app`, and the status filter says `Tagged by this app`. Rename the row label to `Tagged by this app` so all three match? (yes / no)
+
+## § Addendum 2026-10-26 (post-build)
+
+Owner: Judy. Written after reading Ender's uncommitted build (`update_stats.py`, `static/update-stats.js`, the `static/index.html` diff) and measuring his nine screenshots pixel by pixel (panel crops at device pixel ratio 1; 1201 px wide at the 1280 window, 595 px at 640; x and y are counted from the image's top-left, so the panel's inner left edge is x = 23). Where this addendum and the sections above disagree, the addendum wins; each rule names the section it amends. Everything else stands. Sergei's backlog rulings are untouched. Question 1 above is closed by Sergei's ruling in the header (the row label is `Tagged by this app`), so the third bullet of section 15 is out of date.
+
+### A1. Long ranges: the 60-bar rule (replaces the span table and the "never more than 60 bars" paragraph in section 5)
+
+**Rule.** For `All time` and `Custom`: a range of one calendar day is hourly, as before. Any longer range uses the **finest unit, tried in this order, whose bar count for those exact dates is 60 or fewer: day, week (Monday start), month, year.** The count includes the partly covered slot at each end. The unit label always names the unit on screen. Ender tries the units in order and keeps the first that fits; no day thresholds are hardcoded, so the 60-bar limit holds by construction.
+
+What that means (every count includes the edge slots):
+
+| Range | Unit | Bars |
+|---|---|---|
+| 1 day | hour | 24 (23 or 25 on a clock-change day) |
+| 2 to 60 days | day | 2 to 60 |
+| 61 to 414 days, any start day | week | 9 to 60 |
+| 415 to 420 days | week if the range touches 60 or fewer Monday-start weeks, otherwise month | 14 to 60 |
+| 421 days up to 60 calendar months touched | month | 14 to 60 |
+| 61 or more calendar months touched | year | 6 to 60 |
+
+Why 414: a week-based range starting on a Sunday touches one extra week, so 414 days is the longest range that stays at 60 weekly bars from any start day. Before this rule a 420-day range starting on a Sunday drew 61 bars.
+
+Test dates (all checked): Sun 4 Jan 2026 to Sun 21 Feb 2027 is 414 days, 60 weekly bars. Sun 4 Jan 2026 to Sat 27 Feb 2027 is 420 days, 61 weeks touched, so monthly (14 bars). Mon 5 Jan 2026 to Sun 28 Feb 2027 is also 420 days, 60 weeks, so weekly. 1 Jan 2021 to 31 Dec 2025 is 60 months, monthly, 60 bars. 1 Jan 2021 to 1 Jan 2026 touches 61 months, yearly, 6 bars, the last one holding one day.
+
+**Year bars (new unit).** The server unit is `year`, slots cut at 1 January local, partial first and last years clipped like months.
+
+| Item | Spec |
+|---|---|
+| Unit label (`#statsUnit`) | `Comics per year` |
+| Axis label | `{year:'numeric'}`, thinned by the rule in A3 row 2 |
+| Tooltip line 1 | the year, `2024`; a year clipped by the range names its dates exactly as a clipped month does (`Sun 12 Jan – Thu 31 Dec 2020`) |
+| Headline, dates line, notes | unchanged (the period's own wording) |
+
+**Date limits (amends section 4, "Limits").** `#statsFrom` and `#statsTo` get `min="2000-01-01"` as well as `max` = today. The server's own floor moves from 1970-01-02 to 2000-01-01 with the same message. Reason: the app cannot have updated a comic before it existed, and with 2000 as the floor the yearly rule stays at 60 bars or fewer through 31 Dec 2059. A 1970 floor would have broken the 60-bar rule in 2030. Rejected alternatives: a hard cap with a message (blocks a legitimate range, against user control) and a quarterly unit (a fifth unit for ranges the history cannot reach before 2031).
+
+New row in the invalid-input table (amends section 4); no request is made, `aria-invalid="true"` goes on the offending input:
+
+| Case | Message |
+|---|---|
+| A date is before 1 Jan 2000 (typed) | `Dates before 2000 are not available.` |
+
+When several inputs are wrong, one message shows, in this order: `Pick both dates.`, `Dates after today are not available.`, `Dates before 2000 are not available.`, `End date is before the start date.` (the build already uses this order for the other three).
+
+**A server refusal is not an outage.** `update-stats.js:96-103` sends every failed request to the Error state, so a refused date today shows `Statistics unavailable. Retrying.` and retries every 15 s for ever. Rule: an HTTP 400 whose `code` is `invalid_range` shows its `error` text in `#statsRangeError` (same style and `role="status"` as above), keeps the last good data, marks no outage and schedules no retry. Every other failure stays as section 9.
+
+**What 60 bars looks like (accepted, no change).** At the 640 window the plot is 497 px, pitch 8.28 px, bar 5.8 px; at 1280 pitch 18.4 px, bar 12.9 px. The pointer column is 8.3 px wide at the minimum window; the arrow-key path reads the same tooltips, so this stays.
+
+### A2. Daylight saving (amends section 5 axis labels and section 8 tooltip line 1)
+
+Cause: the build formats a slot's end instant on its own. On the autumn day the first copy of the repeated hour ends at the second copy's start, so it reads `02:00–02:00`.
+
+Rules (these also hold for 5-minute slots; day, week, month and year slots show dates and are unaffected):
+
+1. **The end time is read on the clock that was running at the slot's start**: start clock plus the slot's length. Never format the end instant alone.
+2. **Repeated hour.** Two consecutive hourly slots with the same start clock time are the repeated hour. Line 1 is identical for both except a suffix: ` (first time)` on the first, ` (second time)` on the second. Line 2 is unchanged (`4 comics`, `4 comics so far`). The keyboard announcement is the tooltip text, suffix included.
+3. **Spring day.** The missing hour has no slot (23 bars). The slot that spans the jump reads `01:00–02:00`; no suffix.
+4. **Hourly axis labels** are aligned to the clock, not to the slot number: label a slot when its start hour is a multiple of N (N from A3 row 2). On the repeated hour only the first copy qualifies. If a clock change removes an aligned hour, that label is simply absent. (Slot-number alignment would flip every label after the change to odd hours.)
+5. **`Last hour` dates line** (section 6): when the two times are equal because the clocks went back inside the window, append ` (clocks went back)`: `02:10–02:10 (clocks went back)`. The 5-minute slot that spans the change reads by rule 1, for example `02:55–03:00`.
+
+How the page learns this is Ender's choice (a per-slot `repeat` of 1 or 2 plus the end clock from the server, or comparing neighbouring slots' local hours). The page still computes no zone boundaries.
+
+Test vectors, hourly, Europe/Berlin, Sun 25 Oct 2026, 24-hour clock (with an en-US OS locale the first reads `Sun, Oct 25, 2:00 AM–3:00 AM (first time)`):
+
+| Slot starts at | Line 1 |
+|---|---|
+| 01:00 CEST | `Sun 25 Oct, 01:00–02:00` |
+| 02:00 CEST | `Sun 25 Oct, 02:00–03:00 (first time)` |
+| 02:00 CET | `Sun 25 Oct, 02:00–03:00 (second time)` |
+| 03:00 CET | `Sun 25 Oct, 03:00–04:00` |
+
+Spring, Sun 29 Mar 2026: slots `00:00–01:00`, `01:00–02:00`, `03:00–04:00`; no `02:00` slot.
+
+### A3. Red-team of the nine screenshots
+
+**Matches the spec (measured; no action).**
+
+| Measure | Spec | Measured |
+|---|---|---|
+| Panel size | about 470 tall; inner 1150 / 550 | 1201 × 474 (inner 1155) and 595 × 473 (inner 549) |
+| Chips | 32 px high, 8 px gaps | y 84–115 (32 rows); gaps x 106–113, 176–183, 271–278, 359–366, 440–447 (8 px each); selected ring 2 px `#bcd8f9`, fill `#385ea1` |
+| Custom row, message | +44 px, +29 px | 474 → 518 → 547 |
+| Date inputs | 176 × 32, 12 px apart | x 61–236 and 270–445, y 128–159; ring on `To` outer x 266–449, y 124–163; invalid border `#e08a7e` 2 px inside the ring |
+| Plot | 44 px gutter, 8 px right pad, 144 px high | x 67–1169 (1103 px) and 67–563 (497 px); grid y 236 and 308, baseline y 380 |
+| Bar width | pitch × 0.7, 2 to 48 px | 31–32 px (pitch 46.0), 13–14 px (pitch 20.7), 47–48 px with 7 bars; one comic on an 8 axis is 17 px tall |
+| Tooltip (shot 02) | centred, 8 px above the bar | 224 × 60, centre x 457.5 against slot centre 457.7, 8 clear rows above the bar (301–308) |
+| Tooltip, no room above (shot 08) | beside the slot, 8 px | slot ends x 137, tooltip starts x 146 (8 clear), top y 229 = wrapper top |
+| Chart focus ring (shot 08) | 2 px, offset 2, unclipped | outer x 19–575, y 225–424: 4 px outside the wrapper, 19 px inside the panel edge |
+| `Last hour` labels | first centred on the plot edge, `now` right-aligned | first centre x 67.0 (edge 67); `now` ends x 563 (edge 563) |
+| Label centring | centred under the slot | 12 AM centre 89.5 against slot centre 90.0; `20 Tue` 145.5 against 145.8 |
+
+**Deviations and things that get in the way.** Rows 1 to 4 and 6 amend the sections named; row 5 is latent (not visible in the shots) and measured from the widest label there.
+
+| # | Finding and measurement | Rule |
+|---|---|---|
+| 1 | **Tooltip shadow dims the hovered bar** (shot 02). `0 4px 16px #000a` reaches 20 px below the box. Down the hovered bar the first row is `#98aec9` (red channel 152 of 188, 19% dark) and only reaches `#bcd8f9` at y = 330, 21 rows down. The lightness highlight is weakest at the bar's top, where the eye lands. | `#statsTip` shadow becomes `0 2px 6px #0008` (reaches 8 px, stops at the gap). Amends section 8. |
+| 2 | **Week labels at 640 lose half their labels** (shot 08). Pitch is 71.0 px against a fixed 72 px threshold, so only `26 Mon`, `28 Wed`, `30 Fri`, `1 Sun` show. The widest label is 43 px; all seven would leave 28 px between neighbours. | Amends section 5 thinning. N = the smallest of 1, 2, 3, 4, 6, 12, 24, 48 with N × pitch at least **the widest label as drawn plus 16 px** (measured with `getBBox`, which the clip guard already uses); the fixed 72 px goes. Effects: the week at 640 labels all 7 days; `Today` at 640 moves from every 4th hour to every 3rd (widest label 35 px, N = 3 gives 62 px); `Today`, `All time` and the year at 1280, and the year at 640, keep today's labels. If none fits, only the first slot is labelled, as before. |
+| 3 | **Focus ring crowds the unit label** (shot 08). Descenders of `Comics per day` end at y = 222; the ring's top edge is y = 225: 2 clear rows. Offset 2 plus width 2 uses up the 4 px gap. | `#statsChart` margin-top 4 px becomes **8 px** (6 clear rows). The panel grows by 4 px (478 and 477). Amends the section 3 stack table and section 13 ("starts 4 px below" becomes 8 px). |
+| 4 | **Y labels sit about 2 px low.** The `8` occupies rows 234–242 (centre row 238) on a grid line at row 236; the `0` occupies rows 378–386 (centre 382) against the baseline at row 380. `dominant-baseline:central` centres the em box, not the digits. Cosmetic. | Draw y labels 2 px higher than their line (y − 2). |
+| 5 | **Y labels clip from 10,000** (latent). `2,000` is 31 px wide (x 28–58) in a 36 px gutter, 5 px spare; `10,000` is about 38 px and loses about 2 px of its leading digit. Reachable on a monthly or yearly axis after a large rescan. | When `yMax` is 10,000 or more, the three y labels use compact notation: `0`, `5K`, `10K`; `0`, `10K`, `20K`; `0`, `500K`, `1M` (`Intl.NumberFormat` compact, no decimals; every mid is whole at those steps). Tooltips and the headline keep full numbers. Below 10,000 nothing changes. Amends section 7. |
+| 6 | **Empty note on a range before counting began** (shot 05). Custom 1–10 Sep shows `Last update: 4:02 PM.` It is true but does not answer "why 0?". | Amends section 9 Empty: when the period is `Custom`, the total is 0 and the range ends before `first_at`, the note is `Counting began on {d MMM yyyy}.` (the format of the `All time` tooltip). Every other empty case keeps `Last update: …` / `No updates yet.` |
+| 7 | **Clipped first week label** (spec gap, build behaves one way). Section 5 says the week label is "the Monday"; when the first week is cut by the range start, the build labels its first day. | Codified: a week's axis label is its first day inside the range, the Monday for every full week. Showing a Monday before the range starts would claim data the range does not cover. |
+
+**Looked at and left as built.** The tooltip covers neighbouring bars (shot 02: box x 346–569, bottom y 300, covers the top 28 rows of the taller 9 AM bar); it is transient and `pointer-events:none`. An invalid custom range keeps the last good headline (shot 04 reads `Oct 20 – Oct 26` over inputs `10/20` and `10/19`), as section 4 says, and the message sits between them. The slot highlight `#242c3b` on `#1b202b` is about 1.2:1 and stays decoration; the lightened bar and the tooltip carry the state. Panel height 474 at 1280 and 473 at 640 is 1 px of rounding (baseline is y = 380 in both).
+
+### A4. Screenshots I want next
+
+Method: stub `/api/update-stats` in the browser with a hand-built payload (Playwright `page.route`); for the clock-change shots also set the browser context to `timezone_id: Europe/Berlin`. No server clock tricks. Same panel crop at 1280 and 640 unless noted. In priority order:
+
+1. Autumn day, `Today`: 25 bars; hover the first and the second `02:00` slot; keyboard onto both; the axis labels (A2).
+2. Spring day, `Today`: 23 bars; hover the `01:00–02:00` slot.
+3. Long ranges: Custom 1 Jan 2021 – 31 Dec 2025 (60 monthly bars; hover first, middle, last); Sun 4 Jan 2026 – Sun 21 Feb 2027 (60 weekly bars, first slot one day); Sun 4 Jan 2026 – Sat 27 Feb 2027 (monthly); 1 Jan 2021 – 1 Jan 2026 (6 yearly bars, last clipped). Checks pitch, labels and the year tooltip.
+4. Counts up to 12,000 on a monthly axis at 640 (compact y labels, no clipping), and one at 9,000 (`8,000` fits).
+5. Tooltip placement at 1280: first active slot, last active slot (right clamp), the tallest bar (beside-the-slot fallback), a zero slot (8 px above the baseline).
+6. Empty states: Custom range before counting began (new note); empty `Today` with `Last update:` on the same day and on an earlier day.
+7. Keyboard focus rings: Tab onto the picker (a middle chip and the last chip), `From` and `To` valid, the chart at 1280.
+8. States with the panel height measured: first load, a slow period change (60% opacity, `–`), a failed request (60% and the amber note), `Pick both dates.` and a 1999 date.
+9. 200% zoom at the 640 window (320 CSS px, device scale factor 2): chips and the custom row wrap, nothing clipped, ring visible.
+10. Details dialog open over the page, and the sticky error banner over a tooltip (layering only; Futaba's live pass can cover these two).
+
+### A5. Acceptance changes (amends section 14)
+
+- **Item 3 replaced:** hourly for 1 day; daily for 2 and 60 days; weekly for 61 and 414 days (the 414-day Sunday start draws 60 bars); monthly for 421 days; the 420-day pair in A1 gives monthly for the Sunday start and weekly for the Monday start; 1 Jan 2021 – 31 Dec 2025 monthly with 60 bars; 1 Jan 2021 – 1 Jan 2026 yearly with 6 bars. A range test over every start date from 2000-01-01 to today shows no result above 60 bars.
+- **New:** a typed 1999 date gives `Dates before 2000 are not available.` and no request; a 400 `invalid_range` shows its message in `#statsRangeError`, never `Statistics unavailable. Retrying.`
+- **New:** the A2 test vectors, for tooltip text, the keyboard announcement and the hourly axis labels.
+- **New:** y labels compact from 10,000; label thinning by measured width; tooltip shadow stops at the gap; chart margin 8 px; empty-range note.
+- **Item 12:** the focus ring keeps at least 6 clear rows from the unit label's glyphs.
