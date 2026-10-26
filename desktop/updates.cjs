@@ -5,6 +5,7 @@ const {createReadStream}=require('node:fs');
 const crypto=require('node:crypto');
 const {launchInstaller}=require('./installer-launch.cjs');
 const {prepareUpdateCapsule}=require('./update-capsule.cjs');
+const {PAUSE_LIMIT_MS}=require('./graceful-stop.cjs');
 const path=require('node:path');
 class Updates extends EventEmitter {
   constructor({updater,stopper,engine,log,exit,qaInstallDirectory,qaArtifact,launch=launchInstaller,prepare=prepareUpdateCapsule,workRoot,record=()=>{}}){
@@ -50,14 +51,17 @@ class Updates extends EventEmitter {
   }
   confirm(){if(this.state.phase==='ready' && !this.operation)this.patch({phase:'confirm'});}
   cancelConfirm(){if(this.state.phase==='confirm')this.patch({phase:'ready'});}
-  dismiss(){if(!['downloading','confirm','installing','installer-uncertain'].includes(this.state.phase))this.patch({dismissed:true});}
+  dismiss(){if(!['downloading','confirm','parking','installing','installer-uncertain'].includes(this.state.phase))this.patch({dismissed:true});}
   async install(){
     if(this.operation || this.state.phase!=='confirm')return;
-    this.operation='install';this.patch({phase:'ready'});let launcherInvoked=false;
+    // 'parking' covers the whole wait (installer check, capsule copy, pause and GPU release, engine stop) until
+    // the installer starts. It used to publish 'ready', which offered Install again mid-park (Sergei 2026-10-26).
+    this.operation='install';this.patch({phase:'parking',dismissed:false,reason:null,pauseMinutes:null});let launcherInvoked=false;
     try{
       await this.verify();
       const capsule=await this.prepare({resources:this.engine.resources,workRoot:this.workRoot});
-      if(!await this.stopper.run('install'))return;
+      // Cancelled (or a quit already owns the stopper): nothing was stopped, so the update is offered again.
+      if(!await this.stopper.run('install')){this.patch({phase:'ready'});return;}
       // The fixed per-user NSIS contract is launched only after all engine
       // workers/browser descendants have exited. Observe spawn before quitting
       // so a startup error can restore the earlier engine and user-pause state.
@@ -68,10 +72,15 @@ class Updates extends EventEmitter {
     }catch(error){
       if(!launcherInvoked)error.installerStarted=false;let restoreFailed=false;this.log(error);this.recordAttempt(error.installerReceipt||{started:error.installerStarted??null,accepted:false,phase:error.installerStarted===false?'not-started':'unknown',code:error.code||'INSTALLER_OUTCOME_UNKNOWN'});
       if(!this.engine.ready&&(error.installerStarted===false||error.code==='DAMAGED')){try{await this.engine.start();}catch(restartError){restoreFailed=true;this.log(restartError);}}
-      const uncertain=error.code!=='DAMAGED'&&error.installerStarted!==false;this.patch({phase:error.code==='DAMAGED'?'damaged':uncertain?'installer-uncertain':'installer-failed',installerStarted:uncertain?error.installerStarted??null:false,restoreFailed,dismissed:false});
+      const uncertain=error.code!=='DAMAGED'&&error.installerStarted!==false;
+      // The banner names a reason only when one is known (DesktopShell spec §4, Revised 2026-10-26): the pause cap.
+      const timeout=!uncertain&&error.code==='PAUSE_TIMEOUT';
+      this.patch({phase:error.code==='DAMAGED'?'damaged':uncertain?'installer-uncertain':'installer-failed',installerStarted:uncertain?error.installerStarted??null:false,restoreFailed,dismissed:false,
+        reason:timeout?'pause_timeout':null,pauseMinutes:timeout?PAUSE_LIMIT_MS/60000:null});
     }finally{this.operation=null;}
   }
   recordAttempt(receipt){try{this.record({schema:1,time:new Date().toISOString(),expectedVersion:this.info?.version||null,artifact:this.info?this.validateInfo(this.info):null,receipt});}catch(error){this.log(error);}}
-  async retry(){if(this.state.phase==='installer-uncertain')return;if(this.state.phase==='check-failed')return this.check(true);if(this.state.phase==='installer-failed'){this.patch({phase:'confirm'});return this.install();}return this.download();}
+  // installer-failed goes straight back to Waiting: Sergei already confirmed, so no second Confirm is published (spec §4).
+  async retry(){if(this.state.phase==='installer-uncertain')return;if(this.state.phase==='check-failed')return this.check(true);if(this.state.phase==='installer-failed'){this.state.phase='confirm';return this.install();}return this.download();}
 }
 module.exports={Updates};

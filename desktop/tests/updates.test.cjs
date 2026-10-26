@@ -10,3 +10,32 @@ test('proved installer pre-start failure restores old engine; unknown start does
 test('accepted held startup is the only successful install exit path',async()=>{const {updater,updates,stopper,engine}=setup();let exits=0;engine.resources='owned-fixture';updates.exit=()=>exits++;updates.verify=async()=>{};updater.emit('update-available',info());updates.state.phase='confirm';updates.file='owned-fixture.exe';stopper.run=async()=>{engine.ready=false;return true;};updates.launch=async request=>{assert.equal(request.python,'owned-capsule/python.exe');assert.equal(request.helper,'owned-capsule/installer_launch.py');assert.equal(request.size,7);assert.equal(request.sha512,info().files[0].sha512);assert.equal(request.parent_pid,process.pid);return{started:true,accepted:true};};await updates.install();assert.equal(exits,1);assert.equal(updates.state.phase,'installing');});
 
 test('capsule preparation failure never stops engine or starts installer',async()=>{const {updates,updater,stopper}=setup();let stops=0,launches=0;updater.emit('update-available',info());updates.state.phase='confirm';updates.verify=async()=>{};updates.prepare=async()=>{throw Error('synthetic closure mismatch');};stopper.run=async()=>{stops++;return true;};updates.launch=async()=>{launches++;};await updates.install();assert.equal(stops,0);assert.equal(launches,0);assert.equal(updates.state.phase,'installer-failed');});
+
+// Sergei's 0.3.0 -> 0.4.0 update (2026-10-26): after "Pause and install" the notice offered "Install and restart"
+// again while the park was still running, because install() published phase 'ready' for the whole attempt.
+// The park is held open here so the phase can be read while it runs.
+function parkHeld(){const {updater,updates,stopper,engine}=setup();const phases=[],counts={launches:0,exits:0,restarts:0};let park=null;
+  engine.resources='owned-fixture';engine.start=async()=>{counts.restarts++;engine.ready=true;};updates.verify=async()=>{};updater.emit('update-available',info());updates.file='owned-fixture.exe';updates.state.phase='confirm';
+  updates.exit=()=>counts.exits++;updates.launch=async()=>{counts.launches++;return{started:true,accepted:true,phase:'started',installer_pid:1};};updates.on('state',value=>phases.push(value.phase));
+  stopper.run=async mode=>{assert.equal(mode,'install');stopper.busy=true;try{return await new Promise((resolve,reject)=>{park={resolve,reject};});}finally{stopper.busy=false;}};
+  const started=async()=>{for(let turn=0;turn<100&&!park;turn++)await new Promise(resolve=>setImmediate(resolve));assert.ok(park,'the park started');return park;};
+  return{updates,phases,counts,started};}
+test('a pending park-then-install publishes a waiting phase and never re-offers Install',async()=>{const {updates,phases,counts,started}=parkHeld();const install=updates.install();const park=await started();
+  assert.equal(updates.state.phase,'parking');assert.deepEqual(phases,['parking']);
+  updates.confirm();updates.cancelConfirm();updates.dismiss();await updates.install();await updates.retry();await updates.check(true);
+  assert.equal(updates.state.phase,'parking');assert.equal(updates.state.dismissed,false);assert.deepEqual(phases,['parking']);assert.equal(counts.launches,0);
+  park.resolve(true);await install;assert.deepEqual(phases,['parking','installing']);assert.equal(counts.launches,1);assert.equal(counts.exits,1);});
+test('cancelling the park returns to the Ready offer and starts nothing',async()=>{const {updates,phases,counts,started}=parkHeld();const install=updates.install();(await started()).resolve(false);await install;
+  assert.deepEqual(phases,['parking','ready']);assert.equal(counts.launches,0);assert.equal(counts.exits,0);updates.confirm();assert.equal(updates.state.phase,'confirm');});
+test('a park that times out or fails ends the waiting phase with installer-failed; the running engine is kept',async()=>{for(const message of ['Pause and install timed out; installation was not started','Owned engine request refused']){const {updates,phases,counts,started}=parkHeld();const install=updates.install();(await started()).reject(Error(message));await install;
+  assert.deepEqual(phases,['parking','installer-failed']);assert.equal(updates.state.installerStarted,false);assert.equal(counts.launches,0);assert.equal(counts.exits,0);assert.equal(counts.restarts,0);}});
+// DesktopShell spec §4 (Revised 2026-10-26): the timeout says why, by code (not message text), with the cap's own minutes.
+test('only the pause timeout carries a reason, and its minutes come from the cap',async()=>{const {PAUSE_LIMIT_MS}=require('../graceful-stop.cjs');
+  for(const [code,reason] of [['PAUSE_TIMEOUT','pause_timeout'],[undefined,null],['INSTALLER_NOT_STARTED',null]]){const {updates,started}=parkHeld();const install=updates.install();
+    (await started()).reject(Object.assign(Error('Pause and install timed out; installation was not started'),code?{code}:{}));await install;
+    assert.equal(updates.state.phase,'installer-failed');assert.equal(updates.state.reason,reason);assert.equal(updates.state.pauseMinutes,reason?PAUSE_LIMIT_MS/60000:null);}
+  assert.equal(PAUSE_LIMIT_MS/60000,10);});
+test('Try again after a failed start goes straight back to Waiting, without a second Confirm, and clears the reason',async()=>{const {updates,phases,started}=parkHeld();
+  const first=updates.install();(await started()).reject(Object.assign(Error('timed out'),{code:'PAUSE_TIMEOUT'}));await first;assert.equal(updates.state.reason,'pause_timeout');
+  updates.retry();assert.equal(updates.state.phase,'parking');assert.equal(updates.state.reason,null);assert.deepEqual(phases,['parking','installer-failed','parking']);
+  await new Promise(resolve=>setImmediate(resolve));});

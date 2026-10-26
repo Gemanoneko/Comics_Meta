@@ -150,7 +150,7 @@ tip($('previous'),'Show the previous '+PAGE_SIZE+' files.');tip($('next'),'Show 
 function tip(element,text){if(element.title!==text)element.title=text}
 function renderControl(control){
 processingControl=control||{};
-const label=processingControl.requested?'Resume processing':'Pause & release GPU';if($('pauseControl').textContent!==label)$('pauseControl').textContent=label;tip($('pauseControl'),processingControl.requested?(processingControl.phase==='pausing'?'Cancel the pause and keep processing.':'Allow new lookups and comic writes to start again.'):'Finish the current operation, then pause and release Gemma from the GPU.');
+const label=processingControl.requested?'Resume processing':'Pause & release GPU';if($('pauseControl').textContent!==label)$('pauseControl').textContent=label;if(!$('pauseControl').dataset.shellLock)tip($('pauseControl'),processingControl.requested?(processingControl.phase==='pausing'?'Cancel the pause and keep processing.':'Allow new lookups and comic writes to start again.'):'Finish the current operation, then pause and release Gemma from the GPU.');
 if(window.FolderHelp)FolderHelp.control(processingControl);
 $('controlStatus').textContent=processingControl.phase==='pausing'?'Pausing — finishing the current operation. Progress is saved.':processingControl.requested?(processingControl.gpu_released?'Paused — Gemma released from GPU. Progress saved.':processingControl.error||'Workers paused — releasing Gemma from GPU…'):'Processing enabled';
 }
@@ -158,7 +158,7 @@ const verification=singleFlight(async()=>{const epoch=verificationEpoch;try{cons
 async function refreshVerification(){await verification();await verification()}
 LensControl.connect(request,refreshVerification,()=>{verificationEpoch++});
 YandexControl.connect(request,refreshVerification,()=>{verificationEpoch++});
-$('pauseControl').onclick=async()=>{const button=$('pauseControl');button.disabled=true;try{verificationEpoch++;await request(processingControl.requested?'resume':'pause',{});await refreshVerification();await progress()}catch(e){error(e)}finally{button.disabled=false}};
+$('pauseControl').onclick=async()=>{const button=$('pauseControl');if(button.dataset.shellLock)return;button.disabled=true;try{verificationEpoch++;await request(processingControl.requested?'resume':'pause',{});await refreshVerification();await progress()}catch(e){error(e)}finally{if(!button.dataset.shellLock)button.disabled=false}};
 async function load(){try{
 syncChips();const wanted=inventoryURL();const d=await request(wanted);if(wanted!==inventoryURL())return;total=d.total;
 $('total').textContent=total+' live files · Showing '+(total?offset+1:0)+'–'+Math.min(offset+PAGE_SIZE,total);

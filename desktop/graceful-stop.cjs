@@ -1,6 +1,8 @@
 'use strict';
 const {EventEmitter}=require('node:events');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// The pause cap for quit and install (DesktopShell spec §3). The install timeout banner reads its minutes from here.
+const PAUSE_LIMIT_MS=600000;
 class GracefulStop extends EventEmitter {
   constructor(engine){super();this.engine=engine;this.busy=false;this.cancelled=false;this.forced=false;this.stage='idle';}
   cancel(){if(this.busy && this.stage!=='closing')this.cancelled=true;}
@@ -16,8 +18,8 @@ class GracefulStop extends EventEmitter {
       await this.engine.call('/api/shell/pause',{});
       while(true){
         if(this.cancelled){await this.engine.call('/api/shell/cancel-pause',{});return false;}
-        if(mode==='install' && Date.now()-start>=600000)throw Error('Pause and install timed out; installation was not started');
-        if(this.forced || (mode==='quit' && Date.now()-start>=600000)){await this.engine.forceStop();return true;}
+        if(mode==='install' && Date.now()-start>=PAUSE_LIMIT_MS)throw Object.assign(Error('Pause and install timed out; installation was not started'),{code:'PAUSE_TIMEOUT'});
+        if(this.forced || (mode==='quit' && Date.now()-start>=PAUSE_LIMIT_MS)){await this.engine.forceStop();return true;}
         let status;
         try{status=await this.engine.call('/api/shell/status');failures=0;await this.engine.call('/api/shell/pause',{});}catch(error){
           if(mode==='install')throw error;
@@ -28,7 +30,7 @@ class GracefulStop extends EventEmitter {
         if(this.stage==='gpu' && pausedAt===null)pausedAt=Date.now();
         if(control.phase==='paused' && (control.gpu_released || control.error)){
           this.stage='closing';this.emit('stage',{stage:'closing',mode,control,elapsed:Date.now()-start});
-          await this.engine.stop({timeoutMs:Math.max(1,600000-(Date.now()-start))});return true;
+          await this.engine.stop({timeoutMs:Math.max(1,PAUSE_LIMIT_MS-(Date.now()-start))});return true;
         }
         if(Date.now()-start>=1500)this.emit('stage',{stage:this.stage,mode,control,elapsed:Date.now()-start,gpuElapsed:pausedAt?Date.now()-pausedAt:0});
         await sleep(500);
@@ -39,4 +41,4 @@ class GracefulStop extends EventEmitter {
     } finally {this.busy=false;this.stage='idle';this.emit('finished');}
   }
 }
-module.exports={GracefulStop};
+module.exports={GracefulStop,PAUSE_LIMIT_MS};

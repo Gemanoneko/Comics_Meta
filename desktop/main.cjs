@@ -31,20 +31,23 @@ if(!locked){app.exit(0);}else{
   }
   function saveBounds(){if(!window||window.isDestroyed()||window.isMinimized())return;try{fs.mkdirSync(profile,{recursive:true});const tmp=boundsFile+'.tmp';fs.writeFileSync(tmp,JSON.stringify({...window.getNormalBounds(),maximized:window.isMaximized()}));fs.renameSync(tmp,boundsFile);}catch(error){log(error);}}
   let lastTrayPresentation=null;
+  const installPending=()=>['parking','installing'].includes(state.update.phase);
   function trayImage(name){const image=nativeImage.createFromPath(path.join(__dirname,'assets','tray-'+name+'.png'));const small=path.join(__dirname,'assets','tray-'+name+'-16.png');if(!image.isEmpty()&&fs.existsSync(small))image.addRepresentation({scaleFactor:.5,buffer:fs.readFileSync(small)});return image;}
   function refreshTray(){if(!tray)return;
     const c=state.control;let label='Starting…';let icon='processing';
     if(state.stopping)label=state.stopping.mode==='install'?'Installing update…':'Quitting…';
+    else if(installPending())label='Installing update…';
     else if(state.service==='setup')label='Setup required';
     else if(state.update.phase==='installer-uncertain'){label='Installation outcome unconfirmed. Processing stays stopped.';icon='error';}
     else if(state.service==='failed'){label='Local service not responding. Open the window for details.';icon='error';}
     else if(c?.requested){icon='paused';label=c.phase==='pausing'?'Pausing. Finishing the current operation.':c.error?'Paused. GPU release not confirmed.':c.gpu_released?'Paused. Gemma released from GPU.':'Paused. Releasing Gemma from GPU…';}
     else if(state.verification){icon='verification';label='Needs your verification: '+(state.verification_engines||['Google Lens']).join(' and ');}else if(state.service==='ready')label='Processing enabled';
     if(!state.update.dismissed&&['available','ready','confirm'].includes(state.update.phase))label+=' · Update available';
-    const paused=Boolean(c?.requested);const enabled=state.service==='ready'&&!stopper?.busy;
+    // Item 2 stays disabled from Pause and install until the app closes, not only while the stopper runs (spec §2, Revised 2026-10-26).
+    const paused=Boolean(c?.requested);const enabled=state.service==='ready'&&!stopper?.busy&&!installPending();
     const presentation=JSON.stringify([label,icon,paused,enabled,Boolean(stopper?.busy)]);if(presentation===lastTrayPresentation)return;lastTrayPresentation=presentation;
     const image=trayImage(icon);if(!image.isEmpty())tray.setImage(image);tray.setToolTip(('Comic Metadata — '+label).slice(0,127));
-    tray.setContextMenu(Menu.buildFromTemplate([{label:'&Open',click:show},{label:paused?'&Resume processing':'&Pause && release GPU',enabled,click:async()=>{try{const fresh=await engine.call('/api/shell/status');if(Boolean(fresh.control.requested)!==paused)return;await engine.call(paused?'/api/resume':'/api/pause',{});trayPause=!paused;await poll();}catch(error){log(error);}}},{type:'separator'},{label:stopper?.busy?'Quitting…':'&Quit',enabled:!stopper?.busy,click:()=>quit()}]));
+    tray.setContextMenu(Menu.buildFromTemplate([{label:'&Open',click:show},{label:paused?'&Resume processing':'&Pause && release GPU',enabled,click:async()=>{if(installPending())return;try{const fresh=await engine.call('/api/shell/status');if(Boolean(fresh.control.requested)!==paused)return;await engine.call(paused?'/api/resume':'/api/pause',{});trayPause=!paused;await poll();}catch(error){log(error);}}},{type:'separator'},{label:stopper?.busy?'Quitting…':'&Quit',enabled:!stopper?.busy,click:()=>quit()}]));
   }
   function senderAllowed(event){return [window,dialog].some(target=>target&&!target.isDestroyed()&&event.sender===target.webContents&&event.senderFrame===target.webContents.mainFrame);}
   ipcMain.handle('shell-snapshot',event=>{if(!senderAllowed(event))throw Error('Untrusted shell sender');return state;});
