@@ -231,6 +231,7 @@ class UpdateStatsTests(unittest.TestCase):
         self.root = ROOT
         self.enterContext(patch.object(app, 'live_root', side_effect=lambda: self.root))
         stats._cache.clear()
+        getattr(stats, '_aggregates', {}).clear()
         with app.db():
             pass
 
@@ -363,24 +364,112 @@ class UpdateStatsTests(unittest.TestCase):
         self.assertEqual(self.counts(result), [1] + [0] * 9 + [None, None])
         self.assertEqual(result['current'], 9)
 
-    def test_cache_follows_the_newest_history_id(self):
-        self.write(ROOT + '\\A.cbz', WALL.local(2026, 10, 28, 9))
-        real = stats._count
-        with patch.object(stats, '_count', side_effect=real) as counted:
-            self.assertEqual(self.get('today')['total'], 1)
-            self.assertEqual(self.get('today')['total'], 1)
-            self.assertEqual(counted.call_count, 1)
-            self.write(ROOT + '\\B.cbz', WALL.local(2026, 10, 28, 10))
-            result = self.get('today')
-            self.assertEqual(counted.call_count, 2)
-        self.assertEqual((result['total'], result['revision']), (2, 2))
+    def read_rows(self):
+        """Spy on every history row the counts read: the full period (_tally) and the rows added since (extend)."""
+        seen = []
+        tally, extend = stats._tally, stats._Aggregate.extend
+        def counted(rows):
+            rows = list(rows)
+            seen.append(len(rows))
+            return rows
+        self.enterContext(patch.object(stats, '_tally', side_effect=lambda rows, *a: tally(counted(rows), *a)))
+        self.enterContext(patch.object(stats._Aggregate, 'extend', autospec=True,
+                                       side_effect=lambda self_, rows, *a: extend(self_, counted(rows), *a)))
+        return seen
 
-    def test_timestamp_index_is_added_and_used(self):
+    def test_kept_bars_read_only_the_rows_added_since(self):
+        """QA-2: a refresh after a write reads the new rows, not the whole period again."""
+        self.write(ROOT + '\\A.cbz', WALL.local(2026, 3, 2, 9))
+        self.write(ROOT + '\\A.cbz', WALL.local(2026, 10, 28, 9))
+        seen = self.read_rows()
+        self.assertEqual(self.get('year')['total'], 1)
+        self.assertEqual(seen, [2])  # The first request reads the period.
+        self.assertEqual(self.get('year')['total'], 1)
+        self.assertEqual(seen, [2])  # Same newest id: nothing read.
+        self.write(ROOT + '\\B.cbz', WALL.local(2026, 10, 28, 10))
+        self.write(ROOT + '\\A.cbz', WALL.local(2026, 10, 28, 11))
+        result = self.get('year')
+        self.assertEqual(seen, [2, 2])  # Only the two new rows.
+        self.assertEqual((result['total'], self.counts(result)[2], self.counts(result)[9], result['revision']), (2, 1, 2, 4))
+
+    def test_a_row_landing_in_an_earlier_bar_reads_the_period_again(self):
+        self.write(ROOT + '\\A.cbz', WALL.local(2026, 10, 28, 9))
+        seen = self.read_rows()
+        self.get('year')
+        self.write(ROOT + '\\B.cbz', WALL.local(2026, 5, 3, 9))  # Stamped in May (a clock set back), written now.
+        result = self.get('year')
+        self.assertEqual(seen, [1, 1, 2])  # The new row, refused by the kept bars; then the period again.
+        self.assertEqual((result['total'], self.counts(result)[4], self.counts(result)[9]), (2, 1, 1))
+
+    def test_kept_bars_always_match_a_fresh_count(self):
+        """Interleaved writes and requests, every period: the kept answer equals one computed from nothing."""
+        import random
+        rng = random.Random(41)
+        comics = [ROOT + '\\Series %d\\Issue %03d.cbz' % (n % 7, n) for n in range(40)] + ['E:\\Elsewhere\\X.cbz']
+        start = WALL.local(2024, 12, 20)
+        periods = [('today', None, None), ('week', None, None), ('month', None, None), ('year', None, None), ('all', None, None),
+                   ('custom', '2025-01-01', '2026-10-28')]
+        for step in range(60):
+            for _ in range(rng.randrange(4)):
+                spell = rng.choice(comics)
+                spell = spell.lower() if rng.random() < 0.3 else spell
+                self.write(spell, rng.uniform(start, NOW - 1) if rng.random() < 0.2 else NOW - rng.uniform(1, 3 * 3600))
+            period, first, last = rng.choice(periods)
+            kept = self.get(period, first, last)
+            with patch.object(stats, '_cache', type(stats._cache)()), patch.object(stats, '_aggregates', type(stats._aggregates)()):
+                fresh = self.get(period, first, last)  # From nothing, leaving the kept state for the next step.
+            self.assertEqual((kept['slots'], kept['total'], kept['first_at'], kept['last_at']),
+                             (fresh['slots'], fresh['total'], fresh['first_at'], fresh['last_at']), (step, period))
+
+    def test_a_write_racing_the_request_is_counted(self):
+        """Senua M1: `now` is read after the newest history id. A comic written between the start of the request
+        and that read is inside the id, so it must be inside `now` too, and the kept answer must not lose it."""
+        clock = {'now': WALL.local(2026, 10, 28, 12, 30)}
+        fake = SimpleNamespace(time=lambda: clock['now'], mktime=time.mktime, localtime=time.localtime)
+        index = stats._index
+        def racing(con):
+            index(con)
+            con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
+                        (ROOT + '\\Racing.cbz', '', 'fixture', clock['now'] + 1))  # The writer stamps its row a moment later...
+            clock['now'] += 2  # ...and commits before the request reads the newest id.
+        with patch.object(stats, 'time', fake):
+            with patch.object(stats, '_index', side_effect=racing):
+                first = stats.report(query('today'), wall=WALL)
+            self.assertEqual((first['total'], first['last_at']), (1, WALL.local(2026, 10, 28, 12, 30) + 1))
+            clock['now'] = WALL.local(2026, 10, 28, 12, 50)  # Same hour, same newest id.
+            again = stats.report(query('today'), wall=WALL)
+        self.assertEqual((again['total'], again['revision']), (1, first['revision']))
+
+    def test_a_row_dated_after_now_is_never_kept_short(self):
+        """Senua probe 1 (a clock set back): a row at 12:40 seen at 12:30 is not counted, and at 12:50 it is."""
+        self.write(ROOT + '\\Later.cbz', WALL.local(2026, 10, 28, 12, 40))
+        early = self.get('today', now=WALL.local(2026, 10, 28, 12, 30))
+        late = self.get('today', now=WALL.local(2026, 10, 28, 12, 50))
+        self.assertEqual((early['total'], late['total']), (0, 1))
+        self.assertEqual(early['revision'], late['revision'])
+
+    def test_first_and_last_update_stop_at_now(self):
+        """QA-3: a row dated after now is neither the last update nor the start of counting."""
+        self.write(ROOT + '\\Past.cbz', NOW - 2 * 3600)
+        self.write(ROOT + '\\Future.cbz', NOW + 3 * 3600)
+        result = self.get('today')
+        self.assertEqual((result['total'], result['first_at'], result['last_at']), (1, NOW - 2 * 3600, NOW - 2 * 3600))
+        self.root = ROOT + '\\OnlyFuture'  # A library whose only row is dated after now.
+        self.write(ROOT + '\\OnlyFuture\\Y.cbz', NOW + 60)
+        empty = self.get('all')
+        self.assertEqual((empty['total'], empty['first_at'], empty['last_at']), (0, None, None))
+
+    def test_covering_index_is_added_and_used(self):
+        """QA-2: the period scans read the index alone, never a table row per history row."""
         self.get('today')
         with app.db() as con:
-            self.assertTrue(con.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='history_timestamp'").fetchone())
-            plan = ' '.join(r[3] for r in con.execute('EXPLAIN QUERY PLAN SELECT path,timestamp FROM history WHERE timestamp>=? AND timestamp<?', (0, 1)))
-        self.assertIn('history_timestamp', plan)
+            self.assertTrue(con.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (stats.INDEX,)).fetchone())
+            for sql, args in ((stats.PERIOD_ROWS, (0, 1, 1)), ('SELECT path,timestamp FROM history INDEXED BY ' + stats.INDEX +
+                                                              ' WHERE timestamp<? AND id<=? ORDER BY timestamp DESC', (1, 1))):
+                plan = ' '.join(r[3] for r in con.execute('EXPLAIN QUERY PLAN ' + sql, args))
+                self.assertIn('COVERING INDEX ' + stats.INDEX, plan)
+            plan = ' '.join(r[3] for r in con.execute('EXPLAIN QUERY PLAN ' + stats.NEW_ROWS, (0, 1, 0, 1)))
+            self.assertIn('INTEGER PRIMARY KEY', plan)  # The rows added since: an id range.
 
     def test_route_answers_and_refuses(self):
         self.write(ROOT + '\\A.cbz', time.time() - 5)
@@ -396,6 +485,10 @@ class UpdateStatsTests(unittest.TestCase):
                            ('/api/update-stats?period=custom&from=2026-01-01', 'invalid_range')):
             status, payload = self.handler(path)
             self.assertEqual((status, payload.get('code')), (400, code), path)
+        # Senua m1 / QA-6: a missing or repeated date reads as the page says it.
+        for path in ('/api/update-stats?period=custom&from=2026-01-01', '/api/update-stats?period=custom&to=2026-01-01',
+                     '/api/update-stats?period=custom&from=2026-01-01&from=2026-01-02&to=2026-01-03'):
+            self.assertEqual(self.handler(path)[1].get('error'), 'Pick both dates.', path)
 
     def handler(self, path):
         item = object.__new__(app.Handler)

@@ -21,6 +21,18 @@ from test_worker import scratch_directory
 from test_yandex_dom import YandexDOMTests
 
 WALL = CentralEurope()
+# The page's OS-locale formatting with no locale argument, pointed at one locale (QA-1's simulation).
+LOCALE_DEFAULT = """((locale) => {
+  for (const name of ['DateTimeFormat', 'NumberFormat']) {
+    const Real = Intl[name];
+    const Wrapped = function (locales, options) { return new Real(locales === undefined ? locale : locales, options); };
+    Wrapped.prototype = Real.prototype;
+    Wrapped.supportedLocalesOf = Real.supportedLocalesOf;
+    Intl[name] = Wrapped;
+  }
+  const number = Number.prototype.toLocaleString;
+  Number.prototype.toLocaleString = function (locales, options) { return number.call(this, locales === undefined ? locale : locales, options); };
+})(%s);"""
 
 ROOT = 'D:\\Comics'
 NOW = time.mktime((2026, 10, 28, 12, 30, 0, 0, 0, -1))
@@ -214,6 +226,42 @@ class UpdateStatsDOMTests(YandexDOMTests):
         self.page.keyboard.press('Home')
         self.assertEqual(self.page.evaluate("[...document.querySelectorAll('#statsTip div')].map(d=>d.textContent)"),
                          [self.intl(local(1, 12), {'weekday': 'short', 'day': 'numeric', 'month': 'short', 'year': 'numeric'}), '0 comics'])
+
+    def test_tooltip_stays_inside_the_chart_in_long_locales(self):
+        """QA-1: at 320 CSS px (200% zoom of the 640 window) a long tooltip line wraps inside the chart instead of
+        sticking out of it. Futaba's repro: 60 weekly bars, the last bar, he-IL / ar-SA / ru-RU. The OS locale is
+        simulated as she did, by defaulting Intl in the page (a CDP-attached context ignores its own locale option)."""
+        for locale in ('he-IL', 'ar-SA', 'ru-RU', 'en-US'):
+            with self.subTest(locale=locale):
+                context = self.browser.new_context(locale=locale, viewport={'width': 320, 'height': 900}, device_scale_factor=2)
+                try:
+                    context.route('**/*', lambda route: route.abort())
+                    context.add_init_script('window.setInterval=()=>0;' + LOCALE_DEFAULT % json.dumps(locale))
+                    page = context.new_page()
+                    page.clock.set_fixed_time(datetime.datetime.fromtimestamp(NOW, datetime.timezone.utc))
+                    page.route('https://comics-fixture.invalid/**', self.route)
+                    page.goto('https://comics-fixture.invalid/')
+                    page.wait_for_function("document.querySelector('#statsTotal').textContent!=='–'")
+                    page.locator('#statsPeriod .chip', has_text='Custom').click()
+                    page.fill('#statsFrom', '2025-01-05')
+                    page.fill('#statsTo', '2026-02-22')
+                    page.wait_for_function('u=>document.querySelector("#statsUnit").textContent===u', arg='Comics per week')
+                    page.focus('#statsTo')
+                    for _ in range(8):  # Chromium stops on each segment of a native date field before leaving it.
+                        page.keyboard.press('Tab')
+                        if page.evaluate('document.activeElement.id') == 'statsChart':
+                            break
+                    page.wait_for_function("document.activeElement.id==='statsChart' && !document.querySelector('#statsTip').hidden")
+                    page.keyboard.press('End')
+                    found = page.evaluate("""() => { const c = document.querySelector('#statsChart').getBoundingClientRect(),
+                        t = document.querySelector('#statsTip').getBoundingClientRect();
+                        return {left: t.left - c.left, right: c.right - t.right, width: t.width, chart: c.width,
+                                lines: document.querySelector('#statsTip div').textContent}; }""")
+                    self.assertEqual(page.evaluate('new Intl.DateTimeFormat().resolvedOptions().locale'), locale)
+                    self.assertGreaterEqual(found['left'], -0.05, found)
+                    self.assertGreaterEqual(found['right'], -0.05, found)
+                finally:
+                    context.close()
 
     def test_custom_range(self):
         self.open()
