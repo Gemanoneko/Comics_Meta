@@ -1,10 +1,25 @@
 # Changelog
 
+## [v0.4.1] - 2026-10-26
+
+### Added
+
+- "This month" period in update statistics.
+
+### Changed
+
+- The update banner no longer offers Install again while it pauses and installs. It shows a waiting message, and Pause & release GPU is locked during the wait.
+
+### Fixed
+
+- Update statistics never miss a write that happens while counting, and long periods load faster.
+
 ## [v0.4.0] - 2026-10-26
 
 ### Added
 
 - Update statistics panel above the Live library.
+- Relabeled "Updated by this app" to "Currently tagged by this app", and the row label "Updated by this tool" to "Tagged by this app".
 
 ## [v0.3.0] - 2026-10-18
 
