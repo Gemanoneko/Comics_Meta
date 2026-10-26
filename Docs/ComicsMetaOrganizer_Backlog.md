@@ -17,7 +17,7 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Stops it even if Sergei started it (Sergei):** on quit, the app stops Ollama even if Sergei started Ollama himself.
 - **Owner:** Ender. Judy reviews any status wording. Futaba verifies. Our tooling never steals focus (ProcessRules § Desktop App / GUI Rules), so Ollama has to start hidden.
 
-### Update statistics graph above Live library (Sergei, 2026-10-26) — in progress
+### Update statistics graph above Live library (Sergei, 2026-10-26) — shipped in 0.4.0
 - **Wanted (Sergei):** a graph above the Live library panel showing how many comics the app updated in a period.
 - **Periods (Sergei):** since counting began, calendar year, calendar week, calendar day, last hour, and a custom from–to date range. **Default: the current calendar day.**
 - **Count unit (Sergei):** distinct comics, not write events. A comic written several times in a period counts once.
@@ -28,7 +28,7 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Data (Ender's read-only check, 2026-10-26):** the `history` table already stores a timestamp for every successful write since the first commit and is never pruned. So "since counting began" starts at the earliest history row and includes past updates. "Last hour" is a rolling 60 minutes. Day, week and year boundaries are local time.
 - **Owner:** Judy specs the graph, labels and period picker first. Ender builds it. Futaba verifies. Senua reviews. Sully releases.
 
-### 0.4.1: update statistics fixes (Sergei, 2026-10-26)
+### 0.4.1: update statistics fixes (Sergei, 2026-10-26) — shipped in 0.4.1 (22fcbf2), except Senua m2 / QA-4 (daylight saving in past years), which was skipped: it needs IANA time-zone data in the runtime
 - **Decided (Sergei):** 0.4.0 ships as is, and these go into 0.4.1 as one batch.
 - **Count can be one short (Senua M1, Major):** in `update_stats.py`, `now` is taken before the history id is read. A write that lands in between is left out of the count, and the result is cached that way until the next write. Fix: take `now` after the id, and bound both queries by that id.
 - **Slow long periods (Futaba QA-2):** cold Year, All time and Custom-from-2000 take 1.4–2.7 s on 200,000 history rows, against the brief's 0.22 s. The count is recomputed on every 15 s refresh while writes happen.
@@ -42,10 +42,10 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Sources:** `Docs/ComicsMetaOrganizer_CodeReview_v0.4.0_2026-10-26.md`, `Docs/ComicsMetaOrganizer_QA_v0.4.0_2026-10-26.md`.
 - **Owner:** Ender fixes. Futaba checks what changed. Senua reviews. Sully releases.
 
-### Install offer reappears during pause-and-install (Sergei bug, 2026-10-26) — fix in progress
+### Install offer reappears during pause-and-install (Sergei bug, 2026-10-26) — fixed in 0.4.1 (b4f022d)
 - **Repro (Sergei, 0.3.0 → 0.4.0):** he checked for updates and pressed Install, then "Pause and install". The Install button came back. The install itself carried on and succeeded; 0.4.0 is running.
 - **Root cause (Ender):** `desktop/updates.cjs:56` puts the update state back to `'ready'` as soon as "Pause and install" is pressed, and `static/shell-ui.js` draws `'ready'` as "Install and restart". The DesktopShell spec §4 "After confirm" says "Banner returns to Ready underneath", which is now out of date.
-- **Fix (Ender, uncommitted):** a new `'parking'` state. The banner shows a waiting status with no buttons, Check for updates and API keys are disabled, and the tray says "Installing update…".
+- **Fix (Ender, b4f022d):** a new `'parking'` state. The banner shows a waiting status with no buttons, Check for updates and API keys are disabled, and the tray says "Installing update…".
 - **Wanted (Sergei):** no second install offer. Show a waiting message instead, something like "Please wait while we park the process and install the new version". Judy sets the final wording.
 - **No Cancel on the waiting message (Sergei):** cancel stays in the Installing window.
 - **Timeout message says why (Sergei):** after the 10-minute timeout, the banner says that processing didn't pause in time, not just "did not start".
@@ -54,10 +54,19 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Note:** the running version drives its own update, so the 0.4.0 → 0.4.1 update will still show the old button once.
 - **Owner:** Judy sets the copy, the spec row and focus. Ender fixes. Futaba verifies, including the tray tooltip.
 
-### "This month" period in update statistics (Sergei, 2026-10-26)
+### "This month" period in update statistics (Sergei, 2026-10-26) — shipped in 0.4.1 (5f41744)
 - **Wanted (Sergei):** add a "This month" period to the update statistics panel, as seen on the running 0.4.0.
 - **Rule (by analogy with Sergei's other rulings):** the current calendar month in local time. Judy specs placement, bar unit and copy.
 - **Owner:** Judy specs. Ender builds it in the same batch as the updater bug and the 0.4.1 fixes. Futaba verifies.
+
+### Minor follow-ups from the 0.4.1 review and QA (logged 2026-10-26; not started)
+- **Senua m1:** in `desktop/updates.cjs:84`, pressing Try again while a manual Check for updates is still running leaves the state and the banner out of step. Try again and × do nothing until the check returns; it then settles on "Update ready" by itself.
+- **Senua m2:** in `update_stats.py:361-362` and `:372`, one history row dated in the future turns off the fast refresh for every period until real time catches up. Refreshes then take 0.5–2 s; the counts stay correct.
+- **Senua m3:** the unused 0.4.0 `history_timestamp` index is still updated on every write, and the catalog grows about 41%. Consider dropping it.
+- **Futaba QA-1:** the Confirm banner is 67 px, not the spec's 64, so the content moves 11 px instead of 8.
+- **Futaba QA-2:** the desktop Node tests need `COMICS_META_TEST_SCRATCH` set, otherwise 21 of 50 fail. Fold this into the entry-check repair below.
+- **Sources:** `Docs/ComicsMetaOrganizer_CodeReview_v0.4.1_2026-10-26.md`, `Docs/ComicsMetaOrganizer_QA_v0.4.1_2026-10-26.md`.
+- **Owner:** Ender, on the lean path, batched with the next change.
 
 ### Make the entry check pass cleanly (Sergei, 2026-10-26)
 - **Why:** the 0.4.0 entry check (`dd019cb`) ran 968 tests: 959 passed and all 48 update-stats tests passed. It still failed, because of the test setup, not product code. 0.3.0 had no entry receipt at all. Evidence: `C:\Antigravity Projects\Worktrees\Comics Meta Organizer\qa-040b\logs\ender-entry.log`.
