@@ -688,7 +688,7 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
-            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js','/folder-help.js'):
+            if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js','/folder-help.js','/update-stats.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
             if url.path == '/comic-recovery.css':
                 return self.respond((BASE/'static/comic-recovery.css').read_bytes(),mime='text/css; charset=utf-8')
@@ -743,6 +743,13 @@ class Handler(BaseHTTPRequestHandler):
                     totals['needs_information'] = totals['total'] - totals['metadata_and_synopsis']
                 return self.respond({'version':getattr(self.server,'loaded_version',''), 'job': JOB.copy(), 'counts': counts, 'totals': totals, 'roots': roots,
                                      'online': bool(api_key())})
+            if url.path == '/api/update-stats':
+                # Update statistics panel (UXSpec UpdateStats 2026-10-26): read-only counts from write history.
+                import update_stats
+                try:
+                    return self.respond(update_stats.report(args))
+                except update_stats.StatsError as exc:
+                    return self.respond({'error':str(exc),'code':exc.code},400)
             if url.path == '/api/browser-verification':
                 import lens_verification,yandex_verification,pause_control
                 result=lens_verification.status()
