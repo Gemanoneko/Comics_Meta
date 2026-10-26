@@ -78,4 +78,5 @@ Items Sergei has approved for a future version. Not started unless marked.
   4. **Old failures:** three failure-filter DOM tests already failed on clean HEAD.
   5. **Shell tests skipped:** `check:shell` never runs when `check:python` fails, because npm `&&` stops there.
   6. **Context builder:** CMO has no committed entry-check context builder. Ender's one-off is at `...\qa-040\assemble-context.mjs`.
+  7. **Release cleanup guard (2026-10-26, v0.4.1):** `scripts/cleanup-releases.js --apply` refused to run with "Held fixed GitHub executable/publication supervisor required" (it needs `COMICS_META_HELD_PUBLICATION=1` and an absolute executable path). The same step ran during the v0.4.0 release. Five releases are now live (v0.2.5 to v0.4.1), one over the keep-4 limit. Make the lean release path able to run it, then remove v0.2.5.
 - **Owner:** Ender. Senua reviews the context builder before it is committed.
