@@ -533,3 +533,193 @@ Method: stub `/api/update-stats` in the browser with a hand-built payload (Playw
 - **New:** the A2 test vectors, for tooltip text, the keyboard announcement and the hourly axis labels.
 - **New:** y labels compact from 10,000; label thinning by measured width; tooltip shadow stops at the gap; chart margin 8 px; empty-range note.
 - **Item 12:** the focus ring keeps at least 6 clear rows from the unit label's glyphs.
+
+## § Addendum 2 2026-10-26 (This month)
+
+Owner: Judy. Classification: EXTEND of the Update statistics panel. One new period chip, `This month`; everything else stands. Request: Sergei, 2026-10-26, `Docs/ComicsMetaOrganizer_Backlog.md` § "This month" period in update statistics (the current calendar month in local time). Written against v0.4.0 (`static/index.html:9` and `:14`, `static/update-stats.js`, `update_stats.py`); no code, no commit, no app launch. Where this addendum disagrees with the sections above or with Addendum 1, this one wins; each rule names what it amends. Basis: § A new control is born with its tooltip, § Copy is short, specific, and has no memory, § No UI element may cover another; Hick's Law (seven options is the ceiling for a chip row; an eighth period would move the picker to a select).
+
+**How the widths were measured.** Not from a screenshot of this chip (it does not exist yet). Segoe UI (the page font) at 14 px, from the font file, plus the chip box (24 px padding, 2 px border, so text + 26 px). The method reproduces the five chips in Ender's screenshots to within 2 px each: computed 83.1 / 63.7 / 86.2 / 80.5 / 73.2 against measured 83 / 62 / 87 / 80 / 73. Page geometry is from the page's own CSS: body padding 32 px (15 px at a viewport of 700 px or less), panel border 1 px plus padding 22 px; the 640 window has a 15 px scrollbar, so its viewport is 625 px and the panel's inner width 549 px (the 595 px crop in Addendum 1 minus 46). Every expected rect below is plus or minus 2 px per chip; B8 asks Ender for screenshots that replace the estimates with measurements.
+
+### B1. Decisions in one screen
+
+| Topic | Decision |
+|---|---|
+| Chip | Label `This month`, fourth of seven, between `This week` and `This year`. Radio value `month`. |
+| Period | The 1st of the current month 00:00 to now, local time. Default stays `Today`; the selection is still not remembered. |
+| Tooltip | `Comics updated since the 1st of this month.` |
+| Bars | Daily, one per calendar day of the month: 28, 29, 30 or 31. Unit label `Comics per day`. No new unit. |
+| Axis | The existing "day, more than 14 bars" labels (`1 Oct`, then day numbers) and the Addendum 1 thinning rule. Step: 2 at 1280, 3 or 4 at 640, 12 at 320 CSS px. |
+| Headline | `{n} comics updated this month`; dates line `October 2026`. |
+| Keyboard | Tab stops unchanged; arrow order is reading order with the new chip fourth. |
+| Seven chips | One row from an inner width of 604 px. Narrower, the existing flex-wrap wraps them: at the 640 window `Custom` drops to a second row; at 200% zoom there are four rows. No CSS change needed for the wrap. |
+
+Layout, 1280 window, 26 Oct 2026, `This month` selected (illustrative numbers: the 26 bars add up to 95, the total is 89, so the note shows; days 27 to 31 are future and inert; 31 slots, label step 2):
+
+```
++------------------------------------------------------------------------------------------------------+
+| Update statistics                                                                                    |
+|                                                                                                      |
+| ( Last hour ) ( Today ) ( This week ) [[ This month ]] ( This year ) ( All time ) ( Custom )         |
+|                                                                                                      |
+| 89  comics updated this month                                                                        |
+| October 2026                                                                                         |
+|                                                                                                      |
+| Comics per day                                                                                       |
+|   8 |                      ##                ##                   ##                                 |
+|     |       ##          ## ##             ## ## ##             ## ##       ##    ##                  |
+|   4 | ## ## ##          ## ## ## ##       ## ## ##          ## ## ## ##    ## ## ##                  |
+|     | ## ## ## ##    ## ## ## ## ## ##    ## ## ## ## ##    ## ## ## ## ## ## ## ##                  |
+|   0 +----------------------------------------------------------------------------------------------  |
+|      1 Oct   3     5     7     9    11    13    15    17    19    21    23    25    27    29    31   |
+|                                                                                                      |
+| A comic updated in several bars counts once in the total.                                            |
++------------------------------------------------------------------------------------------------------+
+  [[ ]] = selected chip. Labels follow the OS locale.
+```
+
+### B2. The chip (amends section 4 order table and section 12)
+
+New order: 1 `Last hour`, 2 `Today` (default), 3 `This week`, **4 `This month`**, 5 `This year`, 6 `All time`, 7 `Custom`. The other six keep their labels, tooltips and behaviour. The new chip is built exactly like its neighbours, directly after `This week`:
+
+`<label class="chip" title="Comics updated since the 1st of this month."><input class="sr-only" type="radio" name="statsPeriod" value="month" autocomplete="off">This month</label>`
+
+| Item | Spec |
+|---|---|
+| Label | `This month` (sentence case, as `This week` and `This year`) |
+| Tooltip (`title` on the label) | `Comics updated since the 1st of this month.` |
+| Look and states | As every period chip (section 4): unselected, hover, selected (`#385ea1` fill, 2 px `#bcd8f9` ring), keyboard focus (2 px outline, offset 2). Selecting never changes the chip's box, so nothing reflows on a click. |
+
+Tooltip copy check: one fact, names the start of the period, no history, no legality, no role names. It is a fixed string, like the other five, so there is no month-change logic to get wrong; the dates line already names the month.
+
+### B3. Bars, axis and the new period's edge cases (amends sections 5 and 8)
+
+Add to the section 5 table: `This month` | one bar per day, 28 to 31 | `Comics per day`. Slots are the local calendar days from the 1st to the last day of the current month. On a clock-change day the slot is 23 or 25 hours long; its label and tooltip are dates, so Addendum 1 A2 does not apply.
+
+Geometry (plot = inner width minus 52 px; bar = 0.7 × pitch, clamped 2 to 48 px):
+
+| Window | Inner | Plot | Pitch, 31 days / 28 days | Bar |
+|---|---|---|---|---|
+| 1280 | 1155 | 1103 | 35.6 / 39.4 | 24.9 / 27.6 |
+| 640 | 549 | 497 | 16.0 / 17.8 | 11.2 / 12.4 |
+| 200% zoom (320 CSS px) | 229 to 244 | 177 to 192 | 5.7 to 6.2 / 6.3 to 6.9 | 4.0 to 4.8 |
+
+Axis labels: Addendum 1 A3 row 2 applies unchanged. A label is shown every N-th slot from the first, N the smallest of 1, 2, 3, 4, 6, 12, 24, 48 with N × pitch at least the widest drawn label plus 16 px. For a calendar month the widest label is always the first one, `1 {month}` at 13 px: 25.7 px (`1 Jan`) to 36.3 px (`1 Sept`), 30.8 px for `1 Oct`, so the threshold is 42 to 52 px. A day number such as `31` is 14 px wide.
+
+| Window | N | Labelled days |
+|---|---|---|
+| 1280 | 2 in every month (2 × 35.6 = 71 clears 52; 1 × 39.4 does not clear 42) | `1 Oct`, 3, 5 … : 14 to 16 labels |
+| 640 | 3 or 4. 28 days: 3 (53.3). 31 days: 3 for `1 Oct` (48.1 against 46.8, a 1.3 px margin), 4 for a longer first label such as `1 Aug` (50.0) | N = 3: `1 Oct`, 4, 7 … (10 or 11 labels); N = 4: 1, 5, 9 … (8 labels) |
+| 200% zoom | 12 in every month and every scrollbar case (12 × 5.7 = 68 clears 52; 6 × 6.9 = 41 does not clear the narrowest threshold, 42) | `1 Oct`, 13, 25 |
+
+Ender does not hard-code N; the rule picks it. Because the 640 case sits within measurement error of N = 3 versus 4 for some months, Futaba checks the rule on screen (N × pitch at least the widest drawn label plus 16, no label clipped), not a fixed N. Thinning starts at the first slot, so 1280 labels odd days and 640 labels 1, 4, 7 or 1, 5, 9; a 30-day Custom range already behaves this way and it stays as is.
+
+Slot rules, section 5 extended:
+
+- **Future days** (after today) draw no bar, no highlight and no tooltip, and the arrow keys skip them. The axis spans the whole month, so bars do not move as the month goes on.
+- **Today's slot** is drawn like any other; its tooltip adds `so far` (`Mon 26 Oct 2026` / `6 comics so far`). Line 1 for every slot is the section 8 day format.
+- **Midnight roll** (amends section 5): the list is now `Today`, `This week`, `This month`, `This year`. At midnight on the 1st the next refresh switches the chart to the new month (headline, dates line, bar count, axis) with no user action.
+- **First days of a month.** Early on the 1st the total is often `0`: the normal Empty state (section 9) shows `0`, the axes, one active slot and `Last update: {when}.`. On the first days of a month `This month` can be lower than `This week` (a week from Mon 26 Oct to Sun 1 Nov counts October days that the new month does not). Both are right; neither is a defect.
+- **Bars versus total** (section 8): unchanged. Daily bars add up to more than the total when a comic was updated on two days, and the note `A comic updated in several bars counts once in the total.` shows then.
+
+### B4. Headline, dates line, announcements (amends section 6)
+
+| Period | Label after the number | Dates line |
+|---|---|---|
+| This month | `comics updated this month` | `October 2026` (`{month:'long', year:'numeric'}`, OS locale) |
+
+Singular `1 comic updated this month`, zero `0 comics updated this month`. The headline block's `title` is unchanged. Chart `aria-label`: `Comics per day, this month. Left and right arrows read each bar.` On a period change the headline sentence goes to `#statsAnnounce`, as for every period.
+
+Why a month name and not the span `1 Oct – 31 Oct 2026`: a calendar month is a named period, like `This year` with `2026`; the span repeats what the label and the bars already say, and `October 2026` is the same string the month-bar tooltip uses. At 200% zoom the headline row may wrap its label under the number (`63` + `comics updated this month` is 233 px against 229 to 237 px inner); the row is already flex-wrap and `comics updated in the last hour` (223 px) behaves the same, so nothing new.
+
+### B5. Keyboard order (sections 4 and 8 unchanged except as listed)
+
+- **Tab order is unchanged:** picker (one stop, on the checked chip), then From, then To (only when `Custom` is shown), then the chart.
+- **Arrows in the picker** move and select in DOM order, which is reading order: Last hour, Today, This week, This month, This year, All time, Custom. Right and Down step forward, Left and Up step back, wrapping from `Custom` to `Last hour` (native radio group). Up and Down step like Left and Right; they do not jump between wrapped rows. Each step selects and requests that period; the latest selection wins (section 9). From `This week`, one press of Right now reaches `This month`.
+- **Focus ring:** unchanged, 2 px at offset 2. At 8 px chip spacing the ring leaves 4 px clear to the next chip, across a row and between rows.
+- **Chart:** unchanged. Tab in lands on today; `Home` is day 1, `End` is today, the left and right arrows skip future days.
+
+### B6. Do seven chips fit? (amends the "all six fit" sentence in section 4)
+
+Box widths (text at 14 px + 26 px):
+
+| Chip | Last hour | Today | This week | This month | This year | All time | Custom |
+|---|---|---|---|---|---|---|---|
+| Computed, px | 83.1 | 63.7 | 86.2 | 95.3 | 80.5 | 73.2 | 73.5 |
+| Measured in Ender's screenshots | 83 | 62 | 87 | not built yet | 80 | 73 | not built yet |
+
+The rects in B7 use the measured width where there is one and the computed width (rounded) for `This month` and `Custom`. Six chips with five 8 px gaps: 500 px, which is why six fitted at 640. Seven chips with six gaps: **603 px**.
+
+| Where | Inner width | Seven in one row? | Rows |
+|---|---|---|---|
+| 1280 window | 1155 | Yes, 552 px spare | 1 |
+| 700 px window | 609 | Borderline, about 6 px spare, within measurement error; not asserted | 1 or 2 |
+| 640 window (the minimum) | 549 | **No**, 54 px short. Row 1 holds six chips (520 px, 28 px spare); `Custom` needs 82 px | 2: six chips, then `Custom` |
+| 200% zoom, 640 window (320 CSS px) | 229 to 237 (scrollbar 15 or 7.5 CSS px) | No | 4: `Last hour` `Today` / `This week` `This month` / `This year` `All time` / `Custom` |
+
+640 window (inner 549 px), `This month` selected:
+
+```
+| ( Last hour ) ( Today ) ( This week ) [[ This month ]] ( This year ) ( All time )    |
+| ( Custom )                                                                           |
+| From [ date ]  To [ date ]      <- only when Custom is selected, 12 px below row 2   |
+```
+
+200% zoom (320 CSS px, inner about 236 px), `This month` selected:
+
+```
+| ( Last hour ) ( Today )          |
+| ( This week ) [[ This month ]]   |
+| ( This year ) ( All time )       |
+| ( Custom )                       |
+```
+
+The seven chips share one row from an inner width of about 604 px: a window of about 695 to 715 px, and 730 px and wider. Between 716 and 728 px the page's own 700 px breakpoint (body padding 15 px to 32 px) takes 34 px back and the row wraps once more; it is an existing page rule and the wrap rule below covers it. At 200% zoom the third row is 243 px against 244 px available if the scrollbar is zero thickness, so a 3-row result (`This year` `All time` `Custom`) is possible there; 3 or 4 rows are both accepted.
+
+**Wrap rule (every width, no breakpoints):**
+
+1. `#statsPeriod` keeps `display:flex; flex-wrap:wrap; gap:8px` (already built). The wrap needs no new CSS.
+2. Chips keep their natural width. No `flex-grow`, no equal-width columns, no change of padding or font at narrow widths: the target stays 32 px high (24 px is the WCAG 2.5.8 minimum) and the label stays whole. Rows are left-aligned.
+3. Reading order equals DOM order. No `order:` rearranging, no balancing of rows; a chip moves to the next row when it would overflow, so at 640 `Custom` is alone on row 2, directly above the From/To row it opens (12 px below it).
+4. 8 px between chips in a row and 8 px between rows (row step 40 px).
+5. **Height** (amends the section 3 height rule): each extra chip row adds 40 px (32 + 8) to the panel. This depends on window width only, never on the period, the data or a state. The old statement that only the custom row and its message change the height holds at any one width. Expected: 640 window about 517 px (477 + 40); 200% zoom, about 120 px more than a single row.
+6. Nothing is clipped: chips are in-flow, `max-width:100%` as built.
+
+Rejected: abbreviating labels (`Mon`, `Yr`) loses meaning; shrinking padding to about 9 px would only just fit 640 and fails at 200% zoom anyway; a select below some width swaps the control by window size.
+
+### B7. Nothing covers anything (amends section 13)
+
+All chips are in-flow flex items. The only positioned things are each chip's hidden 1 × 1 px radio, inside its own label, and `#statsTip` (unchanged). Expected rects, crop coordinates as in Addendum 1 (panel inner left x = 23, chip row top y = 84; plus or minus 2 px per chip):
+
+| Window | Chip rects (x range, all 32 px high) |
+|---|---|
+| 1280, one row, y 84 to 115 | Last hour 23–105, Today 114–175, This week 184–270, This month 279–373, This year 382–461, All time 470–542, Custom 551–624 |
+| 640, row 1 at y 84 to 115 | the same six chips, Last hour to All time (23–542); right edge of the inner box x = 571 |
+| 640, row 2 at y 124 to 155 | Custom 23–96 |
+| 200% zoom, CSS px, rows at y 84, 124, 164, 204 | row 1: 23–105, 114–175. Row 2: 23–109, 118–212. Row 3: 23–102, 111–183. Row 4: 23–96 |
+
+What Futaba measures (relations first, absolute x second): no two chips overlap; horizontal and vertical gaps are exactly 8 px; row step is 40 px; every chip is 32 px high; each chip's width is within 2 px of the B6 table; reading order is the B2 order; the focus ring (outer edge 4 px outside the chip) is fully visible, unclipped by the panel, and touches no neighbouring chip; selecting any chip changes no chip's rect; the chart wrapper starts 8 px below the unit label (Addendum 1 A3 row 3) at every width; the panel's height changes between windows only by multiples of 40 px. States: `This month` selected at 640, 700, 1000, 1280 and 200% zoom; `Custom` selected (the From/To row moves with the chips); loading, empty and error states with the seven-chip row; Details dialog open.
+
+### B8. What the server needs and the screenshots I want next
+
+Facts, names are Ender's: a `month` period; the resolved unit is `day`; slots are the local calendar days from the 1st 00:00 to the 1st of the next month, `[start, end, count]`, future days inactive as for `week`; the window ends now; the distinct total counts comics updated from the 1st 00:00 to now, its own query. `first_at`, `last_at` unchanged. The page learns the label, aria phrase and tooltip from this addendum; no other new string exists.
+
+Screenshots, same stub method as A4 (`page.route` on `/api/update-stats`), panel crop, priority order:
+
+1. `This month` selected, 31 bars with a few future days, at 1280 and 640: hover on today and on an earlier day (tooltip `so far`; axis step).
+2. The picker at 200% zoom (320 CSS px, device scale factor 2) with a keyboard focus ring on the second and the last chip; the 640 window with the focus ring on `Custom`.
+3. The 1st of a month with zero comics: `0`, `Last update:`, one active slot.
+4. February with 29 bars (Feb 2028) at 640, for the axis step and bar width.
+
+### B9. Acceptance (amends section 14)
+
+1. Chip row: seven chips in the B2 order; `Today` still the default and selected on load; the six old chips unchanged.
+2. `This month`: tooltip string exactly as B2; headline `{n} comics updated this month` (`1 comic`, `0 comics`); dates line `October 2026` in the OS locale; unit `Comics per day`; bar count equals the days in the month (fixtures: Feb 2026 28, Feb 2028 29, Apr 2026 30, Oct 2026 31); future days empty and inert; today's tooltip ends `so far`; chart `aria-label` as B4.
+3. Axis: labels follow the Addendum 1 rule at 1280, 640 and 200% zoom (B3: 2, 3 or 4, 12); no label clipped; the first label carries the month.
+4. First of the month: `0` with `Last update:`; midnight roll from the 30th or 31st to the 1st switches the chart without action; `This month` below `This week` on a week that spans two months is accepted.
+5. Keyboard: Tab stops unchanged; arrows step through the seven chips in DOM order and wrap; Up and Down step like Left and Right; focus ring visible and unclipped.
+6. Fit and wrap: B6 and B7 measured at 640 (two rows), 1280 (one row) and 200% zoom (3 or 4 rows); the panel height changes only by 40 px per row; no overlap in any state listed in B7.
+7. Existing behaviour: `All time` and `Custom` (including the From/To row) work as before; section 14 items 1 to 12 still hold with six replaced by seven.
+
+### Questions for Sergei
+
+None.

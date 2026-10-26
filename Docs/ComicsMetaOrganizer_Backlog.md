@@ -42,6 +42,11 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Sources:** `Docs/ComicsMetaOrganizer_CodeReview_v0.4.0_2026-10-26.md`, `Docs/ComicsMetaOrganizer_QA_v0.4.0_2026-10-26.md`.
 - **Owner:** Ender fixes. Futaba checks what changed. Senua reviews. Sully releases.
 
+### "This month" period in update statistics (Sergei, 2026-10-26)
+- **Wanted (Sergei):** add a "This month" period to the update statistics panel, as seen on the running 0.4.0.
+- **Rule (by analogy with Sergei's other rulings):** the current calendar month in local time. Judy specs placement, bar unit and copy.
+- **Owner:** Judy specs. Ender builds it in the same batch as the updater bug and the 0.4.1 fixes. Futaba verifies.
+
 ### Make the entry check pass cleanly (Sergei, 2026-10-26)
 - **Why:** the 0.4.0 entry check (`dd019cb`) ran 968 tests: 959 passed and all 48 update-stats tests passed. It still failed, because of the test setup, not product code. 0.3.0 had no entry receipt at all. Evidence: `C:\Antigravity Projects\Worktrees\Comics Meta Organizer\qa-040b\logs\ender-entry.log`.
 - **Wanted (Sergei):** fix it later, as its own task. It does not hold 0.4.0.
