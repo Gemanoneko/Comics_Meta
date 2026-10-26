@@ -7,6 +7,7 @@ never pruned, so "All time" starts at the earliest row.
 * A comic is its path as coverage_priority.path_key reads it: the extended prefix
   stripped and the case folded, so `\\\\?\\D:\\A.cbz` and `d:\\a.cbz` count once.
 * Live library only: rows outside the configured library folder are left out.
+* Periods: last hour, today, this week, this month, this year, all time, custom.
 * Day, week (from Monday), month and year boundaries are local time and are built
   here, so the page never works out daylight saving. "Last hour" is the 60 minutes
   ending at `now`, in 12 equal bars. All time and Custom use the finest unit that
@@ -26,7 +27,7 @@ from collections import OrderedDict
 from pathlib import Path
 import app
 
-PERIODS = ('hour', 'today', 'week', 'year', 'all', 'custom')
+PERIODS = ('hour', 'today', 'week', 'month', 'year', 'all', 'custom')
 HOUR = 3600
 ONE_DAY = datetime.timedelta(days=1)
 # Spec Addendum A1: nothing was updated before the app existed, and with this floor
@@ -135,6 +136,11 @@ def resolve(period, now, first_at=None, first_text=None, last_text=None, wall=LO
     if period == 'week':
         monday = today - datetime.timedelta(days=today.weekday())
         return 'day', [wall.midnight(monday + datetime.timedelta(days=i)) for i in range(8)]
+    if period == 'month':
+        # Spec Addendum 2 (This month): one bar per calendar day of the current month, 28 to 31.
+        first = today.replace(day=1)
+        days = (_next_month(first) - first).days
+        return 'day', [wall.midnight(first + datetime.timedelta(days=i)) for i in range(days + 1)]
     if period == 'year':
         cuts = [datetime.date(today.year, month, 1) for month in range(1, 13)] + [datetime.date(today.year + 1, 1, 1)]
         return 'month', [wall.midnight(day) for day in cuts]
@@ -242,7 +248,7 @@ def _arguments(query):
 
 
 def report(query, now=None, wall=LOCAL):
-    """GET /api/update-stats?period=hour|today|week|year|all, or period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD.
+    """GET /api/update-stats?period=hour|today|week|month|year|all, or period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD.
 
     slots: [start, end, count] in epoch seconds, count None for a bar that starts after now.
     current: the bar holding now, or None. first_at/last_at: earliest and latest live-library

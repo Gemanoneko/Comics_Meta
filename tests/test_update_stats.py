@@ -111,6 +111,24 @@ class BarEdgeTests(unittest.TestCase):
         self.assertEqual(edges[-1] - edges[-2], 25 * 3600)
         self.assertEqual(edges[-1], WALL.local(2026, 10, 26))
 
+    def test_month_is_one_bar_per_calendar_day(self):
+        """Addendum 2 (This month): the 1st 00:00 to the 1st of the next month, local; 28 to 31 daily bars."""
+        for now, days in ((WALL.local(2026, 2, 14, 9), 28), (WALL.local(2028, 2, 29, 23, 59), 29),
+                          (WALL.local(2026, 4, 1, 0, 5), 30), (NOW, 31), (WALL.local(2026, 12, 31, 23), 31)):
+            unit, edges = stats.resolve('month', now, wall=WALL)
+            first = WALL.date(now).replace(day=1)
+            self.assertEqual((unit, len(edges) - 1), ('day', days), first)
+            self.assertEqual([WALL.date(e) for e in edges], [first + datetime.timedelta(days=i) for i in range(days + 1)])
+            self.assertEqual([WALL.wall(e).hour for e in edges], [0] * (days + 1))
+
+    def test_month_across_clock_changes(self):
+        unit, edges = stats.resolve('month', NOW, wall=WALL)  # October 2026: Sunday 25 has 25 hours.
+        lengths = [b - a for a, b in zip(edges, edges[1:])]
+        self.assertEqual(lengths[24], 25 * 3600)
+        self.assertEqual(lengths.count(86400), 30)
+        unit, edges = stats.resolve('month', WALL.local(2026, 3, 30, 12), wall=WALL)  # March 2026: Sunday 29 has 23 hours.
+        self.assertEqual(edges[29] - edges[28], 23 * 3600)
+
     def test_year_is_twelve_calendar_months(self):
         unit, edges = stats.resolve('year', NOW, wall=WALL)
         self.assertEqual(unit, 'month')
@@ -319,6 +337,25 @@ class UpdateStatsTests(unittest.TestCase):
         self.assertEqual((result['total'], self.counts(result)[12], self.counts(result)[15]), (1, 1, None))
         self.assertEqual(self.get('week')['total'], 1)
 
+    def test_this_month_counts_days_and_stops_at_today(self):
+        a, b = ROOT + '\\A.cbz', ROOT + '\\B.cbz'
+        self.write(a, WALL.local(2026, 9, 30, 23, 59))  # Last month.
+        self.write(a, WALL.local(2026, 10, 1, 0, 0))
+        self.write(a, WALL.local(2026, 10, 26, 10))
+        self.write(b, WALL.local(2026, 10, 28, 12, 10))
+        result = self.get('month')
+        counts = self.counts(result)
+        self.assertEqual((result['unit'], len(counts)), ('day', 31))
+        self.assertEqual((result['start'], result['end']), (WALL.local(2026, 10, 1), WALL.local(2026, 11, 1)))
+        self.assertEqual((counts[0], counts[25], counts[27]), (1, 1, 1))
+        self.assertEqual(counts[28:], [None] * 3)  # Days after today draw nothing.
+        self.assertEqual((result['total'], result['current']), (2, 27))
+        # The 1st, just after midnight: a new month with nothing yet; the last update is still reported.
+        first = self.get('month', now=WALL.local(2026, 11, 1, 0, 30))
+        self.assertEqual((first['total'], first['current'], len(first['slots'])), (0, 0, 30))
+        self.assertEqual(self.counts(first), [0] + [None] * 29)
+        self.assertEqual(first['last_at'], WALL.local(2026, 10, 28, 12, 10))
+
     def test_year_bars_and_future_months(self):
         self.write(ROOT + '\\Jan.cbz', WALL.local(2026, 1, 1, 0, 0))
         self.write(ROOT + '\\Dec.cbz', WALL.local(2025, 12, 31, 23, 59))
@@ -350,6 +387,8 @@ class UpdateStatsTests(unittest.TestCase):
         status, payload = self.handler('/api/update-stats?period=hour')
         self.assertEqual(status, 200)
         self.assertEqual(payload['total'], 1)
+        status, payload = self.handler('/api/update-stats?period=month')
+        self.assertEqual((status, payload['period'], payload['unit']), (200, 'month', 'day'))
         json.dumps(payload)
         for path, code in (('/api/update-stats?period=decade', 'invalid_period'), ('/api/update-stats', 'invalid_period'),
                            ('/api/update-stats?period=today&from=2026-01-01', 'invalid_period'),

@@ -152,7 +152,8 @@ class UpdateStatsDOMTests(YandexDOMTests):
         chips = self.page.evaluate("[...document.querySelectorAll('#statsPeriod .chip')].map(c=>[c.textContent,c.title])")
         first = self.intl(local(2, 15), {'day': 'numeric', 'month': 'short', 'year': 'numeric'})
         self.assertEqual(chips, [['Last hour', 'Comics updated in the last 60 minutes.'], ['Today', 'Comics updated since midnight today.'],
-                                 ['This week', 'Comics updated since Monday this week.'], ['This year', 'Comics updated since 1 January this year.'],
+                                 ['This week', 'Comics updated since Monday this week.'], ['This month', 'Comics updated since the 1st of this month.'],
+                                 ['This year', 'Comics updated since 1 January this year.'],
                                  ['All time', 'Every comic updated since counting began on ' + first + '.'], ['Custom', 'Pick the first and last day to count.']])
         self.page.locator('#statsPeriod .chip', has_text='All time').click()
         self.wait_unit('Comics per day')
@@ -178,6 +179,41 @@ class UpdateStatsDOMTests(YandexDOMTests):
         # Monday 26 Oct to Sunday 1 Nov: the year once, on the end.
         self.assertEqual(self.text('#statsRange'), self.intl(local(26), {'weekday': 'short', 'day': 'numeric', 'month': 'short'}) + ' – ' +
                          self.intl(time.mktime((2026, 11, 1, 12, 0, 0, 0, 0, -1)), {'weekday': 'short', 'day': 'numeric', 'month': 'short', 'year': 'numeric'}))
+
+    def test_this_month(self):
+        """Addendum 2: the fourth chip; one daily bar per day of the month; future days inert; today says so far."""
+        self.open()
+        self.page.locator('#statsPeriod .chip', has_text='This week').click()
+        self.page.wait_for_function("document.querySelector('#statsLabel').textContent.endsWith('this week')")
+        self.page.focus('#statsPeriod input:checked')
+        self.page.keyboard.press('ArrowRight')  # From This week, one press reaches This month (B5).
+        self.page.wait_for_function("document.querySelector('#statsLabel').textContent.endsWith('this month')")
+        self.assertEqual(self.requests[-1], 'period=month')
+        self.assertEqual((self.text('#statsTotal'), self.text('#statsLabel'), self.text('#statsUnit')), ('9', 'comics updated this month', 'Comics per day'))
+        self.assertEqual(self.text('#statsRange'), self.intl(NOW, {'month': 'long', 'year': 'numeric'}))
+        self.assertEqual(self.page.locator('#statsChart').get_attribute('aria-label'), 'Comics per day, this month. Left and right arrows read each bar.')
+        self.assertEqual(self.bars(), 3)  # 2, 26 and 28 October.
+        labels = self.page.evaluate("[...document.querySelectorAll('#statsChart text')].slice(3).map(t=>t.textContent)")
+        self.assertEqual(labels[0], self.intl(local(1, 12), {'day': 'numeric', 'month': 'short'}))  # The first label carries the month.
+        self.page.locator('#statsChart').scroll_into_view_if_needed()
+        chart = self.page.locator('#statsChart').bounding_box()
+        pitch = (chart['width'] - 52) / 31  # 31 slots: the axis spans the whole month.
+        self.page.mouse.move(chart['x'] + 44 + 29.5 * pitch, chart['y'] + 140)  # 30 October, in the future.
+        self.page.wait_for_timeout(100)
+        self.assertTrue(self.page.locator('#statsTip').is_hidden())
+        self.page.mouse.move(chart['x'] + 44 + 27.5 * pitch, chart['y'] + 140)  # Today.
+        self.page.wait_for_function("!document.querySelector('#statsTip').hidden")
+        self.assertEqual(self.page.evaluate("[...document.querySelectorAll('#statsTip div')].map(d=>d.textContent)"),
+                         [self.intl(NOW, {'weekday': 'short', 'day': 'numeric', 'month': 'short', 'year': 'numeric'}), '7 comics so far'])
+        self.page.mouse.move(0, 0)
+        self.page.focus('#statsPeriod input:checked')
+        self.page.keyboard.press('Tab')
+        self.page.wait_for_function("document.activeElement.id==='statsChart' && !document.querySelector('#statsTip').hidden")
+        self.page.keyboard.press('ArrowRight')  # Today is the last active day; the future days are skipped.
+        self.assertEqual(self.page.evaluate("document.querySelectorAll('#statsTip div')[1].textContent"), '7 comics so far')
+        self.page.keyboard.press('Home')
+        self.assertEqual(self.page.evaluate("[...document.querySelectorAll('#statsTip div')].map(d=>d.textContent)"),
+                         [self.intl(local(1, 12), {'weekday': 'short', 'day': 'numeric', 'month': 'short', 'year': 'numeric'}), '0 comics'])
 
     def test_custom_range(self):
         self.open()
@@ -324,8 +360,17 @@ class UpdateStatsDOMTests(YandexDOMTests):
             self.assertTrue(all(abs(c['h'] - 32) < 0.5 for c in found['chips']), (width, found['chips']))
             self.assertEqual((round(found['from']['w']), round(found['from']['h']), round(found['to']['w'])), (176, 32, 176), width)
             self.assertLessEqual(abs(found['svg'] - found['chart']['w']), 0.5, width)
-            if width >= 640:
-                self.assertEqual(len({round(c['t']) for c in found['chips']}), 1, width)  # Six chips on one line.
+            # Seven chips (Addendum 2 B6/B7): one row from about 604 px of inner width; at the 640 window `Custom`
+            # wraps alone to a second row 40 px lower. 700 is borderline and not asserted. 8 px between chips.
+            tops = [round(c['t']) for c in found['chips']]
+            rows = sorted(set(tops))
+            if width >= 1000:
+                self.assertEqual(len(rows), 1, width)
+            if width == 640:
+                self.assertEqual((len(rows), rows[1] - rows[0], tops.count(rows[1]), tops[-1]), (2, 40, 1, rows[1]), width)
+            for a, b in zip(found['chips'], found['chips'][1:]):
+                if round(a['t']) == round(b['t']):
+                    self.assertLess(abs(b['l'] - a['r'] - 8), 0.6, width)
             self.page.locator('#statsPeriod .chip', has_text='Today').click()
             self.page.wait_for_function("document.querySelector('#statsCustom').hidden")
 

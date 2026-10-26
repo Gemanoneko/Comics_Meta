@@ -12,9 +12,10 @@ window.UpdateStats = (() => {
   const STEPS = [1, 2, 3, 4, 6, 12, 24, 48], LABEL_GAP = 16, EARLIEST = '2000-01-01';
   const UNITS = {five_minutes: 'Comics per 5 minutes', hour: 'Comics per hour', day: 'Comics per day', week: 'Comics per week',
                  month: 'Comics per month', year: 'Comics per year'};
-  const LABELS = {hour: 'updated in the last hour', today: 'updated today', week: 'updated this week', year: 'updated this year',
-                  all: 'updated, all time', custom: 'updated in this range'};
-  const PHRASES = {hour: 'last hour', today: 'today', week: 'this week', year: 'this year', all: 'all time', custom: 'this range'};
+  const LABELS = {hour: 'updated in the last hour', today: 'updated today', week: 'updated this week', month: 'updated this month',
+                  year: 'updated this year', all: 'updated, all time', custom: 'updated in this range'};
+  const PHRASES = {hour: 'last hour', today: 'today', week: 'this week', month: 'this month', year: 'this year', all: 'all time',
+                   custom: 'this range'};
   const NOTE_SEVERAL = 'A comic updated in several bars counts once in the total.';
   // OS locale, like the rest of the page (no locale argument).
   const fmt = options => new Intl.DateTimeFormat(undefined, options);
@@ -157,6 +158,7 @@ window.UpdateStats = (() => {
     }
     if (data.period === 'today') return F.weekdayDateYear.format(start);
     if (data.period === 'week') return dayRange(start, lastDay, true);
+    if (data.period === 'month') return F.longMonthYear.format(start);  // A named period, like the year (Addendum 2 B4).
     if (data.period === 'year') return F.year.format(start);
     if (data.period === 'all') return data.first_at == null ? 'Since counting began' : 'Since ' + F.dayMonthYear.format(at(data.first_at));
     return dayRange(start, lastDay, false);
