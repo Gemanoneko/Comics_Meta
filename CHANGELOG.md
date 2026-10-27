@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.5.0] - 2026-10-27
+
+### Added
+
+- A folder's year and file-name dates are used for matching.
+- An unnumbered book with a year is matched as issue #1.
+
+### Changed
+
+- Written comics get regular refinement turns.
+- Comics no source can search are not re-asked every week.
+- The cover comparison handles framing differences and wraparounds.
+- GCD, Dark Horse, Google Books, Open Library and Google Lens are off by default, with no more Lens verification prompts. Switched-off sources and the Google Books key are hidden.
+
 ## [v0.4.1] - 2026-10-26
 
 ### Added
