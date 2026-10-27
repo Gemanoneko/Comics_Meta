@@ -81,6 +81,12 @@ Items Sergei has approved for a future version. Not started unless marked.
   2. Language tags: `[rus]`, `(rus)` and other languages, for all sources.
   3. The conversion-leftover cause and the 19 CBR files.
   4. Senua's m12 (GIF/BMP cover allow-list) and m11 (disable Pillow's Ghostscript/EPS plugin at startup).
+  5. **The build toolchain must be rebuildable** (Sergei, 2026-10-27: "Fold to 0.6.0").
+     - Today `scratch/cmo-packaging-recovery-20261015/` (858 MB, gitignored, on this machine only) is the only installer toolchain, and the entry check's test Python lives in it. See the Brief's "Do not delete" note and Senua's v0.5.0 note.
+     - Make it reproducible on either machine: a pinned download plus a build script, or another route Ender picks.
+     - Prove that a clean rebuild produces a working installer, then delete the folder. Sergei wants it gone.
+     - Update the Brief's "Inputs" section.
+     - This also helps the entry-check repair item, which needs a pinned test Python.
 - **Next session:**
   1. **Judy:** one pass on the UI brief. It includes one open question for Sergei: a "dump is old" reminder after N days.
   2. **Ender:** port `tools/gcd_pilot/pilot.py` (`match_guarded`, `gcd_fields`, guard G5) and `build_index.py` into a new `gcd_offline.py`:
