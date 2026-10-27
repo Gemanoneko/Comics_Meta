@@ -94,10 +94,14 @@ class StateFilesTests(unittest.TestCase):
         import pipeline_config
         (self.code / 'config.json').write_text(json.dumps({'sources': {'disabled': ['Code only']}}), encoding='utf-8')
         config = self.state / 'config.json'
+        # Enrichment E (2026-10-26): these stay off whatever "disabled" lists; only "enabled" turns them back on.
+        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index'}
         config.write_text(json.dumps({'sources': {'disabled': ['State only']}}), encoding='utf-8')
-        self.assertEqual(pipeline_config.disabled_sources(), {'State only'})
+        self.assertEqual(pipeline_config.disabled_sources(), {'State only'} | retired)  # The state file's list, never 'Code only'.
         config.write_text(json.dumps({'sources': {'disabled': []}}), encoding='utf-8')
-        self.assertEqual(pipeline_config.disabled_sources(), set())
+        self.assertEqual(pipeline_config.disabled_sources(), retired)  # Refreshed: 'State only' is gone.
+        config.write_text(json.dumps({'sources': {'disabled': [], 'enabled': sorted(retired)}}), encoding='utf-8')
+        self.assertEqual(pipeline_config.disabled_sources(), set())  # Refreshed again, from the state file's "enabled".
 
     def test_env_file_setting_relative_to_state_root_or_absolute(self):
         (self.state / '.env').unlink(missing_ok=True)

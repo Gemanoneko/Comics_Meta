@@ -91,8 +91,8 @@ class ConflictSummaryDiscoveryTests(unittest.TestCase):
         stat=self.path.stat();self.signature=[stat.st_size,stat.st_mtime_ns]
         self.old={'Series':'Example','Number':'1','Year':'2020','Web':WEB,'Summary':''}
         # v0.1.3 switches GetComics, general web and wiki off by default; their code is kept,
-        # so the strict routes are checked with every source switched back on.
-        (self.root/'config.json').write_text(json.dumps({'sources':{'disabled':[]}}),encoding='utf-8')
+        # so the strict routes are checked with every source switched back on (Enrichment E's four need "enabled").
+        (self.root/'config.json').write_text(json.dumps({'sources':{'disabled':[],'enabled':['GCD','Dark Horse','Google Books','Open Library local index']}}),encoding='utf-8')
         import discovery_state
         with app.db() as con:
             discovery_state.initialize(con);cover_tasks.table(con)

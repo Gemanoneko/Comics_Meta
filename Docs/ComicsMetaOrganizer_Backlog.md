@@ -85,6 +85,16 @@ Items Sergei has approved for a future version. Not started unless marked.
   - When a Series was read from the cover and GCD only adds "The" or a prefix, keep the cover's Series.
   - Skip folder-year matches where a same-name series starts one year earlier or later. Example: Savage Sword of Conan matched the Marvel UK weekly.
   - Never let GCD replace a Publisher that was read from the cover.
+- **Futaba's sample check (2026-10-27): GO.** 2 of 200 random rows were wrong (1.0%; 95% upper bound 3.1%). The verdicts are in `Docs/ComicsMetaOrganizer_GCDPilot_Sample_2026-10-27.md`.
+- **Rulings after the sample (Sergei, 2026-10-27). Two of these reverse rulings above:**
+  - **Star Wars Legends Marvel reissues (about 217 files):** skip them. Don't tag them with the Dark Horse original.
+  - **Same-name series one year off:** allow these matches. This reverses the earlier skip; all six sampled rows were right.
+  - **Publisher:** GCD may replace a Publisher read from the cover. This reverses the earlier "keep the cover's Publisher"; all 19 replacements were right.
+  - **Count:** when a file name says "(of N)" and GCD disagrees, write the file name's N.
+- **Holds adopted from Futaba (they make writing more careful):**
+  - Don't write unnumbered or collection rows whose name contains `(Complete Vol)`, `N of M` or a doubled bracket until the parser reads those names correctly.
+  - Don't write a GTIN that more than one GCD issue shares (51% of GTINs are series-level codes).
+- **Known gap:** untagged Russian scans, such as the Han Solo folder, aren't caught by the language-tag fix. A real match can also look unique when the true record is filed under another name (the X-Files Topps / Trielle case).
 - **To settle at build time:**
   - a publisher alias table (GCD uses short names such as "DC" and "Titan");
   - the free-text fields that are left out: Characters, Genre, Day, AgeRating and Format.
