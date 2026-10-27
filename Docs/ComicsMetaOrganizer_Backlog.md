@@ -81,6 +81,11 @@ Items Sergei has approved for a future version. Not started unless marked.
   2. Language tags: `[rus]`, `(rus)` and other languages, for all sources.
   3. The conversion-leftover cause and the 19 CBR files.
   4. Senua's m12 (GIF/BMP cover allow-list) and m11 (disable Pillow's Ghostscript/EPS plugin at startup).
+  6. **Bug: a manual ComicVine pick doesn't stick** (Sergei, 2026-10-27, on 0.5.0).
+     - **Repro:** Critter (`8 / 2025`) shows "Needs a check: ComicVine issue 1117156 is Critter #7; the file says Critter #8." Sergei picks the correct ComicVine issue manually. The row leaves the list, then comes back a few seconds later with the same check.
+     - **Expected:** a manual pick settles the conflict for good, until the file changes.
+     - **To find:** whether the pick isn't saved or written, whether the next research pass or the 2 s poll rebuilds the conflict from the old ComicVine id in the file or in evidence, or whether the A–E refinement turn re-raises it.
+     - **Fix:** root cause in the commit message, plus a test that fails first.
   5. **The build toolchain must be rebuildable** (Sergei, 2026-10-27: "Fold to 0.6.0").
      - Today `scratch/cmo-packaging-recovery-20261015/` (858 MB, gitignored, on this machine only) is the only installer toolchain, and the entry check's test Python lives in it. See the Brief's "Do not delete" note and Senua's v0.5.0 note.
      - Make it reproducible on either machine: a pinned download plus a build script, or another route Ender picks.
