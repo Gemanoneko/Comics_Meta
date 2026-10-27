@@ -123,6 +123,10 @@ Items Sergei has approved for a future version. Not started unless marked.
   - `can_search` duplicates source checks.
   - Four mismatches between the docs and the code.
 - **Futaba Minor 1:** the cover check rejects a cover scaled into a margin on all four sides. It fails safe.
+- **Senua re-review at b2bfaef (2026-10-27):**
+  - **m11:** the Ghostscript guard test only scans the text of top-level files. Disable Pillow's Ghostscript plugin when the engine starts, so every decode path is covered.
+  - **m12:** a side effect of F1. A page 1 that is really a GIF or BMP named `.jpg` now fails, and its Metron lookup is retried as an error every few hours. Fix: add GIF and BMP to the cover allow-lists. Do this first.
+  - **m13:** when Metron's list image and detail image differ, only the detail check is recorded in `cover_match`.
 - **Owner:** Ender, batched with the next change.
 
 ### Minor follow-ups from the 0.4.1 review and QA (logged 2026-10-26; not started)

@@ -8,6 +8,7 @@ Date: 2026-10-27
 Tool: Comics Meta Organizer (comic-metadata)
 Release: v0.5.0
 Commit range: e793693..e0c4a69
+Re-reviewed: 30263f0..b2bfaef (release candidate b2bfaef), see "Re-review 2026-10-27 (b2bfaef)"
 Files changed: 46 files, +1907 / -55 (product code: 21 files, +473 / -38; tests: 15 files, +770 / -10; the rest docs and version files)
 Stand-down dimensions: none
 ```
@@ -197,14 +198,141 @@ Pillow is called on untrusted bytes without a format allow-list in seven places.
 
 ## Verdict
 
-- Total Critical: 1
-- Total Major: 3
-- Total Minor: 10
+- Total Critical: 1 (resolved at b2bfaef)
+- Total Major: 3 (resolved at b2bfaef)
+- Total Minor: 10, plus 3 new in the re-review
 
-**Verdict:** RELEASE BLOCKED
+At `e0c4a69` this review was RELEASE BLOCKED on F1. The re-review below finds F1 resolved at `b2bfaef`, with no open Critical and the safety floor intact. The verdict line now covers release candidate `b2bfaef` (`e793693..b2bfaef`).
+
+**Verdict:** RELEASE CLEAR
 
 | # | Sev | Dim | file:line | Finding | Must fix before release |
 |---|-----|-----|-----------|---------|--------------------------|
 | F1 | Critical | 1 Security (safety floor) | `cover_match.py:78`, `automatic.py:55` (start); also `local_model.py:107`, `:199`, `:227`, `browser_search.py:72`, `archive_conversion.py:107` | Archive or downloaded bytes open with no format allow-list, so a page holding PostScript launches Ghostscript 10.03.1, which is on PATH (probe confirmed the launch). | Pass `formats=('JPEG','PNG','WEBP')` at every listed site (`'GIF'` too in `archive_conversion`), as `reverse_image.py:135` already does. Add one test: a `.cbz` with PostScript as page 2 gives no match and launches no Ghostscript. |
 
 Majors and Minors for Ender's next cycle: F2 (fingerprint omits Lens), F3 (page 2/3 decode errors), F4 (no record of D-accepted writes), m1–m10.
+
+---
+
+## Re-review 2026-10-27 (b2bfaef)
+
+```
+Reviewer: Senua (Code Reviewer)
+Commit reviewed: b2bfaef (range 30263f0..b2bfaef): the F1–F4 fixes, tests/test_review_050_fixes.py, the Brief and the Backlog
+Release candidate: b2bfaef (v0.5.0); the verdict line above now covers e793693..b2bfaef
+Tests run: targeted only. test_review_050_fixes, test_cover_match, test_metron_variants, test_refinement_share and test_yield_order: 43 tests, OK, inside the suite's isolation net
+Entry check: Ender's log, C:\Antigravity Projects\Worktrees\Comics Meta Organizer\qa-050c\logs\ender-entry.log. 1038 tests; the 10 new tests pass. I did not re-check the remaining 6 failures and 2 errors, which are reported as the known set.
+```
+
+**How I probed.** Every probe used synthetic data and loaded the suite's isolation net first: a throwaway state root and lock folder, plus the live-state and network guards, with `Y:\Comix` added to the guard list. There were no isolation violations. Each probe ran on `b2bfaef` and again on `30263f0` as a control.
+
+Ghostscript was intercepted three ways:
+- an audit hook refused every process launch;
+- `subprocess.Popen` was replaced;
+- Pillow's Ghostscript binary was renamed to one that does not exist.
+
+### F1 [Critical, safety floor]: resolved
+
+- **Coverage.** Every Pillow decode of archive or downloaded bytes now passes `formats=`. That covers `covers_agree` (2 opens), `cover_match.compare` (2), `local_model.py:107`, `:199` and `:227`, `browser_search.py:72` and `archive_conversion.py:107`, plus `reverse_image.thumbnail` from before.
+  - I grepped all 60 product `.py` files, including `desktop/` and `scripts/packaging/`. There is no other `Image.open`, no `ImageFile.Parser` and no `frombytes` or `frombuffer`.
+  - The other callers of `covers_agree` get the list through it: `providers.py:101`, `publisher_catalogs.py:134`, `research.py:465` and `automatic.py:104`.
+  - The only third-party Python packages are Pillow and Playwright. Lens receives a re-encoded JPEG. The desktop side decodes only its own tray icons.
+- **Can a format be probed before the list applies? No.** This holds in Pillow 12.2.0, which both the test runtime and the packaged runtime use.
+  - For a path, `Image.open` first imports the plugin that matches the file extension. That import registers the plugin and decodes nothing.
+  - After that, only the listed formats' prefix checks and openers run.
+  - The fallback to every plugin runs only when no list is given.
+  - Probe: PostScript saved as `.eps` and as `.jpg`, opened by path with archive conversion's list, failed as an unidentified image with no Ghostscript call.
+- **Re-run of the original probe, Ghostscript intercepted:**
+
+| Case | 30263f0 | b2bfaef |
+|---|---|---|
+| Page 2 EPS (the original probe) | Ghostscript called | no match (`False`), not called |
+| Page 1 EPS | called | `UnidentifiedImageError`, not called |
+| Page 2 DOS-EPS (binary header) | called | `False`, not called |
+| Page 3 EPS | called | `False`, not called |
+| Metron answers with EPS | called | raises, not called |
+| `opening_images`, `credits_pages`, `identify_cover`, `cover_bytes` | called at each | raise, not called |
+| `archive_conversion.convert` (7-Zip replaced by `zipfile`) | called | raises; original kept, no CBZ; not called |
+| `reverse_image.thumbnail` | not called (already listed) | not called |
+| Control: `ImageFile.Parser`, same bytes | called | called |
+
+  - At `30263f0`, 10 of the 10 app cases reached Ghostscript. At `b2bfaef`, none did.
+  - In the same process, the control was caught, so the interception works.
+- **Machine note.** Ghostscript 10.08.0 is now installed (`C:\Program Files\gs\gs10.08.0`), and the system PATH names it. This session's inherited PATH still names the removed 10.03.1 folder. The fix depends on neither.
+- **Residual:** the new guard test reads source text, and only in top-level files. See m11.
+
+### F2 [Major]: resolved
+
+- **The fix.** The fingerprint now carries `lens = browser_search.settings()['enabled']`. That is the same expression `queue_cover_search` checks, so it follows whether Lens actually runs, not one key.
+- **Probe: 6 config states, all 36 transitions.** The states:
+  - no `browser_search` section;
+  - the legacy `enabled` key only;
+  - `enabled` with `lens` false;
+  - `enabled` with `lens` true;
+  - `enabled` false with `lens` true;
+  - `lens` given as the string `"true"`.
+
+  The stamp went through JSON, as the state file stores it.
+  - At `b2bfaef`, a comic is due again exactly when Lens starts or stops running, in both directions, and at no other transition: 0 mismatches.
+  - At `30263f0` there were 10 mismatches: every transition into or out of Lens running.
+- **Cache.** The fingerprint cache key changes with `config.json`'s mtime and size, so a toggle takes effect without a restart.
+- **On to off.** Comics stamped while Lens ran are asked once more, then stamped again. That is one local pass each, because no source can search them.
+- **Upgrade.** Stamps from pre-fix 0.5.0 builds lack the `lens` key, so they all wake once. 0.5.0 has not shipped, so only QA state roots hold such stamps.
+
+### F3 [Major]: resolved
+
+- **Pages 2 and 3.** I put each bad kind first as page 2, then as page 3, after a non-matching page 1. The kinds: a truncated JPEG, not an image, a bad CRC, a 400 MP PNG (decompression bomb), EPS, and a GIF saved as `.jpg`.
+  - At `b2bfaef`, every case returns no match (`False`); none raises.
+  - At `30263f0`, every case raised except the GIF.
+- **A match after a bad page.** With a bad page 2, a match on page 3 is still found and recorded as page 3, for all six kinds.
+- **Through `metron.lookup`.** A bad page 2 with no match returns `None`, an ordinary miss rather than an error. With a variant cover on page 1, the variant is still tried and accepted. `30263f0` raised in both cases.
+- **Page 1 is unchanged.** A truncated page, a non-image, a bad CRC and a bomb raise the same exception as at `30263f0`, with `cover_rule_v2` on and off. `PauseRequested` is re-raised before the catch-all, so pausing still stops the lookup.
+- **One page-1 change comes from F1, not F3.** A page 1 in a format outside the list, such as a GIF saved as `.jpg`, now raises. `30263f0` compared it. See m12.
+
+### F4 [Major]: resolved, with one gap (m13)
+
+- **What is recorded.** `verified_cover` returns `{comparison, page}`, and `lookup` adds `image` (`primary` or `variant: <name>`). `_discover` puts the record beside `match_rule` in the pass-plan entry, and the evidence keeps it. `test_the_pass_plan_entry_carries_the_cover_record` checks both.
+- **Probe values, all accurate:**
+  - exact cover on page 1: `today`, page 1;
+  - extra bleed: `aligned`, page 1;
+  - wraparound: `wraparound`, page 1;
+  - credits page first: `today`, page 2;
+  - bad page 2, then a match on page 3: `today`, page 3;
+  - `cover_rule_v2` off: `today`, page 1;
+  - a variant: `today`, page 1, `variant: Cover B`.
+- **The gap.** When Metron's list image and its detail image differ, both must agree, but only the detail check is recorded.
+  - Probe: the list image agreed only by `aligned` and the detail image by `today`. The record says `{today, page 1, primary}`.
+  - With `cover_rule_v2` off (0.4.1's check), the same comic gets no write.
+  - So this write is recorded as one 0.4.1 would make, and 0.4.1 would not have made it.
+  - It can happen only when the two URLs differ. I could not check how often Metron's differ (offline).
+
+### New findings
+
+- **m11 [Minor] The Ghostscript guard test reads source text.** `test_every_pillow_open_names_its_formats` matches `Image.open(` lines in top-level `*.py` files only.
+  - It does not catch `ImageFile.Parser`, which the control showed reaching Ghostscript. It also misses `from PIL.Image import open` and code in subfolders.
+  - None of these is used today.
+  - **Fix:** at engine start, set `PIL.EpsImagePlugin.gs_binary = False`. Pillow then refuses every EPS without starting a process, whatever the entry point.
+- **m12 [Minor] Pages in other image formats now fail.** The lists leave out GIF (except in archive conversion) and BMP. Only EPS starts a program.
+  - A page 1 that holds a GIF or BMP under a `.jpg` or `.png` name now raises in `verified_cover`. `30263f0` compared it.
+  - That comic's Metron lookup is then filed as an error and retried after 1, 2 and 4 hours, then every 6 hours, downloading the cover again each time. That is F3's pattern, now on page 1.
+  - Its local cover read fails as well, so it never gets the `unsearchable` stamp.
+  - On pages 2 and 3, such a page is skipped as no match.
+  - I could not measure how many archives this affects, because the library is off-limits. I expect few.
+  - **Fix:** add `GIF` and `BMP` to the cover lists. Neither launches a program.
+- **m13 [Minor] The cover record keeps only the last check** (F4, above). The Brief's sentence "so a wrong write can be traced to the check that accepted it" overstates the record for this case.
+  - **Fix:** also record the list-image check when it ran. Alternatively, record `today`, page 1 only when every check passed that way.
+
+### Checked and clear
+
+- **`cover_match.compare` makes the same decisions `agree` made.** The wraparound and shape branches accept and reject the same images (probes: bleed, wraparound, exact, credits first). `agree` remains as a wrapper.
+- **The new import has no side effects.** `source_scheduling` now imports `browser_search`, which `app.py` already imports.
+- **Nothing else changed in scope.** There is no new shell-out, delete, IPC channel or credential, and no version change.
+- **The Brief matches the code.** It documents the allow-list, the Lens fingerprint and the cover record, apart from m13's sentence.
+- **A test-run artifact, not a product finding.** My first targeted run, from the scratchpad folder, failed 4 tests in `test_refinement_share` and `test_yield_order` because the fixture paths passed 260 characters. Run from a short temp folder, all 43 tests pass. I deleted that folder afterwards.
+
+### Re-review verdict
+
+- **Critical:** none open. F1 is resolved, and the safety floor is intact.
+- **Majors:** F2, F3 and F4 are resolved.
+- **Minors:** m1–m10 are unchanged and already in the Backlog. New m11–m13 go to Ender's next cycle.
+- **Verdict line:** the one in the Verdict section above now reads RELEASE CLEAR, for release candidate `b2bfaef`.

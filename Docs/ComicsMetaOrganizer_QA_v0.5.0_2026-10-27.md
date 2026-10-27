@@ -4,7 +4,9 @@ Futaba, 2026-10-27. Scope: what changed in `668a141` (Enrichment A–E) plus a s
 
 **Verdict:** GO
 
-GO for the tested scope: the 0.5.0 installer's contents, its engine and dashboard files run from the extracted installer (shipped Python runtime), and the first-run setup page. **Not exercised, and not claimed:** launching the packaged Electron app, tray Quit and close-button exit, NSIS install or upgrade, the in-app updater, Sergei's real catalog, and pixels (E is verified as DOM state and zero client rects, not as a screenshot; ProcessRules § "No visual/UI change reaches Sergei on a headless GO" still applies: Jane's own screenshot is the step that closes it). No Blocker, no Major, one Minor.
+This verdict is for the rebuilt installer at `b2bfaef` (SHA-256 `3470ffc0de074c88787bf87cbc269c3a2a06d93c984a24bd3a594d72ddb758e4`), confirmed in § Rebuild check 2026-10-27 (b2bfaef) at the end. The first pass below was made on `30263f0` (installer `205dd3df…`); its build-identity hashes are superseded. Its A–E checks were not repeated (Lean verification: the only change since is the four review fixes, F1–F4); the rebuild section below re-checks the paths those fixes touch.
+
+GO for the tested scope (first pass, `30263f0`): the 0.5.0 installer's contents, its engine and dashboard files run from the extracted installer (shipped Python runtime), and the first-run setup page. **Not exercised, and not claimed:** launching the packaged Electron app, tray Quit and close-button exit, NSIS install or upgrade, the in-app updater, Sergei's real catalog, and pixels (E is verified as DOM state and zero client rects, not as a screenshot; ProcessRules § "No visual/UI change reaches Sergei on a headless GO" still applies: Jane's own screenshot is the step that closes it). No Blocker, no Major, one Minor.
 
 ## Build identity
 
@@ -72,3 +74,65 @@ Pattern alerts: 3, each with a disposition.
 ## Cleanup
 
 Headless lease: 0 left. No process, listener or server of mine remains. All scratch (the 7-Zip extraction, the temp state roots and the scripts) was removed at the end; the sweep result is in my reply. Nothing was committed.
+
+## Rebuild check 2026-10-27 (b2bfaef)
+
+Futaba. Scope per the brief and ProcessRules § Lean verification: the hashes and the installer's contents, each of the four review fixes (Senua's F1–F4, commit `b2bfaef`) once, and a short smoke. Headless only. The installer was extracted with 7-Zip and never run; no Electron, no focus, no mouse; Sergei's app, `%LOCALAPPDATA%\ComicsMeta` and `Y:\Comix` were not opened; real Ghostscript was never run. The entry check was not re-run.
+
+Verdict for this build: GO. The machine-readable line is the one at the top of this file. Not exercised, and not claimed: launching the packaged app, tray Quit and close-button exit, NSIS install or upgrade, the in-app updater, Sergei's real catalog, pixels.
+
+### Build identity
+
+| Item | Result |
+|---|---|
+| Installer `Comic-Metadata-Setup-0.5.0.exe` (149,511,805 bytes) | SHA-256 `3470ffc0…758e4`: matches. |
+| `latest.yml` | `b84e0297…71d2f`: matches. |
+| Blockmap | `7a95449f…5dc05`: matches. |
+| `build\staged-manifest.json` | `1e21e3a2…4bf3`: matches. |
+| Source | `build-050` is at `b2bfaef`, clean. The entry receipt names `comic-metadata v0.5.0 @ b2bfaef6d97aeca2637f6884e230d836f6184887 (dirty: N)`. |
+| Installer contents | 65 of 65 engine sources equal the manifest byte for byte and equal the `b2bfaef` content (line endings normalised: the checkout is CRLF, `core.autocrlf=true`, the index is LF). `engine\VERSION` is 0.5.0. The one packaged engine file outside the manifest is the build-generated `update-runtime-manifest.json`; its `helperSha256` equals the packaged `installer_launch.py` hash. |
+| Entry receipt | `check fail (owned check)`, accepted. 1038 tests (1028 plus the 10 new fix tests), 6 failures, 2 errors, 1 skipped. The eight failing names are identical to the 0.4.0 log (sorted-name diff empty). The log's own note "Final supervisor output differs from streamed bytes" is also in the 0.4.0 log. |
+
+### Results, one per check
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Hashes and contents | Pass (above). |
+| 2 | **F1**, PostScript page | **Pass.** Shipped engine, `metron.verified_cover`: PostScript as page 1 fails closed (`UnidentifiedImageError`, no accept, so no write); as page 2 it is no match (returns `False`); in both, zero process launches. The six other decoding sites (`covers_agree` both arguments, `opening_images`, `credits_pages`, `browser_search.cover_bytes`, `identify_cover`) also refuse it with zero launches. Static: all 12 `Image.open(` sites in 7 shipped files name `formats=`. |
+| 3 | **F3**, damaged page 2 | **Pass.** Truncated, not-an-image, bad-CRC and decompression-bomb page 2 each return `False`, none raise. A damaged page 2 followed by a matching page 3 returns `{comparison: today, page: 3}`, so page 3 still gets its chance. `metron.lookup` with a damaged page 2 returns `None` (an ordinary miss) instead of raising. A damaged page 1 still raises, as before. |
+| 4 | **F2**, Lens in the fingerprint | **Pass.** `search_fingerprint()` carries `lens: false` and then `lens: true` when `config.json` switches Lens on (both `browser_search.enabled` and `lens`, as the README says). A comic marked unsearchable while Lens was off is not due while it stays off and is due once Lens is on. A mark made while Lens was on is due again after switching it off. A mark made with the current fingerprint stays not due. |
+| 5 | **F4**, `cover_match` recorded | **Pass.** `verified_cover` returns the check and page (`today`, page 1 and page 2). `lookup` returns `cover_match` `{comparison: today, page: 1, image: primary}`, and `{…, image: "variant: Cover B"}` for a variant cover. Through the shipped `automatic.discover` pass, the pass-plan entry and the evidence record both carry `match_rule: year` and the same `cover_match`. |
+| 6 | Smoke | **19 of 19.** Shipped engine, in-process server on an ephemeral loopback port, temp state root, 3 synthetic comics scanned: dashboard HTML, seven scripts and the stylesheet are served; `/api/state` reports 0.5.0 with 3 comics; `/api/comics` lists all 3; the cover preview of a normal comic is 200 `image/jpeg`; the cover preview of a comic whose first page is PostScript is a 400 with no process; Lens is off by default; `/api/progress` answers after warm-up; an untrusted Host header is refused (403); no process launched during the whole run. |
+
+**Controls (each check can fail).** The same checks were run against `30263f0`'s engine, with the same interceptor:
+- F1: PostScript pages reached the launch of `gswin64c -q -g400x615 … -dSAFER -sDEVICE=pnmraw` on all eight sites (page 1, page 2 and the six others). The launch was caught and refused, so nothing started.
+- F3: each damaged page 2 raised (`OSError`, `UnidentifiedImageError`, `BadZipFile`, `DecompressionBombError`), and `lookup` raised.
+- F2: the fingerprint was identical with Lens off and on, and the comic stayed not due.
+- F4: `verified_cover` returned a bare `True`, and `cover_match` was absent from the lookup, the plan entry and the evidence.
+
+**How the interception worked.** Python audit hook refusing every process launch (`subprocess.Popen`, `os.system`, exec and spawn, `winapi.CreateProcess`, `os.startfile`), in isolated mode (`-I -B`) with the shipped runtime and a pinned scratch state root. PATH held only a decoy file named `gswin64c.exe` (so the old code path reaches its launch attempt) and System32; the machine's real Ghostscript folder was not on PATH. No process list afterwards showed a `gswin64c` or a leftover python of mine.
+
+**One extra look.** `cover_match.compare` was restructured in this commit (it now names the check). On 12 synthetic pairs it says yes or no exactly as the `30263f0` `agree()` did: identical `today`, 3% side bleed `today`, 6% side bleed `aligned`, front-cover-on-right wraparound `wraparound`; a different cover, a wraparound of another cover, a near-blank image, 9% and 12% side bleed, and a border added all round are all no. The border case is Minor 1 from the first pass and is unchanged.
+
+### Findings
+
+No Blocker, no Major, no new Minor. Minor 1 (a scan shrunk inside an all-round margin is not matched) is unchanged and still informational.
+
+*Looked at, not findings:*
+- A PostScript first page makes the lookup error (as any unreadable first image always did) rather than a quiet miss. That is the stated design: page 1 is unchanged.
+- `/api/update-stats` with no period answers 400 "Choose a period."; that is its normal answer to a bare request.
+
+Pattern alerts: no new ones. The first-pass alerts keep their dispositions. Alert 1 (the entry check failing on the same eight known tests) and alert 2 (the packaged shell not exercised by QA) recur on this build, unchanged: defer, as before. Alert 3 (a stdin-python slip) did not recur: every script was a file, and I grepped them for `python -` forms before each run.
+
+Regression verification: F1, F2, F3 and F4 are each confirmed against fix commit `b2bfaef`, as the installer built from it.
+
+### Process deviations (mine, disclosed)
+
+- My first engine comparison used raw git blobs and reported 0 of 65 identical. That was my method: the checkout is CRLF and the blobs are LF. With line endings normalised it is 65 of 65, and the packaged files equal the manifest byte for byte.
+- A mistyped `$TMPDIR` path put two small name-list files in the Temp root. I removed both by exact path.
+- My own `rm -rf` of an extraction folder was refused by the studio's delete guard. I did not retry it; I used `scripts/studio-sweep.mjs --path` for my scratch instead.
+- I listed processes whose command line mentioned my scratch folder with `powershell.exe -NoProfile -Command`, called from Bash (read-only). The brief said Bash; this was Bash running that binary.
+
+### Cleanup
+
+The sweep (`node scripts/studio-sweep.mjs --apply --path` on `scratchpad\futaba-050b`) removed 1 item, 655.09 MB, and kept everything that was not mine (other agents' worktrees and scratch). Nothing of mine is left on disk or running. The report is uncommitted; nothing else was edited or committed.
