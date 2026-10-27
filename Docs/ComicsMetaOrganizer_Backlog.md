@@ -71,7 +71,32 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Open:** the catalog holds 40,207 comics, while Sergei's library may be about 60,000. Check whether files never reach the catalog.
 - **Owner:** Ender builds A–E in one batch. Futaba checks what changed. Senua reviews. Sully releases. Makoto researches.
 
-### GCD data dump as an offline source (Sergei, 2026-10-27)
+### GCD data dump as an offline source (Sergei, 2026-10-27) — 0.6.0 batch PARKED, not started in code
+- **Parked 2026-10-27:** Sergei paused until the token reset. Done so far:
+  - **UI brief:** written as `Docs/ComicsMetaOrganizer_GCDOffline_UIBrief_2026-10-27.md`. Judy has not started.
+  - **Engine design:** settled by Ender, see "Next session" below. No code exists yet.
+  - **Pilot scripts:** saved in `tools/gcd_pilot/`. They hold the exact matching rules to port.
+- **The 0.6.0 batch:**
+  1. The GCD offline provider.
+  2. Language tags: `[rus]`, `(rus)` and other languages, for all sources.
+  3. The conversion-leftover cause and the 19 CBR files.
+  4. Senua's m12 (GIF/BMP cover allow-list) and m11 (disable Pillow's Ghostscript/EPS plugin at startup).
+- **Next session:**
+  1. **Judy:** one pass on the UI brief. It includes one open question for Sergei: a "dump is old" reminder after N days.
+  2. **Ender:** port `tools/gcd_pilot/pilot.py` (`match_guarded`, `gcd_fields`, guard G5) and `build_index.py` into a new `gcd_offline.py`:
+     - each index is written under a new name and a pointer is switched to it;
+     - the rules stamp includes the dump date;
+     - it runs after Metron in `automatic.py` (around line 509);
+     - the Notes attribution is added around line 645;
+     - a GTIN-count table;
+     - build progress and cancel;
+     - a free-disk-space check (about 7.5 GB);
+     - the endpoints from the UI brief and a desktop file-picker call.
+
+     Then items 2–4, failing tests first.
+  3. **Ender:** re-measure the per-rule counts on a fresh read-only snapshot against the pilot's 12,689.
+  4. **Then:** the entry check, Futaba and Senua, and Sully releases 0.6.0.
+- **Check in the build:** Ender reads "skip Star Wars Legends Marvel reissues" as skipping Dark Horse matches inside a `Star Wars Legends` folder. This is not yet measured, so confirm it covers the 217 files.
 - **Source:** `Docs/ComicsMetaOrganizer_GCDTrial_2026-10-26.md` (Ender). Sergei downloads `current.zip` from comics.org himself, about every 2 weeks (CC BY-SA 4.0). The dump has no covers.
 - **Rulings (Sergei, "yes" to each):**
   1. A single GCD match on series + number + year counts as verified, with no cover check.
@@ -107,8 +132,16 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Owner:** Ender, batched with the next change.
 
 ### Leftover conversion folder in the library (found 2026-10-27)
-- `Y:\Comix\!Titan Comics\The Michael Moorcock Library\Michael Moorcock's Multiverse 01-12\.comic-metadata-convert-3cf321636f084dc88e78deeaa54569ed\` still holds 25 JPGs of issue #010. A CBR-to-CBZ conversion didn't clean up. Ender found 19 CBR files that are not in the catalog, which may be related.
-- **Owner:** Ender: find the cause, plus a safe recovery (never delete library content without Sergei).
+- `Y:\Comix\!Titan Comics\The Michael Moorcock Library\Michael Moorcock's Multiverse 01-12\.comic-metadata-convert-3cf321636f084dc88e78deeaa54569ed\` held 25 JPGs of issue #010, left by a CBR-to-CBZ conversion that didn't clean up. The real `Michael Moorcock's Multiverse 010.cbz` sits beside it, intact.
+- **Deleted 2026-10-27 at Sergei's request** ("Just delete this"). Jane removed the 25 files and the 2 empty folders with literal `rm`/`rmdir`, after confirming the .cbz was present.
+- **Still open:** the cause, which was not investigated before deletion. Ender also found 19 CBR files that aren't in the catalog. Find out why conversion can leave its staging folder behind, and whether it is related to those 19.
+- **Owner:** Ender, in the 0.6.0 batch.
+
+### Non-comic files under Y:\Comix (Sergei, 2026-10-27)
+- 514 EPUB (D&D novels), 150 MOBI (Conan, John Carter, Assassin's Creed and others), 1 DJVU and about 650 loose JPGs (wallpapers, extras, a few image-folder comics). Sergei: "The books are fine." No action.
+
+### Updater waiting banner confirmed (Sergei, 2026-10-27)
+- During the 0.4.1 → 0.5.0 update, Sergei saw the waiting message and no second Install offer. The 0.4.1 fix works in real use.
 
 ### Minor follow-ups from the 0.5.0 review and QA (logged 2026-10-27; not started)
 - **Senua m1–m10** (`Docs/ComicsMetaOrganizer_CodeReview_v0.5.0_2026-10-27.md`):
