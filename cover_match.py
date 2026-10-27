@@ -69,17 +69,25 @@ def _aligned(a, b):
             and _correlation(_edges(grey_a), _edges(grey_b)) > EDGE_CORRELATION)
 
 
-def agree(local, remote):
-    """The archive image (bytes) shows the same cover as Metron's image (bytes)."""
+def compare(local, remote):
+    """Which comparison finds the archive image (bytes) and Metron's image (bytes) the same cover, or None:
+    'today' (automatic.covers_agree), 'aligned' (framing aligned) or 'wraparound' (a wraparound's front part).
+    The name is kept with each write's evidence (v0.5.0 review F4)."""
     import automatic
     if automatic.covers_agree(local, remote):
-        return True
+        return 'today'
     from PIL import Image
-    with Image.open(io.BytesIO(local)) as a, Image.open(io.BytesIO(remote)) as b:
+    with Image.open(io.BytesIO(local), formats=('JPEG', 'PNG', 'WEBP')) as a, \
+            Image.open(io.BytesIO(remote), formats=('JPEG', 'PNG', 'WEBP')) as b:  # Never EPS/Ghostscript (review F1).
         a, b = a.convert('RGB'), b.convert('RGB')
         target = b.width / b.height
         if a.width / a.height > 1.0 and target < 1.0:
-            a = _right(a, target)  # A wraparound: back cover left, front cover right.
-        elif abs(a.width / a.height - target) > ASPECT_LIMIT:
-            return False
-        return _aligned(a, b)
+            return 'wraparound' if _aligned(_right(a, target), b) else None  # Back cover left, front cover right.
+        if abs(a.width / a.height - target) > ASPECT_LIMIT:
+            return None
+        return 'aligned' if _aligned(a, b) else None
+
+
+def agree(local, remote):
+    """The archive image (bytes) shows the same cover as Metron's image (bytes)."""
+    return compare(local, remote) is not None

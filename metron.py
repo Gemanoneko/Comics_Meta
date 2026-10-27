@@ -93,6 +93,8 @@ COVER_IMAGES = 3  # Enrichment D: archive images compared with each Metron cover
 
 
 def verified_cover(path,url):
+    """False, or what accepted the cover (v0.5.0 review F4): {'comparison': 'today'|'aligned'|'wraparound',
+    'page': archive image 1-3}. 'today' is the comparison 0.4.1 used; the others are Enrichment D's."""
     import automatic,reverse_image,research_runtime
     research_runtime.research_checkpoint()
     parsed=urllib.parse.urlparse(url)
@@ -104,16 +106,23 @@ def verified_cover(path,url):
         import pipeline_config
         if not pipeline_config.matching('cover_rule_v2'):
             local,_,_=reverse_image.cover(path,0)
-            return automatic.covers_agree(local,remote)
+            return {'comparison':'today','page':1} if automatic.covers_agree(local,remote) else False
         # Enrichment D: the revised comparison, on the first archive image and then the next two
-        # (scanners often put a credits page first). An unreadable first image fails as before.
-        import cover_match
+        # (scanners often put a credits page first). The first image behaves as before: an unreadable one fails
+        # the lookup. Pages 2 and 3 are only extra chances (v0.5.0 review F3): one that will not read or decode
+        # (truncated, not an image, a bad CRC, too large) is no match for that page, so the variant covers are
+        # still tried and the miss is an ordinary miss, not an error retried every few hours.
+        import cover_match,pause_control
         for index in range(COVER_IMAGES):
-            try:local,_,_=reverse_image.cover(path,index)
-            except ValueError:
+            try:
+                local,_,_=reverse_image.cover(path,index)
+                comparison=cover_match.compare(local,remote)
+            except pause_control.PauseRequested:
+                raise
+            except Exception:
                 if index==0:raise
-                break
-            if cover_match.agree(local,remote):return True
+                continue
+            if comparison:return {'comparison':comparison,'page':index+1}
         return False
 
 
@@ -295,6 +304,7 @@ def lookup(row, old):
         return None
     candidate=matches[0]
     preview=candidate.get('image') or ''
+    # primary holds what accepted the cover (verified_cover's record, v0.5.0 review F4), or a plain truth value.
     primary=not preview or verified_cover(row['path'],preview)
     import research_runtime
     with research_runtime.stage('Metron issue details'):
@@ -308,12 +318,17 @@ def lookup(row, old):
     url = detail.get('image') or ''
     if primary and (not preview or url!=preview):primary=verified_cover(row['path'],url)
     variant=None
+    accepted=primary
     if not primary:
         # The comic may carry a variant cover of this exact issue.
         for item in [v for v in detail.get('variants') or [] if isinstance(v,dict) and v.get('image')][:MAX_VARIANT_COVERS]:
-            if verified_cover(row['path'],item['image']):
-                variant=item;break
+            found=verified_cover(row['path'],item['image'])
+            if found:
+                variant,accepted=item,found;break
         if not variant:return None
+    # Which cover accepted the write and how (v0.5.0 review F4), kept beside match_rule in the evidence and pass plan.
+    cover_match=dict(accepted) if isinstance(accepted,dict) else {}
+    cover_match['image']='variant: '+str(variant.get('name') or 'unnamed') if variant else 'primary'
     language=(detail.get('series') or {}).get('language')
     if language and str(language).lower() not in ('en','eng','english'):return None
     fields=metadata_fields(detail)
@@ -321,4 +336,4 @@ def lookup(row, old):
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
     scope='Exact issue identity and '+('variant cover ('+str(variant.get('name') or 'unnamed')+')' if variant else 'cover')+' verified'
     # match_rule (Enrichment B/C) stays in the evidence and the pass plan, so writes made under a looser rule can be found.
-    return {'provider':'Metron','metadata_version':2,'match_rule':rule,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    return {'provider':'Metron','metadata_version':2,'match_rule':rule,'cover_match':cover_match,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}

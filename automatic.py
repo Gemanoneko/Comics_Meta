@@ -52,7 +52,9 @@ def detailed(grey):
 
 def covers_agree(local, remote):
     from PIL import Image, ImageChops, ImageStat, ImageOps
-    with Image.open(io.BytesIO(local)) as a, Image.open(io.BytesIO(remote)) as b:
+    # Pillow picks the decoder from the content, not the name: an allow-list keeps a page holding PostScript
+    # away from the EPS plugin and Ghostscript (v0.5.0 review F1). It fails as an unidentified image instead.
+    with Image.open(io.BytesIO(local),formats=('JPEG','PNG','WEBP')) as a, Image.open(io.BytesIO(remote),formats=('JPEG','PNG','WEBP')) as b:
         if abs(a.width / a.height - b.width / b.height) > .08:
             return False
         grey_a=list(a.convert('L').resize((32,48)).tobytes())
@@ -639,6 +641,7 @@ def _discover(root,coverage_only,lookahead,refine=False):
             if fields:
                 extra,note=replacement_record(external.get('provider','web research'),replaced)
                 if external.get('match_rule'):extra=dict(extra,match_rule=external['match_rule'])  # Enrichment B/C provenance.
+                if external.get('cover_match'):extra=dict(extra,cover_match=external['cover_match'])  # Which cover check accepted it (review F4).
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])+('\n'+note if note else '')
                 entry=plan.add(path,changes,fields,'Verified issue-wide web fields.',signature=signature,**extra)
                 outcome='queued'

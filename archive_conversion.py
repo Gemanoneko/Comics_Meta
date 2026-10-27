@@ -104,7 +104,7 @@ def convert(path):
                     raise ValueError('Extracted path escaped staging; original retained.')
                 if extracted.stat().st_size!=size:raise ValueError('Extracted file size differs; original retained.')
                 if name.lower().endswith(('.jpg','.jpeg','.png','.webp','.gif')):
-                    with Image.open(extracted) as image:image.load()
+                    with Image.open(extracted,formats=('JPEG','PNG','WEBP','GIF')) as image:image.load()  # Never EPS/Ghostscript (review F1).
                 with extracted.open('rb') as handle:manifest[name]=(size,checksum(handle))
                 archive.write(extracted,name)
         verify(temporary,manifest)

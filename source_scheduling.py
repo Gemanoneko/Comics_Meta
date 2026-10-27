@@ -75,13 +75,15 @@ _fingerprint=(None,None)
 
 
 def search_fingerprint():
-    """What decided that nothing could search a comic: the matching rules and the switched-on sources.
-    Kept until config.json changes: the catalog probe asks for it per waiting comic, and each answer reads it."""
+    """What decided that nothing could search a comic: the matching rules, the switched-on sources and whether
+    Google Lens cover search is on (v0.5.0 review F2: switching Lens back on must reach these comics, the ones a
+    cover search is for). Kept until config.json changes: the catalog probe asks for it per waiting comic."""
     global _fingerprint
-    import pipeline_config,metron
+    import pipeline_config,metron,browser_search
     key=pipeline_config.config_key()
     if _fingerprint[0]==key:return dict(_fingerprint[1])
-    value={'rules':metron.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name))}
+    value={'rules':metron.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name)),
+           'lens':bool(browser_search.settings().get('enabled'))}
     _fingerprint=(key,value)
     return dict(value)
 

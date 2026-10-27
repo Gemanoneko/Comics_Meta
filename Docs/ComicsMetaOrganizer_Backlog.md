@@ -110,6 +110,21 @@ Items Sergei has approved for a future version. Not started unless marked.
 - `Y:\Comix\!Titan Comics\The Michael Moorcock Library\Michael Moorcock's Multiverse 01-12\.comic-metadata-convert-3cf321636f084dc88e78deeaa54569ed\` still holds 25 JPGs of issue #010. A CBR-to-CBZ conversion didn't clean up. Ender found 19 CBR files that are not in the catalog, which may be related.
 - **Owner:** Ender: find the cause, plus a safe recovery (never delete library content without Sergei).
 
+### Minor follow-ups from the 0.5.0 review and QA (logged 2026-10-27; not started)
+- **Senua m1–m10** (`Docs/ComicsMetaOrganizer_CodeReview_v0.5.0_2026-10-27.md`):
+  - Lens verification can still be requested while Lens is off.
+  - Archive reads block renames: up to 30 opens per comic.
+  - The combined false-accept rate across 3 pages × 10 covers was not measured.
+  - The folder-year rule has no one-year-off check. Sergei's later GCD ruling allows these matches, so keep the two consistent.
+  - The refinement turn reads every written comic.
+  - Pages are decoded twice per remote cover.
+  - Year-range parsing edge cases: `(1993 - 1995 Dark Horse)` and `(2010-12)`.
+  - Roman numerals and number words are treated as unnumbered.
+  - `can_search` duplicates source checks.
+  - Four mismatches between the docs and the code.
+- **Futaba Minor 1:** the cover check rejects a cover scaled into a margin on all four sides. It fails safe.
+- **Owner:** Ender, batched with the next change.
+
 ### Minor follow-ups from the 0.4.1 review and QA (logged 2026-10-26; not started)
 - **Senua m1:** in `desktop/updates.cjs:84`, pressing Try again while a manual Check for updates is still running leaves the state and the banner out of step. Try again and × do nothing until the check returns; it then settles on "Update ready" by itself.
 - **Senua m2:** in `update_stats.py:361-362` and `:372`, one history row dated in the future turns off the fast refresh for every period until real time catches up. Refreshes then take 0.5–2 s; the counts stay correct.

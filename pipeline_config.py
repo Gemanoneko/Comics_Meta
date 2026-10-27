@@ -57,7 +57,7 @@ def config_key():
         found = (stat.st_mtime_ns, stat.st_size)
     except OSError:
         found = None
-    return (str(path), found, id(matching), id(disabled_sources), id(source_enabled))
+    return (str(path), found, id(matching), id(disabled_sources), id(source_enabled), id(lens_enabled))
 
 
 def lens_enabled():
