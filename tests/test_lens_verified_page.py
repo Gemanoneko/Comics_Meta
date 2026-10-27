@@ -98,6 +98,7 @@ class VerifiedPageLeadTests(unittest.TestCase):
         self.enterContext(patch.object(app,'live_root',return_value=str(self.root)))
         self.enterContext(patch.object(research,'CACHE',self.root/'research'))
         self.enterContext(patch.object(lens_verification,'_owner',None))
+        self.enterContext(patch.object(lens_verification,'lens_on',return_value=True))  # Enrichment E: Lens is opt-in; tested switched on.
         self.enterContext(patch.object(browser_worker.pause_control,'requested',return_value=False))
         lens_verification.initialize()
         (app.DATA/'browser-heartbeat').write_text(json.dumps({'pid':os.getpid(),'timestamp':time.time()}))

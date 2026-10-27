@@ -11,6 +11,9 @@ class SchedulingTests(unittest.TestCase):
     def setUp(self):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',self.root/'data'))
+        # Scheduling mechanics, shown with GCD and Google Books switched on as they were before Enrichment E.
+        import pipeline_config
+        self.enterContext(patch.object(pipeline_config,'disabled_sources',return_value=set(pipeline_config.DEFAULT_DISABLED_SOURCES)))
         with app.db():pass
 
     def test_no_new_data_does_not_stop_a_richer_verified_source(self):
@@ -29,6 +32,9 @@ class SchedulingTests(unittest.TestCase):
         for expected in (86400,172800,345600,604800,604800):
             previous=scheduling.record(previous,None,None,{},100)
             self.assertEqual(previous['next_at'],100+expected)
+        import metron
+        self.assertTrue(scheduling.ready('Metron',previous,{},101))  # Enrichment B/C/D: a miss from older rules is asked once more.
+        previous['rules']=metron.rules_stamp()  # As automatic.discover stamps every Metron attempt.
         self.assertFalse(scheduling.ready('Metron',previous,{},101))
         self.assertTrue(scheduling.ready('Metron',previous,{},previous['next_at']))
 

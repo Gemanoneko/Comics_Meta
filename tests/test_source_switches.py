@@ -83,9 +83,12 @@ class SourceSwitchTests(unittest.TestCase):
         (self.root / 'config.json').write_text(json.dumps(value))
 
     def test_default_list_and_reversible_config(self):
-        self.assertEqual(pipeline_config.disabled_sources(), {'General free web', 'Wikipedia/wiki', 'Saved lead re-checks', 'GetComics', 'PREVIEWSworld'})
+        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index'}  # Enrichment E (2026-10-26).
+        self.assertEqual(pipeline_config.disabled_sources(), {'General free web', 'Wikipedia/wiki', 'Saved lead re-checks', 'GetComics', 'PREVIEWSworld'} | retired)
         self.assertTrue(pipeline_config.source_enabled('Metron'))
         self.config({'sources': {'disabled': []}})
+        self.assertEqual(pipeline_config.disabled_sources(), retired)
+        self.config({'sources': {'disabled': [], 'enabled': sorted(retired)}})
         self.assertEqual(pipeline_config.disabled_sources(), set())
         self.config({'sources': {'disabled': ['GCD']}})
         self.assertFalse(pipeline_config.source_enabled('GCD'))
@@ -141,9 +144,11 @@ class SourceSwitchTests(unittest.TestCase):
         self.assertIn('Metron', called)
         for off in ('GetComics', 'previews_catalog', 'free web', 'wiki'):
             self.assertNotIn(off, called)  # Before: every one was tried.
-        self.assertIn('darkhorse_catalog', called)  # An enabled catalog still runs (its mock takes v0.1.2's strict).
+        self.assertIn('image_catalog', called)  # An enabled catalog still runs (its mock takes v0.1.2's strict).
+        self.assertNotIn('darkhorse_catalog', called)  # Enrichment E: off by default.
         attempts = {a['provider']: a['result'] for a in research.read_evidence(self.path)['provider_attempts']}
-        self.assertEqual((attempts['GetComics'], attempts['PREVIEWSworld']), ('switched_off', 'switched_off'))
+        self.assertEqual((attempts['GetComics'], attempts['PREVIEWSworld'], attempts['Dark Horse'], attempts['GCD']),
+                         ('switched_off',) * 4)
 
     def test_switches_apply_on_top_of_the_strict_routes_during_a_hold(self):
         # v0.1.2: Web names a ComicVine issue that cannot be checked, so every web-verified route is strict.
@@ -154,7 +159,7 @@ class SourceSwitchTests(unittest.TestCase):
                                      'Web': 'https://comicvine.gamespot.com/example-1/4000-5/'}, unavailable))
         for off in ('GetComics', 'previews_catalog', 'free web', 'wiki'):
             self.assertNotIn(off, called)  # Switched off, strict or not.
-        for name in ('darkhorse_catalog', 'image_catalog', 'publisher', 'saved leads'):
+        for name in ('image_catalog', 'publisher', 'saved leads'):  # Dark Horse is off since Enrichment E.
             self.assertIs(called[name], True, name)  # Enabled routes keep v0.1.2's strict verification.
         with app.db() as con:
             record = json.loads(con.execute('SELECT value FROM discovery_records').fetchone()[0])
@@ -162,7 +167,7 @@ class SourceSwitchTests(unittest.TestCase):
 
     def test_positive_control_enabled_routes_are_not_strict_without_a_comicvine_id(self):
         called = dict(self.discover({'Series': 'Example', 'Number': '1', 'Year': '2024'}))
-        for name in ('darkhorse_catalog', 'image_catalog', 'publisher', 'saved leads'):
+        for name in ('image_catalog', 'publisher', 'saved leads'):
             self.assertIs(called[name], False, name)
 
 

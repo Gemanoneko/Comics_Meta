@@ -59,6 +59,47 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Rule (by analogy with Sergei's other rulings):** the current calendar month in local time. Judy specs placement, bar unit and copy.
 - **Owner:** Judy specs. Ender builds it in the same batch as the updater bug and the 0.4.1 fixes. Futaba verifies.
 
+### Enrichment effectiveness, A–E (Sergei, 2026-10-26)
+- **Source:** `Docs/ComicsMetaOrganizer_EnrichmentDiagnosis_2026-10-26.md` (Ender). Nothing is broken; the easy matches are used up. About 30,000 comics remain, and about 3,000–5,500 more look matchable.
+- **Approved (Sergei, "yes" to each):**
+  - **A:** give refinement a fixed share of passes, and stop re-asking comics no source can search.
+  - **B:** match comics with no printed year: more year formats, searching without the year, or the folder's year.
+  - **C:** treat an unnumbered book as issue #1.
+  - **D:** audit the cover comparison, and loosen it where the evidence supports that. Sergei accepts that it may get looser.
+  - **E:** switch off the zero-yield sources (GCD, Dark Horse, Google Books, Open Library) and Lens.
+- **Research (Sergei, "Absolutely"):** Makoto looks for new sources, starting with an offline GCD data dump.
+- **Open:** the catalog holds 40,207 comics, while Sergei's library may be about 60,000. Check whether files never reach the catalog.
+- **Owner:** Ender builds A–E in one batch. Futaba checks what changed. Senua reviews. Sully releases. Makoto researches.
+
+### GCD data dump as an offline source (Sergei, 2026-10-27)
+- **Source:** `Docs/ComicsMetaOrganizer_GCDTrial_2026-10-26.md` (Ender). Sergei downloads `current.zip` from comics.org himself, about every 2 weeks (CC BY-SA 4.0). The dump has no covers.
+- **Rulings (Sergei, "yes" to each):**
+  1. A single GCD match on series + number + year counts as verified, with no cover check.
+  2. The year may come from the folder or the file name.
+  3. Comics with no year, no number, or collected volumes may also match. The trial measured 1–7% wrong for these.
+  4. GCD synopses feed the existing synopsis review.
+  5. Pilot first: Ender produces a read-only "would write" list, Futaba samples it, and only then do writes start.
+- **Pilot result (2026-10-27):** GCD would write to 12,689 of the 30,094 unmatched comics. The sample is in `Docs/ComicsMetaOrganizer_GCDPilot_Sample_2026-10-27.md`, and Futaba is checking it.
+- **Pilot rulings (Sergei, 2026-10-27):**
+  - Keep the guard that skips file names made only of a number, unless the folder confirms the title.
+  - When a Series was read from the cover and GCD only adds "The" or a prefix, keep the cover's Series.
+  - Skip folder-year matches where a same-name series starts one year earlier or later. Example: Savage Sword of Conan matched the Marvel UK weekly.
+  - Never let GCD replace a Publisher that was read from the cover.
+- **To settle at build time:**
+  - a publisher alias table (GCD uses short names such as "DC" and "Titan");
+  - the free-text fields that are left out: Characters, Genre, Day, AgeRating and Format.
+- **Language bug:** the language-tag bug also misses `(rus)` in round brackets. See the entry below.
+- **Licence:** credit GCD in Notes with its issue link, and never commit the index.
+- **Owner:** Ender (pilot, then build), Futaba (samples the pilot), Senua, Sully.
+
+### Square-bracket language tags are missed (Sergei approved logging, 2026-10-27)
+- In the GCD trial, two `[rus]` files matched the English issue: the app's language rule misses tags in square brackets. It also misses `(rus)` in round brackets, because only `(ru)` is listed. The pilot found 193 square-bracket files and 22 round-bracket ones. This affects every source, not only GCD.
+- **Owner:** Ender, batched with the next change.
+
+### Leftover conversion folder in the library (found 2026-10-27)
+- `Y:\Comix\!Titan Comics\The Michael Moorcock Library\Michael Moorcock's Multiverse 01-12\.comic-metadata-convert-3cf321636f084dc88e78deeaa54569ed\` still holds 25 JPGs of issue #010. A CBR-to-CBZ conversion didn't clean up. Ender found 19 CBR files that are not in the catalog, which may be related.
+- **Owner:** Ender: find the cause, plus a safe recovery (never delete library content without Sergei).
+
 ### Minor follow-ups from the 0.4.1 review and QA (logged 2026-10-26; not started)
 - **Senua m1:** in `desktop/updates.cjs:84`, pressing Try again while a manual Check for updates is still running leaves the state and the banner out of step. Try again and × do nothing until the check returns; it then settles on "Update ready" by itself.
 - **Senua m2:** in `update_stats.py:361-362` and `:372`, one history row dated in the future turns off the fast refresh for every period until real time catches up. Refreshes then take 0.5–2 s; the counts stay correct.

@@ -89,6 +89,12 @@ def server_started():
             if state['phase']=='failed':(app.DATA/'browser-resume').unlink(missing_ok=True)
 
 
+def lens_on():
+    """Google Lens cover search is switched on (Enrichment E: off unless "browser_search": {"lens": true})."""
+    import browser_search
+    return bool(browser_search.settings().get('enabled'))
+
+
 def status():
     import browser_search
     legacy=browser_search.legacy_status()
@@ -100,6 +106,11 @@ def status():
     if not current_alive and window in {'open','minimized'}:window='unknown'
     if paused:phase='paused'
     human=bool(legacy.get('human_verification'))
+    if not lens_on():
+        # Enrichment E: Lens is off, so nothing asks for a check, waits for a window or reports one as failed.
+        # The stored state is left as it was, for the day Lens is switched back on.
+        human=False;window='closed';failure=''
+        if phase!='paused':phase='idle'
     if phase in {'idle','verified'} and human:phase='required'
     return {'engine':'google_lens','phase':phase,'human_verification':human,'window':window,
             'alive':current_alive,'paused':paused,'failure':failure,'verification_pending':phase in PENDING,

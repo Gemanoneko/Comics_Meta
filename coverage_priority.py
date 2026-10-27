@@ -103,20 +103,22 @@ def metron_untried(row, previous):
     except ValueError:
         return False
     old = old if isinstance(old, dict) else {}
-    series, number = research.query_identity(row, old)
-    if not (series and number and (old.get('Year') or row.get('year'))):
+    import metron
+    if metron.identity(row, old) is None:  # Enrichment B/C: the rules Metron's lookup itself applies.
         return False
     same = previous.get('signature') == [row['size'], row['mtime']]
     return not (same and 'Metron' in (previous.get('source_schedule') or {}))
 
 
-def order_rows(rows, checked, written, pending, coverage_only=False, evidence=None):
+def order_rows(rows, checked, written, pending, coverage_only=False, evidence=None, refine=False):
     """Highest yield first: first updates; then comics the in-book tier can write
     now; then comics Metron can search but has not tried; missing metadata before
-    already-tagged; then the earlier research-state order."""
+    already-tagged; then the earlier research-state order.
+    A refinement pass (Enrichment A) takes written comics only, so its bounded checks go to them."""
     import in_book
     rows = [row for row in rows if path_key(row['path']) not in pending and
-            (not coverage_only or path_key(row['path']) not in written)]
+            (not coverage_only or path_key(row['path']) not in written) and
+            (not refine or path_key(row['path']) in written)]
     evidence = evidence or (lambda path: saved_evidence(Path(path)))
     def rank(row):
         previous = checked.get(row['path'], {})
@@ -147,6 +149,51 @@ def prepare_probe(con):
     con.execute('DELETE FROM temp.written_history')
     con.execute('''INSERT OR IGNORE INTO temp.written_history SELECT CASE WHEN substr(path,1,8)=? THEN ?||substr(path,9)
         WHEN substr(path,1,4)=? THEN substr(path,5) ELSE path END FROM history''', ('\\\\?\\UNC\\', '\\\\', '\\\\?\\'))
+
+
+REFINE_PROBE_LIMIT = 64
+
+
+def refinement_folder(root, due, state, statuses, version, now):
+    """Enrichment A (Sergei 2026-10-26): a due folder holding a written comic that is due again, or None.
+
+    Written comics never researched since their last write (the record still carries the signature
+    from before it) come first; the 10,527 in-book tags of 2026-10-13..15 had waited since. Other
+    written comics are probed REFINE_PROBE_LIMIT at a time from a rotating cursor."""
+    pending = pending_paths()
+    with app.db() as con:
+        discovery_state.initialize(con)
+        prepare_probe(con)
+        scope, args = app.scope_filter(root)
+        rows = con.execute('''SELECT c.*, d.value AS discovery_value,
+            (d.value IS NULL OR json_extract(d.value,'$.signature[0]') IS NOT c.size
+             OR json_extract(d.value,'$.signature[1]') IS NOT c.mtime) AS stale
+            FROM comics c LEFT JOIN discovery_records d ON c.path=d.path
+            WHERE EXISTS(SELECT 1 FROM temp.written_history w WHERE w.path=c.path)
+            AND c.status NOT IN ('absent','error','corrupted','unsupported')
+            AND lower(substr(c.path,-4))='.cbz' AND ''' + scope.replace('path', 'c.path') + '''
+            ORDER BY c.path COLLATE NOCASE''', args).fetchall()
+    stale = [dict(r) for r in rows if r['stale']]
+    rest = [dict(r) for r in rows if not r['stale']]
+    cursor = state.get('refine_cursor', '')
+    rest = [r for r in rest if r['path'].casefold() > cursor.casefold()] + [r for r in rest if r['path'].casefold() <= cursor.casefold()]
+    probed = 0
+    for row in stale + rest:
+        path = Path(row['path'])
+        if str(path.parent) not in due or path_key(path) in pending:
+            continue
+        old = json.loads(row['metadata'] or '{}')
+        if not language_eligible(row, old if isinstance(old, dict) else {}):
+            continue
+        previous = json.loads(row['discovery_value']) if row['discovery_value'] else {}
+        probed += 1
+        if not row['stale']:
+            state['refine_cursor'] = row['path']
+        if lookup_flags(row, previous, statuses, version, saved_evidence(path), now)[0]:
+            return str(path.parent)
+        if probed >= REFINE_PROBE_LIMIT:
+            break
+    return None
 
 
 def firstpass_folder(root, due, state, statuses, version, now):

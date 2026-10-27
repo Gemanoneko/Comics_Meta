@@ -222,6 +222,8 @@ def main(once=False):
             pause_control.checkpoint('browser')
             options=search.settings()
             if not options.get('enabled'):
+                if browser:
+                    browser.close();browser=None  # Switched off while running: no window stays open.
                 search.status(state='disabled',detail='Browser cover research is disabled.')
                 if once:return
                 time.sleep(5);continue

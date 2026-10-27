@@ -33,7 +33,12 @@ class HumanVerification(Exception):
 
 
 def settings():
-    return app.load_config().get('browser_search',{})
+    options=app.load_config().get('browser_search',{})
+    options=dict(options) if isinstance(options,dict) else {}
+    import pipeline_config
+    # Enrichment E: Lens runs only with its own opt-in, whatever the older "enabled" key says.
+    options['enabled']=bool(options.get('enabled')) and pipeline_config.lens_enabled()
+    return options
 
 
 def legacy_status(**changes):

@@ -18,6 +18,7 @@ class LensTests(unittest.TestCase):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',self.root/'data'))
         self.enterContext(patch.object(lens,'_owner',None))
+        self.enterContext(patch.object(lens,'lens_on',return_value=True))  # Enrichment E: Lens is opt-in; these test it switched on.
         pause_control.requested();lens.initialize()
         (app.DATA/'browser-heartbeat').write_text(json.dumps({'pid':os.getpid(),'timestamp':time.time()}))
         search.legacy_status(human_verification=True,verification_url='https://www.google.com/sorry/fixture',browser_retry_at=4102444800)
@@ -185,6 +186,7 @@ class BrowserOwnershipTests(unittest.TestCase):
     def setUp(self):
         self.root=Path(self.enterContext(scratch_directory()))
         self.enterContext(patch.object(app,'DATA',self.root))
+        self.enterContext(patch.object(lens,'lens_on',return_value=True))  # Enrichment E: Lens is opt-in; these test it switched on.
         self.enterContext(patch('maintenance.browser_cache'))
         self.enterContext(patch.object(lens,'session_closed'))
         self.acquire=self.enterContext(patch.object(owner,'acquire',return_value=self.root/'lens-profile'))

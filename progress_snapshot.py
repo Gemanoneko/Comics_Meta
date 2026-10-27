@@ -55,6 +55,12 @@ class Files:
         return [(item.stem,self.read(item,{})) for item in sorted(paths,key=lambda item:item.name)]
 
 
+def cover_research():
+    """Google Lens cover-search queue counts; none while Lens is off (Enrichment E), as nothing searches the queue."""
+    import browser_search, cover_tasks
+    return cover_tasks.status() if browser_search.settings().get('enabled') else {}
+
+
 def collect(files):
     import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime
     result=dict(files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]}))
@@ -72,7 +78,7 @@ def collect(files):
     result['live_root']=app.live_root()
     result['research']=discovery_state.counts(result['live_root'])
     result['control']=pause_control.status()
-    result['cover_research']=cover_tasks.status()
+    result['cover_research']=cover_research()
     result['browser_search']=browser_search.public(browser_search.status())
     result['providers']=providers.statuses()
     import problems

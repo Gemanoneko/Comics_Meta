@@ -753,6 +753,8 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == '/api/browser-verification':
                 import lens_verification,yandex_verification,pause_control
                 result=lens_verification.status()
+                # DesktopShell spec §12.2: the page hides the Lens line from this, not from the worker's cover state.
+                result['enabled']=lens_verification.lens_on()
                 import browser_search
                 # Challenge URLs and the comic that hit them stay worker-only.
                 result['cover']=browser_search.public(browser_search.legacy_status())

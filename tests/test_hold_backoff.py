@@ -74,10 +74,12 @@ class HoldRetryScheduleTests(unittest.TestCase):
         self.assertFalse(due(held, now))  # Before: due at every folder pass for as long as ComicVine stayed down.
         self.assertTrue(due(held, now + 1200))  # The hold's own retry still makes it due.
         self.assertTrue(due(held, now, signature=(11, 1)))  # A changed archive is due at once.
-        for name in ('GCD', 'Google Books'):  # Positive controls: without the hold, each entry alone makes it due.
-            unheld = {key: value for key, value in held.items() if key != 'hold'}
-            unheld['source_schedule'] = {name: held['source_schedule'][name]}
-            self.assertTrue(due(unheld, now), name)
+        import pipeline_config  # GCD and Google Books switched on, as before Enrichment E, for these controls.
+        with patch.object(pipeline_config, 'disabled_sources', return_value=set(pipeline_config.DEFAULT_DISABLED_SOURCES)):
+            for name in ('GCD', 'Google Books'):  # Positive controls: without the hold, each entry alone makes it due.
+                unheld = {key: value for key, value in held.items() if key != 'hold'}
+                unheld['source_schedule'] = {name: held['source_schedule'][name]}
+                self.assertTrue(due(unheld, now), name)
 
 
 class Clock:

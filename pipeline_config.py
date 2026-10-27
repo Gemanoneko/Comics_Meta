@@ -6,6 +6,11 @@ import app
 # 'Saved lead re-checks' covers re-fetching a saved lead already rejected for this
 # archive and identity; new leads are always checked.
 DEFAULT_DISABLED_SOURCES = ('General free web', 'Wikipedia/wiki', 'Saved lead re-checks', 'GetComics', 'PREVIEWSworld')
+# Enrichment E (Sergei 2026-10-26): no written comic cites these sources since history began (2026-10-02), while
+# GCD and Dark Horse used their daily budgets every day. They are off even when config.json names its own
+# "disabled" list (one written before this change would otherwise keep them on); "sources": {"enabled": [...]}
+# turns one back on. Their code is kept.
+RETIRED_SOURCES = ('GCD', 'Dark Horse', 'Google Books', 'Open Library local index')
 
 
 def load():
@@ -18,10 +23,48 @@ def section(name):
 
 
 def disabled_sources():
-    value = section('sources').get('disabled')
-    if not isinstance(value, list):
-        return set(DEFAULT_DISABLED_SOURCES)
-    return {str(item) for item in value}
+    sources = section('sources')
+    value = sources.get('disabled')
+    disabled = set(DEFAULT_DISABLED_SOURCES) if not isinstance(value, list) else {str(item) for item in value}
+    enabled = sources.get('enabled')
+    enabled = {str(item) for item in enabled} if isinstance(enabled, list) else set()
+    return (disabled | set(RETIRED_SOURCES)) - enabled
+
+
+# Enrichment B, C and D (Sergei 2026-10-26). Looser Metron matching rules. Each default follows the precision
+# measured against comics that already carry verified tags (Brief, Decision Log "Enrichment matching rules"): a rule
+# is on only where it measured at least as precise as the rule before it. "matching": {"<name>": true|false} in
+# config.json overrides one.
+MATCHING_DEFAULTS = {
+    'filename_year_formats': True,   # B: "(2007-02)", "(1993-Dark Horse)", "[2004]" read as the cover year.
+    'folder_year': True,             # B: a folder's "(2002)" read as the series start year when the file names no year.
+    'yearless': False,               # B: no year at all; measured too loose (several volumes share a name and number).
+    'unnumbered_as_one': True,       # C: a book with no number and no volume or part marker is issue 1.
+    'cover_rule_v2': True,           # D: the revised cover comparison.
+}
+
+
+def matching(name):
+    value = section('matching').get(name)
+    return value if isinstance(value, bool) else MATCHING_DEFAULTS[name]
+
+
+def config_key():
+    """Changes whenever config.json does (or a switch function is replaced): a key for values derived from it."""
+    path = app.STATE_ROOT / 'config.json'
+    try:
+        stat = path.stat()
+        found = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        found = None
+    return (str(path), found, id(matching), id(disabled_sources), id(source_enabled))
+
+
+def lens_enabled():
+    """Google Lens cover search (Enrichment E, Sergei 2026-10-26: off). No lead it saved since 2026-10-03, while it
+    kept asking Sergei to solve Google's checks. On only with "browser_search": {"lens": true}; the older
+    "enabled" key alone no longer switches it on."""
+    return section('browser_search').get('lens') is True
 
 
 def source_enabled(name):

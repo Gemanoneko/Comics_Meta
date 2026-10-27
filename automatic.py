@@ -293,11 +293,18 @@ def free_fallback(row,old,hint,source_schedule,statuses,completed,strict=False,r
             completed(name,None,exc)
     return None,wiki_found
 
+def queue_cover_search(row):
+    """Queue a Google Lens cover search, only while Lens is switched on (Enrichment E)."""
+    import browser_search,cover_tasks
+    if browser_search.settings().get('enabled'):cover_tasks.enqueue(row)
+
+
 @research_runtime.timed("Research pass")
-def discover(root,coverage_only=False):
+def discover(root,coverage_only=False,refine=False):
     # All speculative readers finish before this returns to the serial writer.
+    # refine (Enrichment A): a refinement turn, which researches the folder's written comics only.
     with research_runtime.ComicLookahead() as lookahead:
-        return _discover(root,coverage_only,lookahead)
+        return _discover(root,coverage_only,lookahead,refine)
 
 
 def lookahead_rows(rows,state,root,source_statuses,saved_for):
@@ -324,12 +331,12 @@ def lookahead_rows(rows,state,root,source_statuses,saved_for):
                 and source_scheduling.order(names,candidate,old)[0][0]=='Metron'
                 and source_scheduling.ready('Metron',schedule.get('Metron',{}),source_statuses,time.time())
                 and not source_scheduling.blocked(source_statuses.get('metron',{}),time.time())):
-            series,number=research.query_identity(candidate,old)
-            if series and number and (old.get('Year') or candidate.get('year')):candidates.append(candidate)
+            import metron
+            if metron.identity(candidate,old):candidates.append(candidate)  # Enrichment B/C: the lookup's own rules.
     return candidates
 
 
-def _discover(root,coverage_only,lookahead):
+def _discover(root,coverage_only,lookahead,refine=False):
     root = Path(root).resolve()
     if not root.is_dir():
         raise ValueError('Automatic root is unavailable.')
@@ -351,7 +358,7 @@ def _discover(root,coverage_only,lookahead):
         key=str(Path(path).resolve())
         if key not in evidence:evidence[key]=coverage_priority.saved_evidence(Path(key))
         return evidence[key]
-    rows=coverage_priority.order_rows(rows,state['checked'],written,coverage_priority.pending_paths(),coverage_only,evidence=saved_for)
+    rows=coverage_priority.order_rows(rows,state['checked'],written,coverage_priority.pending_paths(),coverage_only,evidence=saved_for,refine=refine)
     checked = 0
     plan = PassPlan(root)  # Every comic queued in this pass shares one plan and one write cycle.
     import in_book
@@ -421,6 +428,9 @@ def _discover(root,coverage_only,lookahead):
         def completed(name,result,exc):
             nonlocal lookup_error
             source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable)
+            if name=='Metron':
+                import metron
+                source_schedule[name]['rules']=metron.rules_stamp()  # A miss under older rules is asked once more.
             attempts.append({'provider':name,'result':source_schedule[name]['result']})
             if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
         import pipeline_config
@@ -462,6 +472,7 @@ def _discover(root,coverage_only,lookahead):
             external = None
             reused_evidence = False
         hint = None
+        cover_read = saved.get('cover_signature')==signature  # This archive's cover was read by the local model.
         identity = old if match else dict(Series=old.get('Series') or row['series'], Number=old.get('Number') or row['number'])
         # A ComicVine issue that disagrees with the embedded series/number is
         # not an identity: every other source is still searched, as for an
@@ -535,7 +546,7 @@ def _discover(root,coverage_only,lookahead):
                     hint=None
                     if saved.get('cover_signature')==signature:hint=saved.get('cover_identification')
                     if not hint and local_model.available():
-                        try:hint=local_model.identify_cover(path)
+                        try:hint=local_model.identify_cover(path);cover_read=True
                         except Exception:pass  # A cover-reading failure must not block filename search.
                     if hint:research.save_evidence(path,{'cover_identification':hint,'cover_signature':signature,'status':'search_hint_only'})
                     batch.progress(phase='Automatic metadata lookup',detail='Verifying saved web and wiki references for '+path.name)
@@ -571,8 +582,7 @@ def _discover(root,coverage_only,lookahead):
                     entry=queue_in_book(plan,path,row,saved,signature,previous,book,record=False)
                     outcome='queued'
             if not external and not book:
-                import cover_tasks
-                cover_tasks.enqueue(row)
+                queue_cover_search(row)
         from html import unescape
         issue_text=unescape(re.sub('<[^>]+>',' ',(found or {}).get('description') or ''))
         if found and not external and not old.get('Summary') and not source_scheduling.useful({'sources':[{'text':issue_text}]},old):
@@ -628,6 +638,7 @@ def _discover(root,coverage_only,lookahead):
             fields,changes,replaced=external_plan(old,external['fields'],replaceable,not (conflict or hold))
             if fields:
                 extra,note=replacement_record(external.get('provider','web research'),replaced)
+                if external.get('match_rule'):extra=dict(extra,match_rule=external['match_rule'])  # Enrichment B/C provenance.
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])+('\n'+note if note else '')
                 entry=plan.add(path,changes,fields,'Verified issue-wide web fields.',signature=signature,**extra)
                 outcome='queued'
@@ -687,6 +698,11 @@ def _discover(root,coverage_only,lookahead):
         # A Summary-only plan during a conflict still leaves the comic unresolved.
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         if hold:state['checked'][str(path)]['hold'] = hold_record
+        if (outcome=='needs_identity_lookup' and not hold and not conflict and not match and not dead_web
+                and not external and cover_read and source_scheduling.nothing_can_search(row,old)):
+            # Enrichment A (Sergei 2026-10-26): no switched-on source can ask anything for this comic and its cover
+            # has been read, so it is not passed again until its file, the sources or the matching rules change.
+            state['checked'][str(path)]['unsearchable'] = source_scheduling.search_fingerprint()
         if dead_web:
             state['checked'][str(path)]['dead_link'] = match.group(1)  # Failure-filter spec R1: ComicVine answered Object Not Found.
             state['checked'][str(path)]['detail'] = ('Web names ComicVine issue '+match.group(1)+', which ComicVine reports does not exist; check the Web link. '

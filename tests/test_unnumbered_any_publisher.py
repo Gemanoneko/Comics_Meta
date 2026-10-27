@@ -131,6 +131,8 @@ class MilkmanDiscoveryTests(unittest.TestCase):
         self.enterContext(patch.object(app,'BASE',self.root))
         self.enterContext(patch.object(app,'live_root',return_value=str(self.root)))
         self.enterContext(patch.object(research,'CACHE',self.root/'evidence'))
+        import browser_search  # The cover queue is joined only while Lens is on (Enrichment E); tested switched on.
+        self.enterContext(patch.object(browser_search,'settings',return_value={'enabled':True}))
         self.folder=self.root/'Dark Horse';self.folder.mkdir()
         self.path=self.folder/'The Milkman Murders (2012).cbz'
         import zipfile

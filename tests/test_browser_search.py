@@ -23,6 +23,8 @@ class BrowserSearchTests(unittest.TestCase):
     def setUp(self):
         control=patch.object(browser_worker.pause_control,'requested',return_value=False)
         control.start();self.addCleanup(control.stop)
+        lens=patch.object(lens_verification,'lens_on',return_value=True)  # Enrichment E: Lens is opt-in; tested switched on.
+        lens.start();self.addCleanup(lens.stop)
 
     def test_verification_request_is_persistent_and_duplicate_clicks_are_ignored(self):
         with scratch_directory() as d,patch.object(app,'DATA',Path(d)):

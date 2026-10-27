@@ -83,6 +83,8 @@ class CreditsDiscoveryTests(unittest.TestCase):
         for target, name, value in ((app, 'DATA', self.root / 'data'), (app, 'BASE', self.root), (app, 'STATE_ROOT', self.root),
                                     (research, 'CACHE', self.root / 'research'), (worker, 'QUEUE', self.root / 'queue')):
             self.enterContext(patch.object(target, name, value))
+        import browser_search  # The Lens queue is joined only while Lens is on (Enrichment E); tested switched on.
+        self.enterContext(patch.object(browser_search, 'settings', return_value={'enabled': True}))
         self.folder = self.root / 'Spawn'
         self.folder.mkdir()
         self.path = self.folder / 'Spawn 001 (1992).cbz'

@@ -89,6 +89,9 @@ def candidates(series,number,year):
         return payload
 
 
+COVER_IMAGES = 3  # Enrichment D: archive images compared with each Metron cover.
+
+
 def verified_cover(path,url):
     import automatic,reverse_image,research_runtime
     research_runtime.research_checkpoint()
@@ -98,8 +101,20 @@ def verified_cover(path,url):
         with urllib.request.build_opener(NoRedirect()).open(url,timeout=25) as response:
             remote=response.read(20*1024*1024+1)
         if len(remote)>20*1024*1024:return False
-        local,_,_=reverse_image.cover(path,0)
-        return automatic.covers_agree(local,remote)
+        import pipeline_config
+        if not pipeline_config.matching('cover_rule_v2'):
+            local,_,_=reverse_image.cover(path,0)
+            return automatic.covers_agree(local,remote)
+        # Enrichment D: the revised comparison, on the first archive image and then the next two
+        # (scanners often put a credits page first). An unreadable first image fails as before.
+        import cover_match
+        for index in range(COVER_IMAGES):
+            try:local,_,_=reverse_image.cover(path,index)
+            except ValueError:
+                if index==0:raise
+                break
+            if cover_match.agree(local,remote):return True
+        return False
 
 
 def metadata_fields(detail):
@@ -171,21 +186,101 @@ def same_series(item, key, volume):
     return volume is None or found in (None, '') or str(found).strip() == str(volume)
 
 
+# Enrichment C: Metron series types whose issue 1 an unnumbered book can be.
+ONE_ISSUE_TYPES = {'One-Shot', 'Graphic Novel', 'Trade Paperback', 'Hardcover', 'Omnibus'}
+# A number, volume, book, part or chapter anywhere in the name: the book is not plainly unnumbered. An underscore
+# name ("Vampirella_V3_002_") hides its number from app.parse_name, so it never counts as unnumbered either.
+NUMBERED_NAME = re.compile(r'\d|_|#|\b(?:vol(?:ume)?|book|part|chapter|tome)\b', re.I)
+RULES_VERSION = 2  # Raised when Metron's matching rules change; misses recorded under older rules are asked again.
+
+
+def unnumbered_book(path):
+    """The filename names no number of any kind outside brackets, and no "(of N)" part (Enrichment C)."""
+    from pathlib import Path
+    stem = Path(path).stem
+    if re.search(r'\(\s*of\s*\d+\s*\)', stem, re.I):
+        return False
+    return not NUMBERED_NAME.search(re.sub(r'\([^)]*\)|\[[^]]*\]', ' ', stem))
+
+
+def identity(row, old):
+    """(series, number, year, rule) Metron can search for this comic, or None.
+
+    rule says how the year was found and what it must agree with:
+    'year'           the ComicInfo Year or a "(YYYY)" in the filename; the issue's cover year
+    'filename_year'  Enrichment B: a cover date or year app.parse_name does not read (year_hints.filename_year)
+    'folder_year'    Enrichment B: the folder's year; the series' start year, not the cover year
+    'yearless'       Enrichment B: no year at all (off unless switched on: measured too loose)
+    'unnumbered'     Enrichment C: no issue number; searched as issue 1 of a one-shot, graphic novel or collection"""
+    import research, pipeline_config, year_hints
+    series, number = research.query_identity(row, old)
+    if not series:
+        return None
+    year, rule = str(old.get('Year') or row.get('year') or ''), 'year'
+    if not year and pipeline_config.matching('filename_year_formats'):
+        year, rule = year_hints.filename_year(row['path']), 'filename_year'
+    if not number:
+        if year and pipeline_config.matching('unnumbered_as_one') and unnumbered_book(row['path']):
+            return series, '1', year, 'unnumbered'
+        return None
+    if year:
+        return series, number, year, rule
+    if pipeline_config.matching('folder_year'):
+        start = year_hints.folder_year(row['path'])
+        if start:
+            return series, number, start, 'folder_year'
+    if pipeline_config.matching('yearless'):
+        return series, number, '', 'yearless'
+    return None
+
+
+_stamp = (None, '')
+
+
+def rules_stamp():
+    """The matching rules in force; a Metron miss recorded under another stamp is asked once more.
+    Kept until config.json changes: scheduling asks for it per comic, and each answer reads config.json."""
+    global _stamp
+    import pipeline_config
+    key = pipeline_config.config_key()
+    if _stamp[0] == key:
+        return _stamp[1]
+    value = str(RULES_VERSION) + ':' + ','.join(name for name in sorted(pipeline_config.MATCHING_DEFAULTS) if pipeline_config.matching(name))
+    _stamp = (key, value)
+    return value
+
+
+def year_agrees(item, rule, year):
+    if rule == 'folder_year':
+        return str((item.get('series') or {}).get('year_began') or '') == str(year)
+    if rule == 'yearless':
+        return True
+    return str(item.get('cover_date') or '').startswith(str(year)+'-')
+
+
 def lookup(row, old):
     """Accept a unique exact series/number/year candidate only after cover agreement.
 
     The series name is also searched in its punctuation and volume variants, and
     a candidate whose primary cover differs is checked against its variant covers
-    before it is rejected; a variant match drops the primary cover's barcode."""
+    before it is rejected; a variant match drops the primary cover's barcode.
+    Enrichment B/C: the year may come from a filename date or the folder's series start year, and an unnumbered
+    book is searched as issue 1 of a one-shot, graphic novel or collection (identity). Uniqueness and cover
+    agreement are required exactly as before."""
     import research
     import automatic
     import reverse_image
-    series, number = research.query_identity(row, old)
-    year = old.get('Year') or row.get('year')
-    if not token() or not series or not number or not year:
+    found = identity(row, old)
+    if not token() or not found:
         return None
+    series, number, year, rule = found
     for name, key, volume in name_variants(series):
-        payload = candidates(name,research.issue_number(number),year)
+        if rule in ('folder_year', 'yearless'):
+            import research_runtime
+            with research_runtime.stage('Metron candidate search'):
+                payload = request('issue/', series_name=name, number=research.issue_number(number))  # Every year.
+        else:
+            payload = candidates(name,research.issue_number(number),year)
         # A truncated candidate list cannot establish uniqueness.
         if payload.get('next'):
             return None
@@ -195,7 +290,7 @@ def lookup(row, old):
     else:
         return None
     matches = [i for i in named if research.issue_number(i.get('number'))==research.issue_number(number)
-               and str(i.get('cover_date') or '').startswith(str(year)+'-')]
+               and year_agrees(i, rule, year)]
     if len(matches)!=1:
         return None
     candidate=matches[0]
@@ -206,8 +301,10 @@ def lookup(row, old):
         detail = request('issue/'+str(int(candidate['id']))+'/')
     if (detail.get('id')!=candidate['id'] or not same_series(detail, key, volume)
         or research.issue_number(detail.get('number')) != research.issue_number(number)
-        or not str(detail.get('cover_date') or '').startswith(str(year)+'-')):
+        or not year_agrees(detail, rule, year)):
         return None
+    if rule == 'unnumbered' and ((detail.get('series') or {}).get('series_type') or {}).get('name') not in ONE_ISSUE_TYPES:
+        return None  # Issue 1 of an ordinary series is not what an unnumbered book is.
     url = detail.get('image') or ''
     if primary and (not preview or url!=preview):primary=verified_cover(row['path'],url)
     variant=None
@@ -223,4 +320,5 @@ def lookup(row, old):
     if variant:fields.pop('GTIN',None)  # The detail's barcode belongs to the primary cover.
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
     scope='Exact issue identity and '+('variant cover ('+str(variant.get('name') or 'unnamed')+')' if variant else 'cover')+' verified'
-    return {'provider':'Metron','metadata_version':2,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    # match_rule (Enrichment B/C) stays in the evidence and the pass plan, so writes made under a looser rule can be found.
+    return {'provider':'Metron','metadata_version':2,'match_rule':rule,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}

@@ -91,7 +91,15 @@ def select(root,now=None,on_progress=None,with_mode=False):
             save(state)
         return None
     import automatic,coverage_priority,providers
+    if state.get('refine_next'):
+        # Enrichment A (Sergei 2026-10-26): a refinement turn follows every first-update pass. Before, written
+        # comics were refined only when no unwritten comic anywhere was due, which in practice was almost never.
+        state['refine_next']=False
+        folder=coverage_priority.refinement_folder(root,set(due),state,providers.statuses(),automatic.MATCHER_VERSION,now)
+        save(state)
+        if folder:return {'folder':folder,'coverage_only':False,'refine':True} if with_mode else folder
     first=coverage_priority.firstpass_folder(root,set(due),state,providers.statuses(),automatic.MATCHER_VERSION,now)
+    if first:state['refine_next']=True
     save(state)
     if first:return {'folder':first,'coverage_only':True} if with_mode else first
     if state.get('coverage_pending'):return None

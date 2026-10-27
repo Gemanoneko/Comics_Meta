@@ -183,6 +183,11 @@ def statuses():
     result['free_web']=web_search.free_status()
     import research
     result['wikipedia']=research.wiki_status()
+    # A source switched off in config.json reports only that (Enrichment E): its last budget or
+    # verification state is history, not something that waits or needs Sergei.
+    import pipeline_config,source_scheduling
+    for name,key in source_scheduling.KEYS.items():
+        if key in result and not pipeline_config.source_enabled(name):result[key]={'status':'switched_off'}
     return result
 
 def comicvine_status():

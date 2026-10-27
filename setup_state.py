@@ -84,7 +84,15 @@ def status():
         keys = {name: bool(credential_store.setting(name, config=config, saved_values=stored)) for name in credential_store.ALLOWED_KEYS}
     except (OSError, ValueError, credential_store.CredentialError):
         raise SetupError('save_failed', '') from None
-    return {'configured': bool(library), 'user_paused': _user_paused(), 'saved_keys': keys, 'library': library}
+    return {'configured': bool(library), 'user_paused': _user_paused(), 'saved_keys': keys, 'library': library,
+            'hidden_keys': hidden_keys()}
+
+
+def hidden_keys():
+    """Key rows first-run setup and the keys screen leave out while their source is switched off (DesktopShell
+    spec §12.4). A saved key stays stored; nothing is submitted for a hidden row."""
+    import pipeline_config
+    return [] if pipeline_config.source_enabled('Google Books') else ['GOOGLE_BOOKS_API_KEY']
 
 
 def _replace(source, destination):
@@ -225,6 +233,7 @@ def key_status():
     try:
         config = _config()
         stored = credential_store.saved(config)
-        return {'saved_keys': {name: bool(credential_store.setting(name, config=config, saved_values=stored)) for name in credential_store.ALLOWED_KEYS}}
+        return {'saved_keys': {name: bool(credential_store.setting(name, config=config, saved_values=stored)) for name in credential_store.ALLOWED_KEYS},
+                'hidden_keys': hidden_keys()}
     except (OSError, ValueError, credential_store.CredentialError):
         raise SetupError('save_failed', '') from None

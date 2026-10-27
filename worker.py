@@ -91,6 +91,12 @@ def run_one():
     return False
 
 
+def discover_selection(selection):
+    """One folder pass in the mode scheduler.select chose (Enrichment A adds refinement turns)."""
+    import automatic
+    return automatic.discover(selection['folder'], coverage_only=selection['coverage_only'], refine=selection.get('refine', False))
+
+
 def main():
     QUEUE.mkdir(parents=True, exist_ok=True)
     lock = (QUEUE / 'worker.lock').open('a+b')
@@ -187,7 +193,7 @@ def main():
                         if due:next_discovery=min(next_discovery,max(time.time()+2,min(due)))
                         time.sleep(2)
                         continue
-                    queued = discovery.discover(folder,coverage_only=selection['coverage_only'])
+                    queued = discover_selection(selection)
                     scheduler.finish(folder,queued=queued)
                     if not queued:
                         batch.progress(phase='Advancing to next folder',detail='Folder pass finished. Unresolved research is retained; selecting the next due folder.')

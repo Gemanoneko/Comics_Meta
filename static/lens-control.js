@@ -10,6 +10,7 @@ window.LensControl = (() => {
     if (![button, status, document.body].includes(e.target)) focusAfter = false;
   });
   function paint(text, label = '', disabled = false, unavailable = false) {
+    status.hidden = false;
     set(status, text);
     if (!label && (document.activeElement === button || (focusAfter && document.activeElement === document.body))) {
       status.focus({preventScroll:true}); focusAfter = false;
@@ -22,10 +23,17 @@ window.LensControl = (() => {
       'Open the dedicated Google Lens window for cover search verification.';
     button.title = tooltip; set(help, tooltip);
   }
+  // Lens switched off (DesktopShell spec §12.2): the line, its button and its help text leave the screen.
+  function off() {
+    set(status, ''); status.hidden = true;
+    button.hidden = true; button.title = ''; set(help, '');
+  }
   function unavailable() {
+    if (last && last.enabled === false) { off(); return; }  // A failed poll after an "off" answer stays hidden.
     paint('Google Lens status unavailable. Waiting for the local service.', button.hidden ? '' : button.textContent, true, true);
   }
   function render(state) {
+    if (state && state.enabled === false) { last = state; off(); return; }  // First: paused or failed states do not apply.
     if (!state || state.engine !== 'google_lens' || !phases.has(state.phase)) { unavailable(); return; }
     if (last && Number(state.updated) < Number(last.updated)) return;
     last = state;

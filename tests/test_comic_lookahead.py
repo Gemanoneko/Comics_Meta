@@ -10,9 +10,10 @@ import source_scheduling as scheduling
 
 class EligibilityTests(unittest.TestCase):
     def record(self):
+        import metron
         return {'signature':[1,2], 'version':9, 'retry_at':10,
                 'outcome':'needs_identity_lookup', 'source_schedule':{
-                    name:{'result':'no_verified_match','next_at':200}
+                    name:dict({'result':'no_verified_match','next_at':200}, **({'rules':metron.rules_stamp()} if name=='Metron' else {}))
                     for name in scheduling.KEYS}}
 
     def test_expired_comic_retry_does_not_override_all_source_deadlines(self):
