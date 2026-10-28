@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 import app
 
-IMAGE_EXTENSIONS=('.jpg','.jpeg','.png','.webp')
+IMAGE_EXTENSIONS=('.jpg','.jpeg','.png','.webp','.gif','.bmp')
 COVER_BYTES=20_000_000
 READ_CHUNK=1<<20  # Each read decompresses at most this much (deflate's max_length).
 READABLE=(zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED)  # What real comics use.
@@ -44,7 +44,7 @@ def cover(path, index=0):
             raise ValueError('Choose a suitable image among the first five archive images.')
         data=read_image(archive,found[index])
         extension=Path(found[index].filename).suffix.lower()
-        mime={'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp'}[extension]
+        mime={'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif','.bmp':'image/bmp'}[extension]
         return data,mime,extension
 
 
@@ -132,7 +132,7 @@ def preview(path):
 
 def thumbnail(data):
     from PIL import Image, ImageOps
-    with Image.open(io.BytesIO(data),formats=('JPEG','PNG','WEBP')) as image:
+    with Image.open(io.BytesIO(data),formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:
         width,height=image.size
         if width<1 or height<1 or width*height>PREVIEW_PIXELS:
             raise NoPreview()

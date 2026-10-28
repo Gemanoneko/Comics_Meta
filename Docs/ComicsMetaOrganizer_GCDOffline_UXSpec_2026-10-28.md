@@ -1,6 +1,6 @@
 # GCD offline index — UX spec for 0.6.0
 
-Date: 2026-10-28. Owner: Judy. Status: implementation-ready except the old-dump reminder threshold, which awaits Sergei. **EXTEND** the current dashboard; preserve every other panel, control, matching rule and shell flow. Sully commits this exact file before Ender cites it. No code, builds, app launches, UI automation or live-data access were part of this pass.
+Date: 2026-10-28. Owner: Judy. Status: implementation-ready; amended within this same pass with Sergei's **14-day reminder and download guidance** ruling. **EXTEND** the current dashboard; preserve every other panel, control, matching rule and shell flow. The initial spec was the prerequisite handoff; this amendment rides the next code/bump commit, with no second doc-only commit. No code changes, builds, app launches, UI automation or library/profile access were part of this pass.
 
 Inputs: `ComicsMetaOrganizer_GCDOffline_UIBrief_2026-10-27.md`; Backlog § GCD data dump as an offline source, including the latest reversals; current `static/index.html` and `static/shell-ui.js`. The later Backlog rulings bind: allow same-name series one year off; GCD may replace a cover-read Publisher; skip Star Wars Legends Marvel reissues; filename `(of N)` wins. This panel adds no matching settings or per-comic controls.
 
@@ -17,7 +17,7 @@ Expanded content order:
 1. Effective index details, or the empty-state sentence.
 2. Current operation: preview, build progress or last-attempt notice, when applicable.
 3. Actions for that state.
-4. Download and attribution links.
+4. Download/replacement guidance and attribution links (section 3a).
 
 ```text
 ▾ GCD offline                         Ready · dump 16 Oct 2026
@@ -27,7 +27,8 @@ Last file  current.zip
 
 [ Choose GCD file ]
 
-Download SQLite dump · Grand Comics Database · CC BY-SA 4.0
+▸ How to download and replace
+Grand Comics Database · CC BY-SA 4.0
 ```
 
 Reuse `.panel`: 22 px padding, 14 px radius, existing fill/border and 20 px bottom margin. Expanded body starts 16 px below the summary; 12 px between related rows, 16 px before actions. Body text and values: 14 px/1.5; labels muted. Use a two-column definition grid when space permits and one column below 600 px of **panel content width**. Actions wrap with 8 px gaps. No fixed body height, absolute positioning, ellipsis or horizontal scrolling. Long filenames and paths wrap anywhere and remain selectable. Show the last filename, not a full path, in ready state; show the full selected path in preview.
@@ -57,7 +58,7 @@ Contrast calculated from sRGB values: body/panel 13.54:1; muted/panel 7.80:1; pr
 
 Dates use the OS locale with an unambiguous month/year; built time is local and includes the date. Age: `1 day old` / `{n} days old`; missing age/date is `Unknown`, never zero or today's date. Summary and source line use dump date, never build date. No automatic toast, notification, focus change or sound on completion.
 
-**Pending reminder:** Sergei has been asked how many days old a dump should be before a reminder appears. Do not choose a number, add a setting or show a literal `N`. Age stays visible regardless. Once answered, show the in-flow warning `This dump is {age} days old. Choose a newer dump when available.` above the existing choose action at the agreed threshold. It does not disable matching or change Ready to an error. If Sergei declines reminders, omit this warning.
+**14-day reminder (Sergei-approved):** when the effective dump's engine-reported age is **14 days or more**, show the in-flow warning `This dump is {age} days old. Download a newer SQLite dump when available.` above the existing choose action. Put the **Download SQLite dump** link immediately below the warning, using the destination in section 3a, and show its expanded instructions on first render. This is the same download link as in the help block, not a second duplicate. Age stays visible regardless. No reminder for unknown age or no index. It does not disable matching or change Ready to an error; dismissal of an attempt notice does not hide it. Rebuilding the same dated dump does not reset its age. No new threshold setting or reminder-dismiss control.
 
 ## 3. Picker, preview and rebuilding
 
@@ -88,6 +89,34 @@ Label the old effective record **Current index** and this block **Selected file*
 The preview is the confirmation; no extra confirmation dialog or checkbox. Retain disk information and the effective-index sentence in all three variants. Rebuilding is available only by choosing a file and accepting its explicit preview; no persistent force toggle. If `/build` finds `same_dump` or `older_dump` after a normal preview, refresh inspection and require the corresponding explicit action. Never retry with force automatically.
 
 Submit once; keep the pressed control focused with `aria-disabled=true` while awaiting the start result, and ignore repeats. Then show server progress. If the start response is lost, read status before allowing another start; never submit a second build to discover whether the first began. `busy` attaches to the running update and says `A GCD update is running. Showing its progress.`
+
+## 3a. Download and replacement guidance
+
+Keep the **Download SQLite dump** link visible in the expanded GCD panel in every non-busy state, directly above a native disclosure **How to download and replace**. At age 14+ the link sits directly below the reminder instead, with the disclosure/instructions following the actions. It opens `https://www.comics.org/download/` through existing external-link handling, only on activation; no automatic download or account action. The disclosure opens on first render with no index or at age 14+, and is otherwise closed. Thereafter respect the user's choice; passive polling never opens it or takes focus. Same text in all states, normal flow, 14 px/1.5 and 12 px row gaps; no modal.
+
+Exact in-app instruction copy, as a short numbered list:
+
+1. `Open Download SQLite dump and sign in to your comics.org account. If you need an account, use the site's registration link.`
+2. `On the Downloads page, check the SQLite date under Data last updated. Private use is an optional purpose; the usage description is optional too.`
+3. `Read the licensing terms and tick the acceptance checkbox, then press Download SQLite Dump.`
+4. `Save the ZIP to Downloads and wait for the download to finish. Keep it zipped; no extraction is needed. If the name is already taken, give the new ZIP a dated name so you can keep both files.`
+5. `Here, press Choose GCD file and select the downloaded ZIP. Check its dump date and disk space, then press Build index.`
+6. `Wait for Ready with the newer dump date. Matching uses the current index until the new one is ready.`
+
+After the list, show these two short paragraphs:
+
+`You do not need to delete the old download. After the newer index shows Ready, you may delete the old ZIP yourself to free space.`
+
+`The app stores its index separately and never changes or deletes your ZIP or extracted database. Keep a downloaded file if you want to rebuild from that exact dump later.`
+
+The required format is **SQLite inside a ZIP**; a particular filename is not required. The official download handler returns `current.zip` even when the SQLite button is used, and a browser may rename it. An already extracted `.db` remains accepted as in section 3. Keep the full source file throughout inspection/build; Ready means ongoing matching no longer needs it. Ender confirmed the source is opened read-only/copied to owned staging, and the active trimmed index is independent after the pointer swap. No app-side delete button or automatic deletion.
+
+**Primary evidence, checked 2026-10-28:** the live downloads page returned HTTP 403 to research access, so the exact labels above were verified in GCD's own website source at commit `7ebbe62a07fec1ee022c058922600817f0e59ce1`, rather than inferred from third-party instructions:
+
+- [Download template](https://github.com/GrandComicsDatabase/gcd-django/blob/7ebbe62a07fec1ee022c058922600817f0e59ce1/apps/stats/templates/stats/download.html): Downloads, Data last updated, SQLite and Download SQLite Dump. The old explanatory prose mentions MySQL alone, but the actual form has a dedicated SQLite submit button; guide users by that button.
+- [Download form](https://github.com/GrandComicsDatabase/gcd-django/blob/7ebbe62a07fec1ee022c058922600817f0e59ce1/apps/stats/forms.py): Private use and usage are optional; licence/credit acceptance is required.
+- [Download handler](https://github.com/GrandComicsDatabase/gcd-django/blob/7ebbe62a07fec1ee022c058922600817f0e59ce1/apps/stats/views.py): login required; SQLite selection uses the SQLite dump; ZIP response is named current.zip.
+- [Official setup guide](https://github.com/GrandComicsDatabase/gcd-django/blob/beta/docs/development/CORE_SETUP.md#full-gcd-catalog-dump): manual download from comics.org/download after accepting the terms. Its developer setup commands are not instructions for this app and do not appear in the product.
 
 ## 4. Build progress and cancellation
 
@@ -143,7 +172,7 @@ Extend the existing `providerStatus` line with exactly one **GCD offline** entry
 
 Use `updating` / `Building` without a number if progress is unknown; use `cancelling` while requested. The panel has the detailed recovery copy; this line stays short and is plain text.
 
-Panel footer links: **Download SQLite dump** → `https://www.comics.org/download/`; **Grand Comics Database** → `https://www.comics.org/`; **CC BY-SA 4.0** → `https://creativecommons.org/licenses/by-sa/4.0/`. Use existing external-link handling, only on activation. No automatic download. Each link gets a minimum 24 px hit height and visible focus. For comics using GCD data, retain the existing Notes credit, CC BY-SA 4.0 and actual GCD issue URL; do not substitute the download URL or local file path. No new per-comic UI.
+The download link and instructions are in section 3a. Panel attribution footer links: **Grand Comics Database** → `https://www.comics.org/`; **CC BY-SA 4.0** → `https://creativecommons.org/licenses/by-sa/4.0/`. Use existing external-link handling, only on activation. Each link, including Download SQLite dump, gets a minimum 24 px hit height and visible focus. For comics using GCD data, retain the existing Notes credit, CC BY-SA 4.0 and actual GCD issue URL; do not substitute the download URL or local file path. No new per-comic UI.
 
 ## 7. Tooltips, focus and lean acceptance
 
@@ -152,6 +181,7 @@ Every new control has a tooltip at introduction; use the same text as an accessi
 | Control | Tooltip |
 |---|---|
 | Disclosure summary | `Show or hide the GCD index details and update controls.` |
+| How to download and replace | `Show the SQLite download steps and when you can delete old downloaded files.` |
 | Choose GCD file / Choose another file | `Choose a GCD SQLite ZIP or database file to check before building an index.` |
 | GCD file path | `Full path to a GCD SQLite ZIP or database file on this computer.` |
 | Check file / Check file again | `Check the selected GCD file and available disk space without building an index.` |
@@ -170,4 +200,15 @@ Native buttons, Enter/Space activation, normal Tab order. On file selection, foc
 
 Progress has an accessible label and numeric value, but no live region that announces each percentage or elapsed second. A separate polite, atomic status announces stage transitions and terminal outcomes once. New errors use `role=alert` once. Paths are outside live regions. Collapsed content is absent from the Tab order.
 
-**Implementation acceptance, once in the existing targeted headless checks:** cover empty, ready, inspecting, all three previews, insufficient space, each distinct error layout, progress (known/unknown), cancelling, switching, cancelled, success and status unavailable, with the disclosure open and closed. Record `(x,y,width,height)` for visible interactive rects: each is at least 24×24, buttons at least 32 high, and same-plane rects are disjoint and contained by the panel. Confirm wrapped long path/error content at 320 CSS px and normal 640 px minimum app width without horizontal overflow or clipped focus. Check one keyboard path through inspect → confirm → cancel and focus restoration. Stub native pickers/external links; no focus-taking check or app launch is authorized by this spec. Reuse the candidate's existing verification run; no extra full suite, repeated Judy pass or broad measurement sweep. No scratch output was created by this design pass.
+**Implementation acceptance, once in the existing targeted headless checks:** cover empty, ready, inspecting, all three previews, insufficient space, each distinct error layout, progress (known/unknown), cancelling, switching, cancelled, success and status unavailable, with the disclosure open and closed. Reminder is absent at 13 days and present at 14; same-dump rebuild keeps its original age. Include help open/closed and the reminder's download link in the rect check. Record `(x,y,width,height)` for visible interactive rects: each is at least 24×24, buttons at least 32 high, and same-plane rects are disjoint and contained by the panel. Confirm wrapped long path/error/help content at 320 CSS px and normal 640 px minimum app width without horizontal overflow or clipped focus. Check one keyboard path through inspect → confirm → cancel and focus restoration. Stub native pickers/external links; no focus-taking check or app launch is authorized by this spec. Reuse the candidate's existing verification run; no extra full suite, repeated Judy pass or broad measurement sweep. No scratch output was created by this design pass.
+
+## 8. Same-batch copy consistency — manual ComicVine approval
+
+Ender's authorized Critter fix replaces the selected ComicVine issue link while preserving other populated metadata. Update these existing strings in `static/index.html`; no layout, control or action-label changes. This is a copy correction within the same 0.6.0 pass and rides the next code/bump commit.
+
+| Existing location | Exact replacement |
+|---|---|
+| `#applyHint` (whole paragraph) | `The selected ComicVine issue link replaces the saved link. Other metadata is filled only when empty. A recovery backup is kept until the update is verified, then deleted. Writing can take time for large comics.` |
+| `#apply` tooltip, both initial HTML `title` and the JavaScript `finally` restoration | `Replace the saved ComicVine issue link with the selected issue and fill empty metadata fields.` |
+
+Keep **Approve issue and write metadata** as the button label and the in-flight writing tooltip unchanged. Both resting-tooltip consumers must use the same new sentence so a completed/failed attempt cannot restore the obsolete empty-fields-only claim. Verification is a literal check of these three locations in the existing change review; no new UI round or test suite.

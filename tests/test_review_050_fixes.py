@@ -107,7 +107,7 @@ class GhostscriptTests(Archive):
                 if re.search(r'\bImage\.open\(', line) and line.count('Image.open(') != line.count('formats='):
                     missing.append('%s:%d' % (source.name, number))
         self.assertEqual(missing, [])
-        self.assertIn("formats=('JPEG','PNG','WEBP','GIF')", (CODE / 'archive_conversion.py').read_text(encoding='utf-8'))
+        self.assertIn("formats=('JPEG','PNG','WEBP','GIF','BMP')", (CODE / 'archive_conversion.py').read_text(encoding='utf-8'))
 
 
 class LensFingerprintTests(Archive):

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('comicDesktop',Object.freeze({
   keys:()=>ipcRenderer.invoke('keys-status'),
   saveKeys:keys=>ipcRenderer.invoke('keys-save',keys),
   browse:()=>ipcRenderer.invoke('setup-browse'),
+  browseGcd:()=>ipcRenderer.invoke('gcd-browse'),
   saveSetup:(folder,keys)=>ipcRenderer.invoke('setup-save',{folder,keys}),
   setup:()=>ipcRenderer.invoke('setup-status'),
   action:name=>ipcRenderer.invoke('shell-action',name),

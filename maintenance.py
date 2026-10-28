@@ -62,12 +62,24 @@ def run(force=False):
                 if not stage.exists():
                     con.execute('DELETE FROM conversion_staging WHERE path=?',(row['path'],));continue
                 if stage.resolve().parent!=source.resolve().parent or not stage.name.startswith('.comic-metadata-convert-'):continue
-                if not source.is_file():continue  # May be the only surviving recovery copy.
-                stat=source.stat()
-                if [stat.st_size,stat.st_mtime_ns]!=json.loads(row['signature']):continue
+                unchanged=False
+                if source.is_file():
+                    stat=source.stat()
+                    unchanged=[stat.st_size,stat.st_mtime_ns]==json.loads(row['signature'])
+                if not unchanged:
+                    # Only future conversions with an explicit verified final-byte proof qualify.
+                    if 'verified_target' not in row.keys() or not row['verified_target'] or not row['verified_sha256']:continue
+                    final=Path(row['verified_target'])
+                    if final!=source.with_suffix('.cbz') or not final.is_file() or final.is_symlink():continue
+                    import archive_conversion
+                    with final.open('rb') as handle:
+                        if archive_conversion.checksum(handle)!=row['verified_sha256']:continue
                 try:library_lock.require(source)
                 except library_lock.LibraryBusy:continue  # Another copy owns this library.
-                freed+=remove_tree(stage,source.parent)
+                import archive_conversion
+                size=sum(p.stat().st_size for p in stage.rglob('*') if p.is_file())
+                archive_conversion.cleanup_stage(stage,source)
+                freed+=size
                 con.execute('DELETE FROM conversion_staging WHERE path=?',(row['path'],))
     if expired:
         try:

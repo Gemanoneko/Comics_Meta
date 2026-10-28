@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.6.0] - 2026-10-28
+
+### Added
+
+- Offline Grand Comics Database matching with a local index, file preview, build progress and cancellation, source attribution, and a 14-day dump reminder.
+- Pinned, reproducible installer inputs prepared independently of the former recovery toolchain.
+
+### Changed
+
+- GCD matching skips all explicitly labelled Star Wars Legends files and preserves the approved filename-count and shared-GTIN safeguards.
+- Language tags in square and round brackets apply consistently across sources.
+
+### Fixed
+
+- Manual ComicVine choices replace the old issue URL so the next identity check does not recreate the conflict.
+- Read-only extracted pages no longer prevent verified conversion staging cleanup after the original archive is removed.
+- GIF and BMP covers are accepted consistently; Pillow's EPS and Ghostscript decoding entry points are disabled at startup.
+
 ## [v0.5.0] - 2026-10-27
 
 ### Added

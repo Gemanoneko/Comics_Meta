@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import qa_runtime
 qa_runtime.install()
+import image_safety  # Disable the external EPS decoder before any cover can be read.
 from provider_wait import ProviderDeferred
 import app_paths
 
@@ -413,6 +414,19 @@ def api(resource, **params):
         return result
 
 
+def manual_issue_fields(present, fields, issue):
+    """An explicit issue choice replaces its link; keep other populated fields."""
+    import automatic
+    planned, _, _ = automatic.external_plan(present, fields, {}, False)
+    selected = fields.get('Web')
+    if selected and issue.get('id'):
+        # Keep unrelated reference URLs while removing all previous ComicVine issue links.
+        other = re.sub(r'https?://(?:www\.)?(?:comicvine\.gamespot\.com|comicvine\.com)/[^\s,;]*4000-\d+[^\s,;]*', '', present.get('Web', ''), flags=re.I)
+        other = other.strip(' ,;\n\r\t')
+        planned['Web'] = (other + '\n' if other else '') + selected
+    return planned
+
+
 def metadata_from_issue(issue):
     from html import unescape
     description = issue.get('description') or ''
@@ -688,6 +702,13 @@ class Handler(BaseHTTPRequestHandler):
             args = urllib.parse.parse_qs(url.query)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
+            if url.path == '/api/gcd-offline':
+                if self.headers.get('Sec-Fetch-Site') not in (None,'same-origin','none'):
+                    return self.respond({'error':'Untrusted origin'},403)
+                import gcd_offline
+                return self.respond(gcd_offline.status())
+            if url.path in ('/gcd-offline.js','/gcd-offline.css'):
+                return self.respond((BASE/'static'/url.path.lstrip('/')).read_bytes(),mime='text/css; charset=utf-8' if url.path.endswith('.css') else 'text/javascript; charset=utf-8')
             if url.path in ('/reverse-image.js','/lens-control.js','/shell-ui.js','/comic-recovery.js','/kept-backups.js','/folder-help.js','/update-stats.js'):
                 return self.respond((BASE / 'static' / url.path.lstrip('/')).read_bytes(), mime='text/javascript; charset=utf-8')
             if url.path == '/comic-recovery.css':
@@ -846,6 +867,20 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length < 100_000:
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
+            if self.path in ('/api/gcd-offline/inspect','/api/gcd-offline/build','/api/gcd-offline/cancel'):
+                import gcd_offline
+                try:
+                    if not isinstance(body,dict):raise gcd_offline.GcdError('build_failed')
+                    if self.path.endswith('/cancel'):
+                        if body:raise gcd_offline.GcdError('build_failed')
+                        result=gcd_offline.cancel()
+                    else:
+                        allowed={'zip'} if self.path.endswith('/inspect') else {'zip','force'}
+                        if set(body)-allowed or 'zip' not in body:raise gcd_offline.GcdError('zip_missing')
+                        result=gcd_offline.inspect_source(body['zip']) if self.path.endswith('/inspect') else gcd_offline.start(body['zip'],body.get('force',False))
+                    return self.respond(result)
+                except gcd_offline.GcdError as exc:
+                    return self.respond({'error':exc.code,'code':exc.code,**exc.details},400)
             import pause_control
             if self.path in ('/api/recovery/preview','/api/recovery/confirm'):
                 import comic_recovery
@@ -1009,7 +1044,7 @@ class Handler(BaseHTTPRequestHandler):
                     import automatic
                     row=comic(int(body['comic']))
                     present,_,_=read_metadata(filesystem_path(row['path']))
-                    fields,_,_=automatic.external_plan(present,fields,{},False)
+                    fields=manual_issue_fields(present,fields,issue)
                     return self.respond(fields)
                 return self.respond(imprints.split(fields))  # What Approve writes: an imprint in Imprint.
             if self.path == '/api/apply':
@@ -1027,7 +1062,7 @@ class Handler(BaseHTTPRequestHandler):
                     import automatic, kept_backups
                     row=comic(int(body['comic']))
                     present,_,_=read_metadata(filesystem_path(row['path']))
-                    fields,_,_=automatic.external_plan(present,fields,{},False)
+                    fields=manual_issue_fields(present,fields,issue)
                     # The page tells every outcome apart (BackupLocation Amendment A1, A7.1).
                     attempt={}
                     with comic_write_guard(row['path']):
@@ -1035,7 +1070,8 @@ class Handler(BaseHTTPRequestHandler):
                         with filesystem_path(row['path']).open('rb') as handle:
                             original_sha256=hashlib.file_digest(handle,'sha256').hexdigest()
                         try:
-                            backup=write_metadata(row,fields,attempt=attempt,verify_readback=True,guard_held=True)
+                            backup=write_metadata(row,fields,attempt=attempt,verify_readback=True,guard_held=True,
+                                                  overwrite_fields=('Web',),expected_snapshot=present)
                         except Exception:
                             made=attempt.get('backup')
                             if not made:raise  # Nothing was copied: the server text, as before.

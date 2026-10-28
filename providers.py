@@ -171,6 +171,9 @@ def google_lookup(row,old):
 
 def statuses():
     result={'comicvine':comicvine_status()}
+    import gcd_offline
+    offline=gcd_offline.status()
+    result['gcd_offline']={'status':'offline_index_ready' if offline['current'] else 'awaiting_bulk_data',**offline}
     for provider in ('metron','gcd','google_books'):
         target=status_path(provider)
         result[provider]=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {'status':'not_used_yet'}

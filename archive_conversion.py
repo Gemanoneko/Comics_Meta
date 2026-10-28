@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 import shutil
+import stat
+import re
 import subprocess
 import time
 import uuid
@@ -70,6 +72,23 @@ def verify(target,manifest):
     app.read_metadata(target)  # Metadata must also be readable by this app.
 
 
+def cleanup_stage(stage, source):
+    """Only this conversion's sibling staging tree; 7-Zip preserves read-only attributes."""
+    stage=Path(stage);source=Path(source)
+    if not stage.exists():return
+    if stage.resolve().parent!=source.parent.resolve() or not re.fullmatch(r'\.comic-metadata-convert-[0-9a-f]{32}',stage.name):
+        raise ValueError('Unsafe staging cleanup path.')
+    for item in (stage,*stage.rglob('*')):
+        if item.is_symlink() or getattr(item.lstat(),'st_file_attributes',0)&0x400:
+            raise ValueError('Linked staging cleanup path.')
+    def writable_retry(function,path,exception_info):
+        error=exception_info[1]
+        if not isinstance(error,PermissionError):raise error
+        Path(path).chmod(stat.S_IREAD|stat.S_IWRITE)
+        function(path)
+    shutil.rmtree(stage,onerror=writable_retry)  # Python 3.11 development runtimes too.
+
+
 def convert(path):
     source=app.filesystem_path(path)
     if source.suffix.lower()=='.cbz' and zipfile.is_zipfile(source):return None
@@ -81,7 +100,7 @@ def convert(path):
     same=final==source
     if not same and final.exists():raise ValueError('A CBZ with this name already exists; original retained.')
     records=members(source)
-    if not any(name.lower().endswith(('.jpg','.jpeg','.png','.webp','.gif','.avif')) for name,_ in records):
+    if not any(name.lower().endswith(('.jpg','.jpeg','.png','.webp','.gif','.bmp','.avif')) for name,_ in records):
         raise ValueError('No comic images found; original retained.')
     required=sum(size for _,size in records)*2+64*1024*1024
     if shutil.disk_usage(source.parent).free<required:raise ValueError('Insufficient temporary disk space; original retained.')
@@ -89,10 +108,13 @@ def convert(path):
     temporary=stage/'converted.cbz'
     retained=source.parent/(source.name+'.'+uuid.uuid4().hex+'.conversion-original')
     stage.mkdir()
-    with app.db() as con:
-        con.execute('CREATE TABLE IF NOT EXISTS conversion_staging(path TEXT PRIMARY KEY,source TEXT,signature TEXT,created REAL)')
-        con.execute('INSERT INTO conversion_staging VALUES(?,?,?,?)',(str(stage),str(source),json.dumps(original_signature),time.time()))
     try:
+        with app.db() as con:
+            con.execute('CREATE TABLE IF NOT EXISTS conversion_staging(path TEXT PRIMARY KEY,source TEXT,signature TEXT,created REAL)')
+            for column in ('verified_target','verified_sha256'):
+                if column not in {r[1] for r in con.execute('PRAGMA table_info(conversion_staging)')}:
+                    con.execute('ALTER TABLE conversion_staging ADD COLUMN '+column+' TEXT')
+            con.execute('INSERT INTO conversion_staging(path,source,signature,created) VALUES(?,?,?,?)',(str(stage),str(source),json.dumps(original_signature),time.time()))
         run(['t','-sccUTF-8','-p',str(source)])
         run(['x','-y','-spd','-p','-sccUTF-8','-o'+str(stage),str(source)])
         manifest={}
@@ -103,8 +125,8 @@ def convert(path):
                 if not extracted.resolve().is_relative_to(stage.resolve()) or extracted.is_symlink() or getattr(extracted.stat(),'st_file_attributes',0)&0x400:
                     raise ValueError('Extracted path escaped staging; original retained.')
                 if extracted.stat().st_size!=size:raise ValueError('Extracted file size differs; original retained.')
-                if name.lower().endswith(('.jpg','.jpeg','.png','.webp','.gif')):
-                    with Image.open(extracted,formats=('JPEG','PNG','WEBP','GIF')) as image:image.load()  # Never EPS/Ghostscript (review F1).
+                if name.lower().endswith(('.jpg','.jpeg','.png','.webp','.gif','.bmp')):
+                    with Image.open(extracted,formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:image.load()  # Never EPS/Ghostscript (review F1).
                 with extracted.open('rb') as handle:manifest[name]=(size,checksum(handle))
                 archive.write(extracted,name)
         verify(temporary,manifest)
@@ -119,13 +141,13 @@ def convert(path):
         except Exception:
             if same and retained.exists():os.replace(retained,source)
             raise
+        with final.open('rb') as handle:verified_sha=checksum(handle)
+        with app.db() as con:
+            con.execute('UPDATE conversion_staging SET verified_target=?,verified_sha256=? WHERE path=?',(str(final),verified_sha,str(stage)))
         (retained if same else source).unlink()
         return {'original':str(path),'cbz':str(Path(path).with_suffix('.cbz')),'files_verified':len(manifest),'bytes_verified':sum(v[0] for v in manifest.values()),'original_removed':True}
     finally:
-        temporary.unlink(missing_ok=True)
-        if stage.resolve().parent!=source.parent.resolve() or not stage.name.startswith('.comic-metadata-convert-'):
-            raise ValueError('Unsafe staging cleanup path.')
-        shutil.rmtree(stage)
+        cleanup_stage(stage,source)
         with app.db() as con:con.execute('DELETE FROM conversion_staging WHERE path=?',(str(stage),))
 
 

@@ -71,8 +71,9 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Open:** the catalog holds 40,207 comics, while Sergei's library may be about 60,000. Check whether files never reach the catalog.
 - **Owner:** Ender builds A–E in one batch. Futaba checks what changed. Senua reviews. Sully releases. Makoto researches.
 
-### GCD data dump as an offline source (Sergei, 2026-10-27) — 0.6.0 batch PARKED, not started in code
-- **Parked 2026-10-27:** Sergei paused until the token reset. Done so far:
+### GCD data dump as an offline source (Sergei, 2026-10-27) — 0.6.0 source ready for build and acceptance
+- **Resumed 2026-10-28:** source and Judy’s single UI pass are implemented. Sergei chose a reminder at 14 days with exact SQLite download/replacement guidance. Targeted isolated regressions and fresh-input toolchain preparation pass. The fresh comparable old-rule result is 11,672; final production result is **11,291**. Sergei’s “Yes, skip GCD for all Legends files” covers all 1,151 explicitly `Star Wars Legends`-labelled catalog rows and all 215 current potential matches, including labelled files outside the exact folder; generic unrelated Legends titles and other sources are unchanged. Final source/version commit, one clean installer build, entry gate, QA and review remain. Evidence and exact limits: `Docs/ComicsMetaOrganizer_DevHandoff_v0.6.0_2026-10-28.md`.
+- **Historical pause, 2026-10-27:** Sergei paused until the token reset. At that point:
   - **UI brief:** written as `Docs/ComicsMetaOrganizer_GCDOffline_UIBrief_2026-10-27.md`. Judy has not started.
   - **Engine design:** settled by Ender, see "Next session" below. No code exists yet.
   - **Pilot scripts:** saved in `tools/gcd_pilot/`. They hold the exact matching rules to port.
@@ -92,7 +93,7 @@ Items Sergei has approved for a future version. Not started unless marked.
      - Prove that a clean rebuild produces a working installer, then delete the folder. Sergei wants it gone.
      - Update the Brief's "Inputs" section.
      - This also helps the entry-check repair item, which needs a pinned test Python.
-- **Next session:**
+- **Planned handoff at that pause:**
   1. **Judy:** one pass on the UI brief. It includes one open question for Sergei: a "dump is old" reminder after N days.
   2. **Ender:** port `tools/gcd_pilot/pilot.py` (`match_guarded`, `gcd_fields`, guard G5) and `build_index.py` into a new `gcd_offline.py`:
      - each index is written under a new name and a pointer is switched to it;
@@ -107,7 +108,7 @@ Items Sergei has approved for a future version. Not started unless marked.
      Then items 2–4, failing tests first.
   3. **Ender:** re-measure the per-rule counts on a fresh read-only snapshot against the pilot's 12,689.
   4. **Then:** the entry check, Futaba and Senua, and Sully releases 0.6.0.
-- **Check in the build:** Ender reads "skip Star Wars Legends Marvel reissues" as skipping Dark Horse matches inside a `Star Wars Legends` folder. This is not yet measured, so confirm it covers the 217 files.
+- **Final scope, 2026-10-28:** the original Dark Horse-only interpretation covered only 152 current potential matches. Sergei ruled “Yes, skip GCD for all Legends files.” The guard now excludes every file explicitly labelled `Star Wars Legends` in its path, any publisher, including labelled files outside the exact folder. Measurement covers all 215 current potential matches (the old approximately 217 estimate was historical).
 - **Source:** `Docs/ComicsMetaOrganizer_GCDTrial_2026-10-26.md` (Ender). Sergei downloads `current.zip` from comics.org himself, about every 2 weeks (CC BY-SA 4.0). The dump has no covers.
 - **Rulings (Sergei, "yes" to each):**
   1. A single GCD match on series + number + year counts as verified, with no cover check.

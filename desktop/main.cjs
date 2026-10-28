@@ -4,6 +4,7 @@ const crypto=require('node:crypto');const fs=require('node:fs');const path=requi
 const shellFiles=new Set(['startup.html','setup.html','stopping.html'].map(name=>pathToFileURL(path.join(__dirname,name)).href));
 const shellFile=url=>shellFiles.has(url);
 function providerPage(url){try{const parsed=new URL(url);return parsed.protocol==='https:'&&!parsed.username&&!parsed.password&&['comicvine.gamespot.com','www.comicvine.gamespot.com'].includes(parsed.hostname)&&/\/4000-\d+(?:\/|$)/.test(parsed.pathname);}catch{return false;}}
+function gcdInfoPage(url){try{const parsed=new URL(url);return parsed.protocol==='https:'&&!parsed.username&&!parsed.password&&!parsed.port&&!parsed.search&&!parsed.hash&&((parsed.hostname==='www.comics.org'&&['/','/download/'].includes(parsed.pathname))||(parsed.hostname==='creativecommons.org'&&parsed.pathname==='/licenses/by-sa/4.0/'));}catch{return false;}}
 const {Engine}=require('./engine.cjs');const {GracefulStop}=require('./graceful-stop.cjs');const {Updates}=require('./updates.cjs');
 const {loadPolicy,requestAllowed}=require('./qa-policy.cjs');
 const qaPolicy=loadPolicy(process.env,app.getVersion());const qa=Boolean(qaPolicy);const qaRoot=qaPolicy?.root||null;
@@ -56,6 +57,13 @@ if(!locked){app.exit(0);}else{
   ipcMain.handle('keys-save',async(event,keys)=>{if(!senderAllowed(event)||state.service!=='ready'||keysSaving)throw Error('Keys unavailable');keysSaving=true;try{return await engine.call('/api/shell/keys',{keys});}catch(error){return error.payload?.error?error.payload:{error:'save_failed'};}finally{keysSaving=false;}});
   ipcMain.handle('setup-status',async event=>{if(!senderAllowed(event))throw Error('Untrusted shell sender');return (await engine.call('/api/shell/status')).setup;});
   ipcMain.handle('setup-browse',async event=>{if(!senderAllowed(event)||state.service!=='setup')throw Error('Setup unavailable');const result=await folderPicker.showOpenDialog(window,{properties:['openDirectory'],title:'Choose your comic library folder'});return result.canceled?null:result.filePaths[0];});
+  let gcdPicking=false;
+  ipcMain.handle('gcd-browse',async event=>{
+    if(!senderAllowed(event)||state.service!=='ready'||gcdPicking)throw Error('GCD picker unavailable');
+    gcdPicking=true;
+    try{const result=await folderPicker.showOpenDialog(window,{properties:['openFile'],title:'Choose GCD dump',defaultPath:app.getPath('downloads'),filters:[{name:'GCD SQLite dump (*.zip; *.db)',extensions:['zip','db']}]});return result.canceled?null:result.filePaths[0];}
+    finally{gcdPicking=false;}
+  });
   let saving=false;
   ipcMain.handle('setup-save',async(event,body)=>{
     if(!senderAllowed(event)||state.service!=='setup'||saving)throw Error('Setup unavailable');
@@ -69,7 +77,7 @@ if(!locked){app.exit(0);}else{
     if(state.update.phase==='installer-uncertain'&&!['quit','openLogs'].includes(name))throw Error('Installation outcome unconfirmed');
     const actions={setupOpenDashboard:async()=>{if(state.service!=='setup')throw Error('Setup unavailable');const fresh=await engine.call('/api/shell/status');if(!fresh.setup?.configured)throw Error('Setup incomplete');state.service='ready';state.control=fresh.control;await window.loadURL('http://127.0.0.1:'+engine.port);broadcast();beginUpdateCadence();},quit:()=>quit(),retryService:()=>start(),openLogs:()=>shell.openPath(logFolder),check:()=>updates?.check(true),download:()=>updates?.download(),dismiss:()=>updates?.dismiss(),confirm:()=>updates?.confirm(),cancelConfirm:()=>updates?.cancelConfirm(),install:()=>updates?.install(),retryUpdate:()=>updates?.retry(),cancelStop:()=>stopper?.cancel(),forceQuit:()=>stopper?.force()};
     if(!Object.hasOwn(actions,name))throw Error('Unsupported shell action');return actions[name]();});
-  function secure(target,allowed){target.webContents.setWindowOpenHandler(({url})=>{if(providerPage(url)&&!qa)shell.openExternal(url).catch(log);return {action:'deny'};});target.webContents.on('will-navigate',(event,url)=>{if(!allowed(url))event.preventDefault();});target.webContents.on('page-title-updated',event=>event.preventDefault());target.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&input.control&&!input.alt&&input.key.toLowerCase()==='q'&&!stopper?.busy&&target.isVisible()){event.preventDefault();quit();}});}
+  function secure(target,allowed){target.webContents.setWindowOpenHandler(({url})=>{if((providerPage(url)||gcdInfoPage(url))&&!qa)shell.openExternal(url).catch(log);return {action:'deny'};});target.webContents.on('will-navigate',(event,url)=>{if(!allowed(url))event.preventDefault();});target.webContents.on('page-title-updated',event=>event.preventDefault());target.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&input.control&&!input.alt&&input.key.toLowerCase()==='q'&&!stopper?.busy&&target.isVisible()){event.preventDefault();quit();}});}
   async function quit(){if(stopper?.busy)return;trayPause=false;try{if(!stopper){exit();return;}state.stopping={mode:'quit'};broadcast();if(await stopper.run('quit'))exit();}catch(error){log(error);await engine?.forceStop();exit();}finally{state.stopping=null;broadcast();}}
   function stoppingDialog(value){state.stopping=value;if(!dialog){
     if(!qa)window.showInactive();dialog=new BrowserWindow({parent:window,modal:true,width:440,resizable:false,minimizable:false,maximizable:false,show:false,backgroundColor:'#1b202b',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:qa}});

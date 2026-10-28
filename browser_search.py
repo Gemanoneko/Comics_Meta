@@ -69,7 +69,7 @@ def request_verification():
 
 def cover_bytes(path):
     data,_,_=reverse_image.cover(path,0)
-    with Image.open(io.BytesIO(data),formats=('JPEG','PNG','WEBP')) as image:  # Never EPS/Ghostscript (review F1).
+    with Image.open(io.BytesIO(data),formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:  # Never EPS/Ghostscript (review F1).
         image=image.convert('RGB');image.thumbnail((1000,1000))
         output=io.BytesIO();image.save(output,'JPEG',quality=80)
     if len(output.getvalue())>500_000:raise ValueError('Cover is too large for image search.')

@@ -5,6 +5,7 @@ import providers
 from provider_wait import ProviderDeferred
 
 KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library local index':'open_library',
+      'GCD offline':'gcd_offline',
       'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics',
       'General free web':'free_web','Wikipedia/wiki':'wikipedia'}
 FREE_SOURCES={'General free web','Wikipedia/wiki'}
@@ -54,6 +55,9 @@ def can_search(name,row,old):
     if name=='Metron':
         import metron
         return metron.identity(row,old) is not None
+    if name=='GCD offline':
+        import gcd_offline
+        return bool(series and not gcd_offline.legends_path(row.get('path','')) and gcd_offline.current())
     if name=='GCD':return bool(series and number and (old.get('Year') or row.get('year')))
     if name=='Google Books':return providers.is_book(row,old) and bool(old.get('Title') or old.get('Series') or row.get('series') or old.get('ISBN'))
     if name=='Open Library local index':return bool(re.sub('[^0-9X]','',str(old.get('ISBN') or '').upper())) and providers.is_book(row,old)
@@ -80,9 +84,10 @@ def search_fingerprint():
     cover search is for). Kept until config.json changes: the catalog probe asks for it per waiting comic."""
     global _fingerprint
     import pipeline_config,metron,browser_search
-    key=pipeline_config.config_key()
+    import gcd_offline
+    key=(pipeline_config.config_key(),gcd_offline.rules_stamp())
     if _fingerprint[0]==key:return dict(_fingerprint[1])
-    value={'rules':metron.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name)),
+    value={'rules':metron.rules_stamp(),'gcd_rules':gcd_offline.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name)),
            'lens':bool(browser_search.settings().get('enabled'))}
     _fingerprint=(key,value)
     return dict(value)
@@ -91,6 +96,11 @@ def search_fingerprint():
 def due(previous,signature,version,statuses,new_leads=False,now=None):
     now=time.time() if now is None else now
     if new_leads or previous.get('signature')!=signature or previous.get('version')!=version:return True
+    import gcd_offline, pipeline_config
+    gcd_attempt=previous.get('source_schedule',{}).get('GCD offline',{})
+    if (previous.get('outcome')=='needs_identity_lookup' and not previous.get('hold')
+            and pipeline_config.source_enabled('GCD offline') and gcd_offline.current()
+            and gcd_attempt.get('rules')!=gcd_offline.rules_stamp()):return True
     if (previous.get('unsearchable') and previous.get('outcome')=='needs_identity_lookup' and not previous.get('hold')
             and previous['unsearchable']==search_fingerprint()):
         return False  # Enrichment A: nothing can search it until its file, the sources or the rules change.
@@ -122,6 +132,9 @@ def due(previous,signature,version,statuses,new_leads=False,now=None):
 
 def ready(name,attempt,statuses,now):
     if not attempt:return True  # Allow ordinary caches on a source's first attempt.
+    if name=='GCD offline':
+        import gcd_offline
+        if attempt.get('rules')!=gcd_offline.rules_stamp():return True
     if name=='Metron' and attempt.get('result')=='no_verified_match':
         import metron
         if attempt.get('rules')!=metron.rules_stamp():return True  # Enrichment B/C/D: new rules ask once more.

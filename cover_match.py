@@ -77,8 +77,8 @@ def compare(local, remote):
     if automatic.covers_agree(local, remote):
         return 'today'
     from PIL import Image
-    with Image.open(io.BytesIO(local), formats=('JPEG', 'PNG', 'WEBP')) as a, \
-            Image.open(io.BytesIO(remote), formats=('JPEG', 'PNG', 'WEBP')) as b:  # Never EPS/Ghostscript (review F1).
+    with Image.open(io.BytesIO(local), formats=('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP')) as a, \
+            Image.open(io.BytesIO(remote), formats=('JPEG', 'PNG', 'WEBP', 'GIF', 'BMP')) as b:  # Never EPS/Ghostscript (review F1).
         a, b = a.convert('RGB'), b.convert('RGB')
         target = b.width / b.height
         if a.width / a.height > 1.0 and target < 1.0:

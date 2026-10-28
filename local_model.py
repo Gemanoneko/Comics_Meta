@@ -104,7 +104,7 @@ def opening_images(path):
         for page in pages[:5]:
             if page.file_size > 20_000_000:
                 raise ValueError('Opening page exceeds image limit.')
-            with Image.open(io.BytesIO(archive.read(page)),formats=('JPEG','PNG','WEBP')) as image:  # Never EPS/Ghostscript (review F1).
+            with Image.open(io.BytesIO(archive.read(page)),formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:  # Never EPS/Ghostscript (review F1).
                 image = image.convert('RGB'); image.thumbnail((1400,1800))
                 output=io.BytesIO(); image.save(output,format='JPEG',quality=88)
                 images.append(base64.b64encode(output.getvalue()).decode()); names.append(page.filename)
@@ -196,7 +196,7 @@ def credits_pages(path,limit=4):
         images=[];names=[]
         for page in chosen:
             if page.file_size>20_000_000:continue
-            with Image.open(io.BytesIO(archive.read(page)),formats=('JPEG','PNG','WEBP')) as image:  # Never EPS/Ghostscript (review F1).
+            with Image.open(io.BytesIO(archive.read(page)),formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:  # Never EPS/Ghostscript (review F1).
                 image=image.convert('RGB');image.thumbnail((1400,1800))
                 output=io.BytesIO();image.save(output,format='JPEG',quality=88)
             images.append(base64.b64encode(output.getvalue()).decode());names.append(page.filename)
@@ -224,7 +224,7 @@ def identify_cover(path,ask=None):
     """ask: the read-only pilot's own model call (no pause gate, no stage timing)."""
     import reverse_image
     raw,_,_ = reverse_image.cover(path,0)
-    with Image.open(io.BytesIO(raw),formats=('JPEG','PNG','WEBP')) as image:  # Never EPS/Ghostscript (review F1).
+    with Image.open(io.BytesIO(raw),formats=('JPEG','PNG','WEBP','GIF','BMP')) as image:  # Never EPS/Ghostscript (review F1).
         image=image.convert('RGB');image.thumbnail((1400,1800))
         output=io.BytesIO();image.save(output,format='JPEG',quality=90)
     result = (ask or chat)('Transcribe visible identification text on this comic COVER only. Return {"title":string,"issue":string,"publisher":string,"creators":list,"search_query":string}. Leave illegible fields blank. No story summary, no invented facts, and no knowledge beyond the visible text. All output is search evidence, not a verified catalog match.',[base64.b64encode(output.getvalue()).decode()])

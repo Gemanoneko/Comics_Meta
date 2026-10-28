@@ -41,7 +41,8 @@ def language_eligible(row, old):
     language = str(old.get('LanguageISO') or '').strip().lower().replace('_', '-').split('-')[0]
     if language and language not in ('en', 'eng', 'english'):
         return False
-    return not re.search(r'\((?:fr|french|de|german|es|spanish|it|italian|ru|russian|jp|japanese)\)', Path(row['path']).name, re.I)
+    from language_tags import tagged_non_english
+    return not tagged_non_english(Path(row['path']).name)
 
 
 def saved_evidence(path):

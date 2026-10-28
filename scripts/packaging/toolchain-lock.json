@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "platform": "win32-x64",
+  "nodeVersion": "26.12.1",
+  "npmVersion": "11.20.0",
+  "archiverSha256": "b0cfdeaf429f5cc53f85123dd8f5a5feb92c19d31aa34df257edf9a26be05f95",
+  "native": [
+    {
+      "name": "electron",
+      "version": "43.7.9",
+      "filename": "electron-v43.7.9-win32-x64.zip",
+      "url": "https://github.com/electron/electron/releases/download/v43.7.9/electron-v43.7.9-win32-x64.zip",
+      "sha256": "92171b4a51c8547e48c8cfeca63c655841994031aabf79db80658319d95fafe5",
+      "source": "https://github.com/electron/electron/releases/download/v43.7.9/SHASUMS256.txt"
+    },
+    {
+      "name": "nsis",
+      "version": "3.0.4.1",
+      "filename": "nsis-3.0.4.1.7z",
+      "url": "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z",
+      "sha256": "9877df902530f96357d13a7a31ae2b9df67f48b11ffc9a1700a7c961574ec5fa",
+      "source": "app-builder-lib@26.15.3/out/toolsets/windows.js"
+    },
+    {
+      "name": "nsis-resources",
+      "version": "3.4.1",
+      "filename": "nsis-resources-3.4.1.7z",
+      "url": "https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z",
+      "sha256": "593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103",
+      "source": "app-builder-lib@26.15.3/out/toolsets/windows.js"
+    },
+    {
+      "name": "winCodeSign",
+      "version": "2.6.0",
+      "filename": "winCodeSign-2.6.0.7z",
+      "url": "https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z",
+      "sha256": "cdaec7154dda7cc31f88d886e2489379a0625a737d610b5ae7f62a12f16743a4",
+      "source": "app-builder-lib@26.15.3/out/toolsets/windows.js",
+      "projection": ["rcedit-ia32.exe", "rcedit-x64.exe"]
+    }
+  ]
+}

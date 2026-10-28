@@ -1,26 +1,27 @@
 'use strict';
 // Lean installer build (Sergei 2026-10-15): `npm run pack` from this checkout.
-// 1. Uses the authenticated offline toolchain already on disk (dependencies,
-//    Python/7-Zip runtime, Electron/NSIS/rcedit) - no downloads.
+// 1. Verifies the pinned offline toolchain made by prepare-runtime.mjs
+//    (dependencies, Python/7-Zip runtime, Electron/NSIS/rcedit) - no downloads.
 // 2. Stages build/staged (runtime + engine sources + licenses) and its manifest.
 // 3. Runs the normal electron-builder NSIS build in a child process
 //    (scripts/packaging/build-lean.cjs), which never executes the generated
 //    NSIS uninstaller stub.
 // Success = child exit 0 AND its final `leanBuild` receipt AND the installer
 // bytes it names. Output: dist/Comic-Metadata-Setup-<version>.exe.
-// Optional: --inputs <dir>  (default scratch/cmo-packaging-recovery-20261015)
+// Optional: --inputs <dir>  (default build/toolchain)
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
+const {need,plain,readInputs,verifyTree}=require('./packaging/toolchain-inputs.cjs');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const root=path.resolve(__dirname,'..');
-const flag=process.argv.indexOf('--inputs');
-const inputs=path.resolve(flag>=0?process.argv[flag+1]:path.join(root,'scratch','cmo-packaging-recovery-20261015'));
-const assembly=path.join(inputs,'runtime-assemble-13','run-01','worker-evidence','assembly');
-const nativeRoot=path.join(assembly,'native'),capsule=path.join(assembly,'capsule');
-const dependencies=path.join(inputs,'prepare-08','run-01','worker-evidence','materialized','dependencies','node_modules');
-for(const p of [nativeRoot,capsule,dependencies])if(!fs.statSync(p,{throwIfNoEntry:false})?.isDirectory())throw new Error('Toolchain input missing: '+p);
+const args=process.argv.slice(2);
+need(args.length===0||(args.length===2&&args[0]==='--inputs'&&args[1]&&!args[1].startsWith('--')),
+  'usage: build-installer.cjs [--inputs <prepared-directory>]');
+const inputs=plain(path.resolve(args[1]||path.join(root,'build','toolchain')));
+const nativeRoot=path.join(inputs,'native'),capsule=path.join(inputs,'capsule');
+const dependencies=path.join(inputs,'dependencies','node_modules');
 
 function walk(dir,base=dir,out={files:[],directories:[]}){
   for(const e of fs.readdirSync(dir,{withFileTypes:true})){
@@ -36,6 +37,8 @@ const sorted=t=>({directories:[...t.directories].sort(),files:[...t.files].sort(
 
 function stage(version){
   const build=path.join(root,'build'),staged=path.join(build,'staged');
+  plain(staged);plain(path.join(build,'staged-manifest.json'));
+  if(fs.existsSync(staged))walk(staged);
   fs.rmSync(staged,{recursive:true,force:true});
   fs.rmSync(path.join(build,'staged-manifest.json'),{force:true});
   fs.cpSync(capsule,staged,{recursive:true,errorOnExist:true,force:false});
@@ -63,11 +66,20 @@ function main(){
   const version=fs.readFileSync(path.join(root,'VERSION'),'utf8').trim();
   const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
   if(pkg.version!==version)throw new Error('VERSION '+version+' and package.json '+pkg.version+' differ');
+  console.log('Verifying prepared toolchain ...');
+  const manifest=readInputs(root,inputs);
+  need(process.versions.node===manifest.nodeVersion,'build requires Node '+manifest.nodeVersion);
+  const npm=JSON.parse(fs.readFileSync(path.join(path.dirname(process.execPath),'node_modules','npm','package.json')));
+  need(npm.version===manifest.npmVersion,'build requires npm '+manifest.npmVersion+' beside Node');
   const modules=path.join(root,'node_modules');
+  plain(modules);
   if(!fs.existsSync(modules)){console.log('Copying offline dependencies into node_modules ...');fs.cpSync(dependencies,modules,{recursive:true,errorOnExist:true,force:false});}
+  verifyTree(modules,manifest.trees.dependencies);
   console.log('Staging runtime and engine for '+version+' ...');
   const stagedSha=stage(version);
   const build=path.join(root,'build'),tmp=path.join(build,'tmp'),npmDir=path.join(build,'npm');
+  plain(tmp);plain(npmDir);plain(path.join(build,'cache'));plain(path.join(root,'dist'));
+  if(fs.existsSync(tmp))walk(tmp);
   fs.rmSync(tmp,{recursive:true,force:true});
   for(const d of [tmp,path.join(build,'cache'),npmDir])fs.mkdirSync(d,{recursive:true});
   for(const name of ['user.npmrc','global.npmrc'])fs.writeFileSync(path.join(npmDir,name),'');
