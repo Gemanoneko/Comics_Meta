@@ -71,8 +71,8 @@ Items Sergei has approved for a future version. Not started unless marked.
 - **Open:** the catalog holds 40,207 comics, while Sergei's library may be about 60,000. Check whether files never reach the catalog.
 - **Owner:** Ender builds A–E in one batch. Futaba checks what changed. Senua reviews. Sully releases. Makoto researches.
 
-### GCD data dump as an offline source (Sergei, 2026-10-27) — 0.6.0 source ready for build and acceptance
-- **Resumed 2026-10-28:** source and Judy’s single UI pass are implemented. Sergei chose a reminder at 14 days with exact SQLite download/replacement guidance. Targeted isolated regressions and fresh-input toolchain preparation pass. The fresh comparable old-rule result is 11,672; final production result is **11,291**. Sergei’s “Yes, skip GCD for all Legends files” covers all 1,151 explicitly `Star Wars Legends`-labelled catalog rows and all 215 current potential matches, including labelled files outside the exact folder; generic unrelated Legends titles and other sources are unchanged. Final source/version commit, one clean installer build, entry gate, QA and review remain. Evidence and exact limits: `Docs/ComicsMetaOrganizer_DevHandoff_v0.6.0_2026-10-28.md`.
+### GCD data dump as an offline source (Sergei, 2026-10-27) — 0.6.0 accepted, release pending
+- **Completed 2026-10-28:** source and Judy’s single UI pass are implemented. Sergei chose a reminder at 14 days with exact SQLite download/replacement guidance. The fresh comparable old-rule result is 11,672; final production result is **11,291**. Sergei’s “Yes, skip GCD for all Legends files” covers all 1,151 explicitly `Star Wars Legends`-labelled catalog rows and all 215 current potential matches, including labelled files outside the exact folder; generic unrelated Legends titles and other sources are unchanged. The first gate stopped on four unexpected failures; the focused correction passed, and Sergei explicitly authorized one replacement clean build and entry run. Corrected source `e21e0fcdab7227fa58a367301019123c56628153` has only the accepted inherited gate failures; Futaba reports GO and Senua RELEASE CLEAR. Packaged 0.6.0 started offscreen with private state and quit through its actual tray callback, leaving all 620 package hashes unchanged. The old recovery folder has now been removed after that proof. Sully’s release remains. Evidence and exact limits: `Docs/ComicsMetaOrganizer_DevHandoff_v0.6.0_2026-10-28.md`.
 - **Historical pause, 2026-10-27:** Sergei paused until the token reset. At that point:
   - **UI brief:** written as `Docs/ComicsMetaOrganizer_GCDOffline_UIBrief_2026-10-27.md`. Judy has not started.
   - **Engine design:** settled by Ender, see "Next session" below. No code exists yet.
@@ -88,11 +88,12 @@ Items Sergei has approved for a future version. Not started unless marked.
      - **To find:** whether the pick isn't saved or written, whether the next research pass or the 2 s poll rebuilds the conflict from the old ComicVine id in the file or in evidence, or whether the A–E refinement turn re-raises it.
      - **Fix:** root cause in the commit message, plus a test that fails first.
   5. **The build toolchain must be rebuildable** (Sergei, 2026-10-27: "Fold to 0.6.0").
-     - Today `scratch/cmo-packaging-recovery-20261015/` (858 MB, gitignored, on this machine only) is the only installer toolchain, and the entry check's test Python lives in it. See the Brief's "Do not delete" note and Senua's v0.5.0 note.
+     - Historical problem: `scratch/cmo-packaging-recovery-20261015/` was the only installer toolchain, and the entry check's test Python lived in it. The new committed pins and preparation/build route replace that dependency; fresh inputs built the accepted 0.6.0 candidate and supplied its test Python.
      - Make it reproducible on either machine: a pinned download plus a build script, or another route Ender picks.
      - Prove that a clean rebuild produces a working installer, then delete the folder. Sergei wants it gone.
      - Update the Brief's "Inputs" section.
      - This also helps the entry-check repair item, which needs a pinned test Python.
+     - **Completed 2026-10-28:** after the clean rebuild and isolated packaged smoke passed, the supported `studio-sweep --apply --path` route removed only that old folder: **8,717 files / 878,563,659 logical bytes**. Absence is verified; qa-040b/qa-050c, current toolchain and session evidence remain preserved. See the handoff for the exact removal receipt.
 - **Planned handoff at that pause:**
   1. **Judy:** one pass on the UI brief. It includes one open question for Sergei: a "dump is old" reminder after N days.
   2. **Ender:** port `tools/gcd_pilot/pilot.py` (`match_guarded`, `gcd_fields`, guard G5) and `build_index.py` into a new `gcd_offline.py`:
@@ -154,6 +155,12 @@ Items Sergei has approved for a future version. Not started unless marked.
 
 ### Updater waiting banner confirmed (Sergei, 2026-10-27)
 - During the 0.4.1 → 0.5.0 update, Sergei saw the waiting message and no second Install offer. The 0.4.1 fix works in real use.
+
+### Follow-ups from the 0.6.0 review (2026-10-28; next cycle)
+- **Senua M1 (Major):** when ComicVine metadata is queued and GCD supplies the synopsis in the same pass, Notes retain the GCD issue URL but omit the Grand Comics Database credit, CC BY-SA 4.0 and dump date. `automatic.py:674` treats a queued plan from another provider as already credited. Preserve attribution across that boundary; add the mixed-provider regression. The GCD-only control has the credit.
+- **Senua m1 (Minor):** `local_model.py:99` and `local_model.py:194` still exclude native GIF/BMP filenames when enumerating opening/credits pages. The decoders and cover route accept them; extend enumeration with a regression at that boundary.
+- **Disposition:** carry both to the next cycle under the canonical advisory policy. Senua found zero Critical issues and issued RELEASE CLEAR; no production repair or further 0.6.0 rebuild was requested. Source: `Docs/ComicsMetaOrganizer_CodeReview_v0.6.0_2026-10-28.md`.
+- **Owner:** Ender; Futaba verifies changed behavior, Senua reviews, Sully releases.
 
 ### Minor follow-ups from the 0.5.0 review and QA (logged 2026-10-27; not started)
 - **Senua m1–m10** (`Docs/ComicsMetaOrganizer_CodeReview_v0.5.0_2026-10-27.md`):
