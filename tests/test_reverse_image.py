@@ -81,11 +81,11 @@ class FileCoverPreviewTests(unittest.TestCase):
         (self.root/'Rar.cbz').write_bytes(b'Rar!\x1a\x07\x01\x00'+b'\x00'*200)
         (self.root/'Rar.cbr').write_bytes(b'Rar!\x1a\x07\x00'+b'\x00'*200)
         (self.root/'Seven.cb7').write_bytes(b'7z\xbc\xaf\x27\x1c'+b'\x00'*200)
-        gif=io.BytesIO();Image.new('RGB',(30,45)).save(gif,'GIF')
+        unsupported=io.BytesIO();Image.new('RGB',(30,45)).save(unsupported,'TIFF')
         cases={'no images':self.comic('Empty.cbz',[('ComicInfo.xml',b'<ComicInfo/>')]),
                'corrupt ZIP':self.root/'Corrupt.cbz','RAR named .cbz':self.root/'Rar.cbz','.cbr':self.root/'Rar.cbr',
                '.cb7':self.root/'Seven.cb7','not an image':self.comic('Text.cbz',[('01.jpg',b'not a picture')]),
-               'other format under an image name':self.comic('Gif.cbz',[('01.jpg',gif.getvalue())]),
+               'other format under an image name':self.comic('Tiff.cbz',[('01.jpg',unsupported.getvalue())]),
                'truncated image':self.comic('Cut.cbz',[('01.jpg',picture()[:300])]),
                'missing file':self.root/'Gone.cbz'}
         for label,path in cases.items():

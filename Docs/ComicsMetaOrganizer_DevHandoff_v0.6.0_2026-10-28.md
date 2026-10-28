@@ -1,6 +1,6 @@
 # 0.6.0 development handoff — 2026-10-28
 
-Status: source implementation ready for Sully’s atomic 0.6.0 source/version commit and the single clean installer build. No formal entry receipt or release claim yet. This file records development evidence; final candidate identity and acceptance belong in the QA/release reports.
+Status: the first clean 0.6.0 installer built successfully from `b14375aa057e1dfa900a608484bd4855392e29a7`; its formal gate found four unexpected test failures and stopped handoff. The minimal correction below passes its focused checks. A replacement build and entry run await Sergei’s explicit exception to the one-build constraint. No release or QA acceptance is claimed. Final candidate identity and acceptance belong in the QA/release reports.
 
 ## Scope and behavior
 
@@ -75,6 +75,28 @@ Second Ender owns the build-toolchain implementation and Brief Inputs subsection
 
 **Recovery deletion remains held** until that clean-input installer’s identity and isolated packaged smoke prove a working rebuild. Only then may the exact old recovery directory be removed; qa-040b, qa-050c and ownership evidence remain preserved. Preparation alone is not installer proof.
 
-The builder runs the complete entry check **once** using `.claude/skills/qa-handoff/scripts/run_entry_checks.mjs`, a reviewed protocol-2 context and pinned source/runtime/tooling manifests. Futaba compares the actual receipt/hashes and tests changed behavior, per Lean verification §7; no duplicate full gate. Accepted inherited failures are exactly: three failure-filter DOM tests, two clock-sensitive kept-backups tests, three `._pth` child-Python tests, and the checker’s non-UTF-8 mismatch. **Any other official entry failure is STOP/report.** Futaba runs desktop Node tests separately with `COMICS_META_TEST_SCRATCH` because they do not execute after the known Python check failure. No receipt exists yet.
+The builder runs the complete entry check **once** using `.claude/skills/qa-handoff/scripts/run_entry_checks.mjs`, a reviewed protocol-2 context and pinned source/runtime/tooling manifests. Futaba compares the actual receipt/hashes and tests changed behavior, per Lean verification §7; no duplicate full gate. Accepted inherited failures are exactly: three failure-filter DOM tests, two clock-sensitive kept-backups tests, three `._pth` child-Python tests, and the checker’s non-UTF-8 mismatch. **Any other official entry failure is STOP/report.** Futaba runs desktop Node tests separately with `COMICS_META_TEST_SCRATCH` because they do not execute after the known Python check failure. The first actual failed receipt is recorded below; it is not acceptance evidence for the corrected source.
+
+## First clean build, gate stop and minimal correction
+
+The single clean build from `b14375aa057e1dfa900a608484bd4855392e29a7` copied the independently prepared dependencies into a candidate with no `node_modules`, verified the pins, and completed in 36.5 seconds. Installer: 149,536,532 bytes, SHA-256 `30da4afb691f07026c1a7b72f72262b8faf9d47dd2dedb4056c27c097fffa1fd`. Build evidence: `owned-1793186365553.json` (code 0, closed true, zero descendants, `bootstrapExecuted: false`). All 543 staged resources matched the packaged copies. Complete 620-file package identity: `candidate-identity.json` and `packaged-files.json`, latter SHA-256 `23b9c5b69aeccca829e0a7ffbb608454c436e2725f16b63cf68c17c58d71362d`. This establishes clean construction, not a working packaged smoke or release acceptance.
+
+Formal gate: 1,051 tests in 167.241 seconds, eight failures, two errors, one skip. Saved evidence: `owned-1793186719642.json`, `gate-evidence.json`, `gate-summary.json`, `entry-receipt.txt`. Observed inherited failures: three failure-filter DOM, two clock-sensitive kept-backup, one `._pth` state-root case; the canonical supervisor also reported its accepted non-UTF-8 output mismatch. The inner supervisor used forced closure for that mismatch; both inner and outer ownership reports proved zero remaining descendants. The four additional failures triggered the required stop; no repeat full suite or replacement installer was run.
+
+Actual original-candidate receipt:
+
+```text
+Entry-check receipt v2: comic-metadata v0.6.0 @ b14375aa057e1dfa900a608484bd4855392e29a7 (dirty: N) [source:daf27f74ab63811807a2f91afe887f21600804950acad8e57755c9b05c66251b; harness:6d41f867be74a15ad8b4ff85e3071dbc75ffd56bf767890dff2d26924d7de7e5; runtime:155d34fb8640b0582895ae2f971156e3683c2b0deb6209e4fcf9dd8bcc494c23; checker:a448c08c150e63019cfd6e49ceed5ec5b8652a97078abde197e7a50882b759cf] — pre-qa n/a, post-build n/a, check-electron n/a, check fail (owned check), test:smoke n/a
+```
+
+Read-only diagnosis classified the unexpected failures before edits:
+
+- `test_comic_lookahead.EligibilityTests.test_expired_comic_retry_does_not_override_all_source_deadlines` and `test_recovered_provider_wakes_waiting_comic`: **production regression**. A missing/old GCD rules stamp differed from `gcd-offline-1:none`, making the source ready before its deadline even though no index existed. The correction requires an active index before a rules mismatch can override the deadline. The original fixture’s all-source wait remains valid.
+- `test_library_lock.WriteGuardTests.test_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own`: **stale fixture**. Its `.comic-metadata-convert-fixture` name is never produced by the converter, which uses 32 hex UUID characters. The fixture now uses a real owned-name shape; both the busy-library refusal and later positive cleanup assertion remain. Production cleanup stays strict.
+- `test_reverse_image.FileCoverPreviewTests.test_every_unreadable_file_has_one_answer`, subcase `other format under an image name`: **stale fixture**. It used GIF bytes named `.jpg`; GIF is deliberately supported in this batch. The negative fixture now uses unsupported TIFF bytes, keeping the renamed-format refusal and archive-unchanged assertions. Production raster behavior is unchanged by the repair.
+
+Correction scope: `source_scheduling.py`, `tests/test_gcd_offline.py`, `tests/test_library_lock.py`, `tests/test_reverse_image.py`. Focused run `owned-1793187096787.json`: **7/7 passed**—the four previously failing cases, a no-index missing/old-stamp deadline test (plus active-new-index ready/settled controls), the existing new-index wake-once test, and the isolation sentinel. Native closure was normal, code 0, zero descendants. No full-suite repetition occurred.
+
+The staged manifest proves `source_scheduling.py` is shipped as `engine/source_scheduling.py` (original SHA-256 `93cdbc093501471168ab4bcc1b3fd737fa61150b9795e3c30d4f54eb9e940966`); the three test files are absent from the installer. Consequently a tests-only reconciliation cannot preserve the original installer. The corrected production line requires a new source identity and an explicitly authorized replacement build. The unreleased version remains 0.6.0. The original candidate, receipt, package manifest and recovery folder remain intact while that exception is pending.
 
 All per-session leftovers stay at `C:/Antigravity Projects/Studio Illuminati/scratch/cmo-060-20261028` for Sergei’s manual deletion after acceptance; they are not a cleanup target during this handoff.

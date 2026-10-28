@@ -198,7 +198,7 @@ class WriteGuardTests(LockFixture):
     def test_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own(self):
         source = self.library / 'Example 001.cbr'
         source.write_bytes(b'source')
-        stage = self.library / '.comic-metadata-convert-fixture'
+        stage = self.library / ('.comic-metadata-convert-' + 'a' * 32)
         stage.mkdir()
         (stage / 'page.jpg').write_bytes(b'page')
         stat = source.stat()

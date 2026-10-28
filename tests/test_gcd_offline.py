@@ -125,3 +125,17 @@ class GcdTests(unittest.TestCase):
             self.assertTrue(source_scheduling.due(previous,[1,2],9,{},now=1))
             previous['source_schedule']['GCD offline']['rules']='new'
             self.assertFalse(source_scheduling.due(previous,[1,2],9,{},now=1))
+
+    def test_no_index_rules_change_respects_source_deadline(self):
+        with patch.object(gcd,'current',return_value=None), patch.object(gcd,'rules_stamp',return_value='gcd-offline-1:none'):
+            for rules in (None,'old-index'):
+                with self.subTest(rules=rules):
+                    attempt={'result':'no_verified_match','next_at':200}
+                    if rules:attempt['rules']=rules
+                    self.assertFalse(source_scheduling.ready('GCD offline',attempt,{},100))
+                    self.assertTrue(source_scheduling.ready('GCD offline',attempt,{},200))
+        with patch.object(gcd,'current',return_value={'rules':'new-index'}), patch.object(gcd,'rules_stamp',return_value='new-index'):
+            attempt={'result':'no_verified_match','next_at':200,'rules':'old-index'}
+            self.assertTrue(source_scheduling.ready('GCD offline',attempt,{},100))
+            attempt['rules']='new-index'
+            self.assertFalse(source_scheduling.ready('GCD offline',attempt,{},100))

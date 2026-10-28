@@ -134,7 +134,7 @@ def ready(name,attempt,statuses,now):
     if not attempt:return True  # Allow ordinary caches on a source's first attempt.
     if name=='GCD offline':
         import gcd_offline
-        if attempt.get('rules')!=gcd_offline.rules_stamp():return True
+        if gcd_offline.current() and attempt.get('rules')!=gcd_offline.rules_stamp():return True
     if name=='Metron' and attempt.get('result')=='no_verified_match':
         import metron
         if attempt.get('rules')!=metron.rules_stamp():return True  # Enrichment B/C/D: new rules ask once more.
