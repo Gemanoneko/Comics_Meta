@@ -2,9 +2,43 @@
 
 **Verdict:** NO-GO
 
-Status: the repaired canonical full entry **passed independently for sender and receiver**, with identical actual receipts on source `8e66ca4d14ec5a052e9967d6af2590ef957142aa`. Both ran 1,075 Python tests with zero failures/errors and one Windows-capability skip, followed by 50 shell tests (48 pass, zero fail, two explicit opt-in skips). The earlier focused source and byte-identical unpacked native-payload proofs remain valid within their scope. Overall release clearance remains **NO-GO**. Latest separately reviewed retry07 confirmed that both settled native geometry and persisted raw `window.json` actually change from 900×600 to 902×602 on the same display/scale after the genuine upgrade; this is not resolved by waiting for stable measurements. Later credential/state/core-action/Quit acceptance was not reached. Cleanup and normal guest shutdown completed. The paused phase was not launched. Earlier failures remain historical, never relabelled passes.
+Current status: source `516c812d90b9482f5cd63003d660f178e0c65444` fixes the independently reproduced window restoration bug. Its new full sender/receiver entry checks passed with identical actual receipts. Retry08 processing **and paused** passed the genuine installed upgrade, exact native geometry and persisted-byte equality, state/credentials/core action and production IPC Quit, with complete normal guest closure. Release remains **NO-GO pending fresh actual native tray Quit proof on this exact new payload**. Older actual tray proof belongs to the earlier payload; it is not silently transferred across the changed executable/asar. All failed attempts below remain historical failures.
 
-## Identity and source regression
+## Current 516c build and independent formal receiver
+
+- Source: `516c812d90b9482f5cd63003d660f178e0c65444`, 378 raw source files, manifest SHA-256 `1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a`. Context SHA-256 `157daca3b5daa98d516c4193eee22db03ce350d1e35d90017f45a44d0e185275`.
+- Current installer: **149,538,531 bytes**, SHA-256 `888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca`. Its 621-file payload differs from the older native-tested payload in the executable and app.asar. Later documentation commits do not change the tested source identity.
+- Actual independent receiver: 1,075 Python tests in 134.758 seconds, zero failures/errors, one Windows file-symlink capability skip (WinError1314). Shell: 56 tests, 54 pass, zero failures, two existing explicit opt-in skips. All six new window-restoration tests were discovered. Sender had the same counts and dispositions. No filtered route or fabricated optional snapshot was used.
+- Receiver owner: 203.786 seconds, normal exit0, closed/unforced/untimedout/output complete; final complete native ownership zero. Two intermediate incomplete membership observations are retained in raw evidence. Inner check also closed normally with complete native zero. Canonical Chrome lease closure verified, remaining0; seven personal-folder and ten-drive guards clean; all four mandatory KnownFolder queries succeeded into the private profile. Exclusive context lock absent afterward.
+- Actual receiver receipt was compared case-sensitively with the sender's single receipt and matched exactly:
+
+```text
+Entry-check receipt v2: comic-metadata v0.6.1 @ 516c812d90b9482f5cd63003d660f178e0c65444 (dirty: N) [source:09531c092c424e0687a38d67cd8bb9cce5e9a61fb22a1eca7cd5db185e2b15fc; harness:6b193dc7e214f17fc2277715b2c27e9785018b961b2e1e6e24dbf211f3398bb5; runtime:9c4dc46eb53a36a2b99bc517128c2c58c31464bc261890133dd97be30571fc14; checker:4bae2cde4e4cdd2f22fb3060571730ec32fec1dd5403ea070086973b18b695e4] — pre-qa n/a, post-build n/a, check-electron n/a, check pass, test:smoke n/a; personal-folders clean
+```
+
+Durable own raw evidence: `ComicsMetaOrganizer_EntryEvidence_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `1172f88a8e64b884facbde7aadd245b65b48a86d8eb026d7297cccf0b6d775b7`; closure `ComicsMetaOrganizer_EntryClosure_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `f20aa1b1a6ff276ba70095c15afd99fcb7195974e5bcb8673521101ffbb87553`; KnownFolders `ComicsMetaOrganizer_KnownFolders_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `99e2361890a020e55669e9ef17f68ef52f362c808622a525d397367e66795927`.
+
+The recorded tray-resident exception in the Brief moves the process-exit invariant from Windows X (which hides the window) to graceful native tray Quit. Actual dashboard IPC Quit on the new build verifies exit but does not itself exercise the native menu callback. No extra VM or unreviewed native launch was used to fill that gap.
+
+## Retry08 genuine processing and paused upgrades — both PASS
+
+Exactly one processing session and then one paused session used reviewed input manifest `897201ddb10c9eba9e4e50430b4d82726f69b3979a26055329e74e802f7910ff`. Each used the original 600000 ms deadline, private ordinary guest profile, production updater/helper/NSIS and new installed executable. The second began only after the first passed and its VM/client/baseline closure was established. No host app, user library or normal profile was installed or modified.
+
+- Processing began 15:00:39 UTC; host owner completed normally in 117.419 seconds. Paused began 15:06:36 UTC; host owner completed normally in 126.026 seconds. Both exit0, closed, unforced, untimedout, output complete, complete final native ownership zero.
+- Both installed 0.6.0, exercised the actual old engine, downloaded the authenticated private update, ran the real helper/NSIS, and relaunched actual 0.6.1. Installed file-size/hash checks passed for all 621 payload members; registration/version and exactly one actual engine-host checks passed.
+- Both preserved settled normal geometry **900×600 at x40/y40** and exact raw persisted `window.json` bytes across the upgrade, on the same display/scale. This directly verifies the 516c fix against the earlier strict 900×600→902×602 failure; no tolerance was introduced.
+- All four real synthetic credentials remained decryptable with expected values. Config, legacy credential state, encrypted credential bytes, manual metadata/archive/ledger, recovery state and prior history were preserved. The processing flow tagged 20 fixtures before the update and 40 after; processing remained enabled. The paused flow retained user pause, stayed at 20 tagged fixtures through relaunch, made no new fixture write before explicit Resume, then reached 40 after the actual rendered Resume action.
+- Both completed a new-version core metadata write, invoked the production dashboard IPC Quit, observed natural app exit0 and zero remaining installed/capsule processes. These are genuine app-exit proofs; they do not claim the separate tray callback was exercised.
+- Processing SystemId `00dee656-b833-43c8-9300-0d8e9e662bff` and paused SystemId `808376b5-5bef-4a53-a027-fd1a8b6f5b93` each produced actual SystemExited notification1/result0, retained exact Store-UI handle signaled, and raw HCS restoration to the unchanged saved template `a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71`. Fresh independent HCS/CIM inventory after each confirmed test VM absence and no Sandbox client processes.
+- Feed/model requests went only to the isolated guest fixture services. No live feed, external metadata/model provider, GPU model or user's library was used. Synthetic fixture correctness does not establish population-wide collection-edition precision.
+
+Durable complete processing attempt: `ComicsMetaOrganizer_InstallUpdateAttempt_v0.6.1_ProcessingRetry08_2026-11-10.json`, SHA-256 `8a16d96a612331fb198345a8a11c3d76cec43b57b75bc027c1944a2f1040faf2`; trace `ComicsMetaOrganizer_InstallUpdateTrace_v0.6.1_ProcessingRetry08_2026-11-10.jsonl`, SHA-256 `29a7c50d3da3d511751310c530e58dacdcc62631c4d27c22c297989ec768c972`.
+
+Durable complete paused attempt: `ComicsMetaOrganizer_InstallUpdateAttempt_v0.6.1_PausedRetry08_2026-11-10.json`, SHA-256 `a0c6b7b7679ec94fe3d1413315f2558e405456fd8f16ddb64493966e87209b37`; trace `ComicsMetaOrganizer_InstallUpdateTrace_v0.6.1_PausedRetry08_2026-11-10.jsonl`, SHA-256 `96d54fee464eebc51e18594bbbd65735c4e8628de373ee51f7df87fba08ac010`.
+
+Inputs and all prior failed forensic sessions remain preserved for review; previously policy-blocked cleanup paths were not retried. No further VM was launched after these two completed flows.
+
+## Historical earlier identity and source regression
 
 - Current built/tested source: `8e66ca4d14ec5a052e9967d6af2590ef957142aa`, version `0.6.1`, clean matching clone and immutable 345-raw-file snapshot. Canonical source digest: `0d809a5da511d8e48b5c501f46e7af92dad38bc0ab3247fc4eee9d4cf1629dd2`; raw publication source-manifest SHA-256: `11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3`. Later documentation HEADs do not change this identity.
 - Current installer: **149,538,466 bytes**, SHA-256 `718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d`, under `scratch/qa-repair-061-20261110/candidate/dist/`. The build evidence and complete 621-file comparison establish identical unpacked path/size/hash membership versus the native-tested payload. This new installer is a distinct artifact and has no installation/update acceptance merely because its payload matches.
@@ -12,7 +46,7 @@ Status: the repaired canonical full entry **passed independently for sender and 
 - Independent focused source result: **103 passed, zero failures/errors/skips**, with real live-state isolation and final sentinel, no descendants and a 600000 ms watchdog. Tested a pinned git-archive copy; all 333 archived source files remained byte-identical, no extras.
 - Bounded read-only collection sample: 15/15 titles agree, 13 print the matching volume/Book number. Only five explicit publication-year controls were available; physical/digital binding and ISBN precision are not globally established. No wrong collection identity was observed. The sample is deterministic, not a statistical population-wide precision estimate; the detailed source report records digital-versus-print identifier limitations and the inherited approved GCD policy.
 
-## One actual packaged native smoke — PASS
+## Historical earlier packaged native smoke — PASS within its payload identity
 
 The exact `candidate/dist/win-unpacked/ComicMetadata.exe` was launched once through the Senua-cleared adapter and the unchanged canonical private Windows Job owner. No installed app was launched, stopped or updated.
 
