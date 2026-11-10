@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.6.1] - 2026-11-10
+
+### Fixed
+
+- Recognize padded underscore issue numbers and the supported trailing scan-credit suffix without changing ambiguous title text.
+- Match explicit collection Vol/Book labels with publication-year, subtitle, type, edition and unique-candidate safeguards.
+- Refresh legacy filename-derived identities while preserving embedded metadata and deliberate catalog overrides.
+- Invalidate stale matcher evidence and bind GCD results to the index used for the lookup.
+
 ## [v0.6.0] - 2026-10-28
 
 ### Added

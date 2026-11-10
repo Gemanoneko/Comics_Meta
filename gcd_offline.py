@@ -16,7 +16,7 @@ import file_lock
 import storage
 from gcd_matching import Matcher, folder_year, series_key
 
-RULES = 'gcd-offline-1'
+RULES = 'gcd-offline-2'
 MAX_DUMP = 16_000_000_000
 INDEX_SPACE = 800_000_000
 _lock = threading.RLock()
@@ -77,7 +77,9 @@ def current():
 
 def rules_stamp():
     value = current()
-    return value['rules'] if value else RULES + ':none'
+    # Index contents have not changed, but matching code may have. Existing
+    # indexes must wake old misses and invalidate saved matches after an update.
+    return RULES + ':' + value['rules'] if value else RULES + ':none'
 
 
 def status():
@@ -329,13 +331,13 @@ def lookup(row, old, *, index=None, diagnostics=None):
             return None
         year = str(old.get('Year') or row.get('year') or '')
         year_source = 'ComicInfo' if old.get('Year') else 'file name (YYYY)' if year else 'none'
-        rule, candidates, _, _, series_map, target = matcher.match_guarded(path, series, number, year, year_source, folder_year(path))
+        rule, candidates, _, _, series_map, target = matcher.match_guarded(path, series, number, year, year_source, folder_year(path), old.get('Format',''))
         if diagnostics is not None: diagnostics.update(rule=rule, candidates=len(candidates))
         if len(candidates) != 1:
             return None
         issue = candidates[0]
         matched = series_map[issue['series_id']]
-        if rule in ('unnumbered', 'collection') and re.search(r'complete\s+vol|\d+\s+of\s+\d+|\[\s*\[|\(\s*\(', Path(path).name, re.I):
+        if rule in ('unnumbered', 'collection', 'collection-label') and re.search(r'complete\s+vol|\d+\s+of\s+\d+|\[\s*\[|\(\s*\(', Path(path).name, re.I):
             if diagnostics is not None: diagnostics['excluded'] = 'unparsed collection name'
             return None
         fields, _ = matcher.gcd_fields(issue, matched, target)
@@ -347,7 +349,7 @@ def lookup(row, old, *, index=None, diagnostics=None):
         summary = '\n\n'.join(json.loads(saved[0]).get('Summary', [])) if saved else ''
         credit = 'Metadata from the Grand Comics Database (www.comics.org), CC BY-SA 4.0, data dump ' + active['dump_date'] + ': ' + fields['Web']
         return {'provider':'GCD offline', 'fields':fields, 'sources':[{'url':fields['Web'], 'text':summary, 'title':matched['name']}],
-                'match_rule':rule, 'rules':active['rules'], 'attribution':credit}
+                'match_rule':rule, 'rules':RULES + ':' + active['rules'] if index is None else RULES, 'attribution':credit}
 
 
 @contextmanager

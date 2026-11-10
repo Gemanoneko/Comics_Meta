@@ -200,7 +200,7 @@ ONE_ISSUE_TYPES = {'One-Shot', 'Graphic Novel', 'Trade Paperback', 'Hardcover', 
 # A number, volume, book, part or chapter anywhere in the name: the book is not plainly unnumbered. An underscore
 # name ("Vampirella_V3_002_") hides its number from app.parse_name, so it never counts as unnumbered either.
 NUMBERED_NAME = re.compile(r'\d|_|#|\b(?:vol(?:ume)?|book|part|chapter|tome)\b', re.I)
-RULES_VERSION = 2  # Raised when Metron's matching rules change; misses recorded under older rules are asked again.
+RULES_VERSION = 3  # Corrected filename identities wake misses once; verification rules stay unchanged.
 
 
 def unnumbered_book(path):

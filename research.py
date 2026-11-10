@@ -84,8 +84,10 @@ def series_key(value):
     return normalize(re.sub(r"^Brian Pulido['’]s\s+",'',str(value),flags=re.I))
 
 def query_identity(row, old):
-    series = old.get('Series') or row.get('series') or ''
-    number = old.get('Number') or row.get('number') or ''
+    from filename_identity import query_parts
+    parsed_series, parsed_number, _ = query_parts(row)
+    series = old.get('Series') or parsed_series
+    number = old.get('Number') or parsed_number
     # Chapter filenames supply the subtitle; do not confuse chapter with issue number.
     chapter = re.search(r'\(Chapter\s+\d+\)\s*-\s*(.*?)\s+\d+\s*\(\d{4}\)', Path(row['path']).stem, re.I)
     if chapter and normalize(chapter.group(1)) not in normalize(series):

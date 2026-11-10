@@ -52,7 +52,41 @@ class Matcher:
     def is_book_series(self, s): return (s['pub_type'] == 'book') or bool(re.search(r'collect|trade|tpb|hardcover|graphic novel', s['fmt'] or '', re.I))
     def ycheck(self, i, s, year): return str(self.iyear(i) or '') == year or (self.iyear(i) is None and str(s['year_began']) == year)
 
-    def match_guarded(self, path, series, number, year, year_src, fyear=''):
+    def match_guarded(self, path, series, number, year, year_src, fyear='', format_hint=''):
+        result = self._match_existing(path, series, number, year, year_src, fyear)
+        # Preserve existing matches and existing ambiguities. This fallback is
+        # for an explicit collection label that prevented any series lookup.
+        if result[1] or result[4]:
+            return result
+        from filename_identity import collection, legacy_parse, parse_name
+        edition = collection(path)
+        if not edition:
+            return result
+        base, volume, subtitle = edition
+        filename_series = {series_key(legacy_parse(path)[0]), series_key(parse_name(path)[0])}
+        if series_key(series) not in filename_series or (number and issue_number(number) != volume):
+            return result  # Embedded/caller identity does not agree with the filename.
+        # Unlike the pre-existing collection rule, a newly shortened title must
+        # have a publication date; a unique yearless result is not enough.
+        if not year:
+            return result
+        ss = {k: s for k, s in self.gcd_series(base, strip_volume=False).items() if self.is_book_series(s)}
+        candidates = [i for i in self.issues_of(ss, volume) if str(self.iyear(i) or '') == year]
+        if subtitle:
+            candidates = [i for i in candidates if series_key(i.get('title') or '') == series_key(subtitle)]
+        # The index has no universal issue-level binding field. Explicit HC/TPB
+        # needs positive series-format evidence, rather than treating them as equivalent.
+        hints = str(format_hint) + ' ' + Path(path).name
+        hc = bool(re.search(r'\b(?:HC|hardcover|hardback)\b', hints, re.I))
+        tpb = bool(re.search(r'\b(?:TPB|trade paperback|paperback)\b', hints, re.I))
+        if hc or tpb:
+            wanted = r'\b(?:hardcover|hardback)\b' if hc and not tpb else r'\b(?:trade paperback|paperback)\b' if tpb and not hc else r'(?!)'
+            candidates = [i for i in candidates if re.search(wanted, ss[i['series_id']].get('fmt') or '', re.I)]
+        if format_hint and not self.is_book_series({'pub_type':'', 'fmt':format_hint}) and not re.search(r'\b(?:HC|TPB|hardback|paperback|omnibus)\b',format_hint,re.I):
+            candidates = []
+        return 'collection-label', candidates, year, year_src, ss, volume
+
+    def _match_existing(self, path, series, number, year, year_src, fyear=''):
         """Trial guards G1-G4 (Docs/ComicsMetaOrganizer_GCDTrial_2026-10-26.md §2). Returns (rule, candidates, year used, year source, series map)."""
         name = Path(path).name
         vol = None

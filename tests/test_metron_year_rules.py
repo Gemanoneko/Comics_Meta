@@ -130,10 +130,17 @@ class UnnumberedBookTests(MetronLookup):
     def test_names_with_any_number_volume_or_part_are_not_unnumbered(self):
         fake = FakeMetron([issue(11, 'The Chronicles of Conan', '1', '2003-05-01', kind='Trade Paperback')])
         for name in ('The Chronicles of Conan v02 Rogues in the House TPB (2003).cbz', 'Druuna 02 Druuna (of 9) (1993).cbz',
-                     'Vampirella_V3_002_(of_6)_(2016).cbz', 'Hellina Vol 2 - Scythe (2017).cbz', 'Saga Book Two (2003).cbz',
+                     'Hellina Vol 2 - Scythe (2017).cbz', 'Saga Book Two (2003).cbz',
                      'Red Zone (of 4) (2023).cbz', 'Dimwood.cbz'):
             self.assertIsNone(self.lookup(fake, 'Y:\\Comix\\X\\' + name), name)
         self.assertEqual(fake.asked, [])  # None of them was searched.
+
+    def test_repaired_underscore_issue_is_numbered_not_assumed_issue_one(self):
+        path = 'Vampirella_V3_002_(of_6)_(2016).cbz'
+        self.assertFalse(metron.unnumbered_book(path))
+        series, number, year = app.parse_name(path)
+        self.assertEqual(metron.identity({'path':path,'series':series,'number':number,'year':year}, {}),
+                         ('Vampirella_V3','2','2016','year'))
 
 
 if __name__ == '__main__':

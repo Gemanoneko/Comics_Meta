@@ -139,17 +139,8 @@ def refresh_fractional_numbers(con):
 
 
 def parse_name(path):
-    title = Path(path).stem
-    years = re.findall(r'\((19\d{2}|20\d{2})\)', title)
-    clean = re.sub(r'\([^)]*\)|\[[^]]*\]', ' ', title)
-    # Only a terminal issue number is trusted; complex chapter naming stays for review.
-    match = re.search(r'(?:\s|#)(\d+(?:\.\d+)?[A-Za-z]?)\s*$', clean)
-    number = (match.group(1).lstrip('0') or '0') if match else ''
-    if number.startswith('.'):
-        number = '0' + number
-    series = clean[:match.start()] if match else clean
-    series = re.sub(r'\s+', ' ', series).strip(' -_')
-    return series, number, years[0] if years else ''
+    from filename_identity import parse_name as parse
+    return parse(path)
 
 
 def filesystem_path(path):
