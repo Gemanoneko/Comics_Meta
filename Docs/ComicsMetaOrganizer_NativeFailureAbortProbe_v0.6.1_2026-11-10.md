@@ -1,0 +1,11 @@
+# Real private-Job failure-abort probe
+
+Before the next Sandbox run, verify the changed failure cleanup against the real unchanged canonical ownership API. Existing22 JS controls cover simulated protocol/identity/trace behavior; they do not prove native termination.
+
+Reviewed program: scripts/packaging/install-update-qa/failure-abort-native-probe.mjs, SHA256 dce8619ace4c7d44d17dd8419e2f3b84267a9d176d0bbed4dea7e54d02c224d4. Execute only after Senua clears that exact source, using the byte-pinned retry03/input/node/node.exe and arguments `run dce8619ace4c7d44d17dd8419e2f3b84267a9d176d0bbed4dea7e54d02c224d4`.
+
+The program verifies the complete reviewed2046-file f69e0559cdac7748fc1164ed3e79dfb261975dc74ef85e593bde81e8a511d96e input manifest and refuses an existing output root. All output/temp writes stay in fixed scratch/native-failure-abort-061-20261110. It launches only inert pinned Node processes, hidden, under the existing canonical outer runOwned owner with one60000ms bound. No app, VM, GUI, shutdown, registry, account, profile, unknown PID or shared helper changes.
+
+Inside the outer owner, start one unrelated inert sibling. Use unmodified runOwned/createPrivateJob/jobFactory for an inner inert root that spawns one descendant. Retain actual OS process handles and verify their images match pinned Node; require all live and a complete inner native sample containing at least supervisor/root/descendant. Call terminate only on the exact captured inner Job object. Require actual native complete/zero, root and descendant signaled, and unrelated sibling still live. Then send the sibling its fixed graceful stdin quit command and require code0 and its retained handle signaled. Child safety timers cap inert lifetimes at30000ms; no timeout extension or numeric PID kill is used.
+
+Preserve the intentional inner failure/forced flags exactly. PASS applies only to this isolated native abort control, never comic install/update QA. The outer owner must itself finish normally with output complete and native zero. On any uncertainty, STOP and report; no duplicate probe or VM retry. Require real native-probe.json and outer-owned.json evidence before the next Sandbox route is considered ready.
