@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "scope": "Safely closed pre-install startup failure; no accepted install/update proof",
+  "originalRuntime": [
+    {
+      "path": "common.mjs",
+      "size": 7262,
+      "sha256": "deb8d1ad947371ef684345a811ea955b657f1b64eeeadc2370306d60068ae6bc"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 5582,
+      "sha256": "10e0169f2c607115b2fb18d54504609f0fbda3f1d422bc821dec39b314ea0fef"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 19195,
+      "sha256": "5ce30790da8113a1ee442f8cd7c1eaa922fbd09bbb183273185f04d0fdc171dc"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 7792,
+      "sha256": "cba1980f84635485cbf09b36c8537f057b035f627ee830d6bb560225b0513293"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 4355,
+      "sha256": "3360e0b1f19ef9d8e2b2233fabcd5443123b6c3ae9223554638f602c5a2bab2a"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    },
+    {
+      "path": "input-manifest.json",
+      "size": 398906,
+      "sha256": "6690c5aabdb730478261b5505d9c0e2bdd2018c2a3858e860c03bab3eab5b313"
+    }
+  ],
+  "kernelClosure": {
+    "schema": 1,
+    "observedUtc": "2026-11-10T12:34:24.1278486Z",
+    "mode": "processing",
+    "nonce": "6a470c182cc84d84a6aa66b86c267e90",
+    "originalManifestSha256": "6690c5aabdb730478261b5505d9c0e2bdd2018c2a3858e860c03bab3eab5b313",
+    "actualComputeId": "782e26c1-97cf-4e9b-9fca-26b41c4993a4",
+    "computeEvents": [
+      {
+        "TimeCreated": "2026-11-10T14:26:51.6781905+02:00",
+        "Id": 2500,
+        "RecordId": 27069,
+        "Message": "[782e26c1-97cf-4e9b-9fca-26b41c4993a4] Create process, parameters '{\"CommandLine\":\"C:\\\\CMOInput\\\\node\\\\node.exe C:\\\\CMOInput\\\\guest-entry.mjs --mode processing --nonce 6a470c182cc84d84a6aa66b86c267e90 --manifest-sha 6690c5aabdb730478261b5505d9c0e2bdd2018c2a3858e860c03bab3eab5b313 --session-sha 0d7fe17276b68b558533cd057f134bd8807c89f7befe673956e934df314c7731\",\"User\":\"WDAGUtilityAccount\",\"ConsoleSize\":[0,0],\"UseExistingLogin\":true}', result 0x00000000, process ID 7508"
+      },
+      {
+        "TimeCreated": "2026-11-10T14:26:45.375077+02:00",
+        "Id": 2000,
+        "RecordId": 27021,
+        "Message": "[782e26c1-97cf-4e9b-9fca-26b41c4993a4] Create compute system, result 0xC0370103"
+      },
+      {
+        "TimeCreated": "2026-11-10T14:26:45.3749603+02:00",
+        "Id": 2014,
+        "RecordId": 27020,
+        "Message": "[782e26c1-97cf-4e9b-9fca-26b41c4993a4] Create Virtual Machine"
+      }
+    ],
+    "guestShutdownEvents": [
+      {
+        "TimeCreated": "2026-11-10T14:28:13.4785497+02:00",
+        "Id": 18508,
+        "RecordId": 12940,
+        "Message": "'782e26c1-97cf-4e9b-9fca-26b41c4993a4' was shut down by the guest operating system. (Virtual machine ID 782E26C1-97CF-4E9B-9FCA-26B41C4993A4)"
+      }
+    ],
+    "hcsRaw": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\r\n    VM,                       \tSavedAsTemplate, A90A3CA5-CF2C-4AA3-8DA2-E81E62EB3A71, CmService\r\n\r\n",
+    "clients": [],
+    "goExists": false,
+    "guestOwnedExists": false,
+    "updateResultExists": false,
+    "wrapperSha256": "3982dbc9c201cdbc9de16324e6f90e73d75ae910b1acde720be7a0142aec060b"
+  },
+  "kernelSystemExited": {
+    "schema": 1,
+    "events": [
+      {
+        "RecordId": 27077,
+        "TimeCreated": "2026-11-10T14:28:14.0748972+02:00",
+        "EventId": 2008,
+        "SystemId": "782e26c1-97cf-4e9b-9fca-26b41c4993a4",
+        "QueryResult": "0x00000000",
+        "Notification": "1",
+        "SystemExitResult": "0x00000000",
+        "Xml": "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Hyper-V-Compute' Guid='{17103e3f-3c6e-4677-bb17-3b267eb5be57}'/><EventID>2008</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x4000000000000000</Keywords><TimeCreated SystemTime='2026-11-10T12:28:14.0748972Z'/><EventRecordID>27077</EventRecordID><Correlation/><Execution ProcessID='6740' ThreadID='69476'/><Channel>Microsoft-Windows-Hyper-V-Compute-Operational</Channel><Computer>Illuminati</Computer><Security UserID='S-1-5-18'/></System><UserData><VmlEventLog xmlns='http://www.microsoft.com/Windows/Virtualization/Events'><SystemId>782e26c1-97cf-4e9b-9fca-26b41c4993a4</SystemId><Result>0x00000000</Result><Parameter0>1</Parameter0><Parameter1>0x00000000</Parameter1></VmlEventLog></UserData></Event>"
+      },
+      {
+        "RecordId": 27076,
+        "TimeCreated": "2026-11-10T14:28:14.0748934+02:00",
+        "EventId": 2008,
+        "SystemId": "782E26C1-97CF-4E9B-9FCA-26B41C4993A4",
+        "QueryResult": "0x00000000",
+        "Notification": "1",
+        "SystemExitResult": "0x00000000",
+        "Xml": "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Hyper-V-Compute' Guid='{17103e3f-3c6e-4677-bb17-3b267eb5be57}'/><EventID>2008</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x4000000000000000</Keywords><TimeCreated SystemTime='2026-11-10T12:28:14.0748934Z'/><EventRecordID>27076</EventRecordID><Correlation/><Execution ProcessID='6740' ThreadID='54372'/><Channel>Microsoft-Windows-Hyper-V-Compute-Operational</Channel><Computer>Illuminati</Computer><Security UserID='S-1-5-18'/></System><UserData><VmlEventLog xmlns='http://www.microsoft.com/Windows/Virtualization/Events'><SystemId>782E26C1-97CF-4E9B-9FCA-26B41C4993A4</SystemId><Result>0x00000000</Result><Parameter0>1</Parameter0><Parameter1>0x00000000</Parameter1></VmlEventLog></UserData></Event>"
+      },
+      {
+        "RecordId": 27075,
+        "TimeCreated": "2026-11-10T14:28:14.0748121+02:00",
+        "EventId": 2009,
+        "SystemId": "782e26c1-97cf-4e9b-9fca-26b41c4993a4",
+        "QueryResult": null,
+        "Notification": "1",
+        "SystemExitResult": "0x00000000",
+        "Xml": "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Hyper-V-Compute' Guid='{17103e3f-3c6e-4677-bb17-3b267eb5be57}'/><EventID>2009</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x4000000000000000</Keywords><TimeCreated SystemTime='2026-11-10T12:28:14.0748121Z'/><EventRecordID>27075</EventRecordID><Correlation/><Execution ProcessID='6740' ThreadID='7484'/><Channel>Microsoft-Windows-Hyper-V-Compute-Operational</Channel><Computer>Illuminati</Computer><Security UserID='S-1-5-18'/></System><UserData><VmlEventLog xmlns='http://www.microsoft.com/Windows/Virtualization/Events'><SystemId>782e26c1-97cf-4e9b-9fca-26b41c4993a4</SystemId><Parameter0>1</Parameter0><Parameter1>0x00000000</Parameter1></VmlEventLog></UserData></Event>"
+      }
+    ],
+    "reference": "https://learn.microsoft.com/en-us/virtualization/api/hcs/reference/hcs_event_type"
+  },
+  "limitation": "No during-active raw HCS/client inventory was retained. The particular failing clause of the old combined pretty-list predicate is unknown. Authoritative process-launch and system-exit events independently identify the guest and its closure."
+}

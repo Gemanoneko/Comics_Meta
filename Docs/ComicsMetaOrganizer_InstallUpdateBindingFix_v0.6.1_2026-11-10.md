@@ -1,0 +1,13 @@
+# Install/update host binding correction — 0.6.1
+
+The first processing startup stopped before the install permit. The guest watchdog shut the isolated guest down. No installer ran. The exact clause that failed in the old combined pretty-list predicate is unknown because an active inventory was not retained. The selected safe Windows events identify that guest independently and prove its system exit; this is failed-attempt evidence, not install/update acceptance.
+
+Preserve the consumed 6690 manifest, its seven runtime files and the original failed-attempt outputs. Stage corrected code in a fresh retry root. Keep the actual 8e66 source, installers, guest updater, fixture and ordinary guest install flow unchanged.
+
+Replace generic compute-count/text identity with structured event 2500: exact guest-entry command including mode, nonce, manifest and session hashes; WDAGUtilityAccount with existing login; successful result; positive PID equal to the authenticated guest-entry process; timestamp after this launch. Its SystemId must be new and present in structured `hcsdiag list -raw`. Require exactly one current-user pinned Sandbox client attributable to that exact launcher/config/compute identity, and retain its process handle before granting the install permit. Add only the guest-entry PID to diagnostic metadata.
+
+Save active raw HCS JSON, client inventory and safe selected event projections before evaluating binding assertions. Never retain unrelated setup command lines or transient account passwords. Failed assertions grant no install permit. Wait for the existing no-go guest watchdog and record independently observed closure within the original deadline; do not infer closure from native Job zero.
+
+Acceptance requires a successful system-exited notification (event 2008/2009, notification 1, exact SystemId, result zero), actual disappearance from raw HCS, the original saved-template baseline restored, and the exact retained client handle signaled. WM_CLOSE may only tidy that exact retained client after the guest is already proven gone. Never kill unknown systems or processes, use privileged fallback, shut down the host, or extend the original 600000 ms deadline. The guest retains at least 60 seconds of closure reserve.
+
+Focused offline controls use the retained safe launch/exit facts and reject wrong nonce, hashes, PID, stale/ambiguous events and unsuccessful exits. Senua must review the corrected runtime and full fresh input manifest. Futaba receives explicit executor handoff only after review; no diagnostic VM or blind retry. Existing user permission covers the two required Sandbox QA flows. Real processing and paused old-to-new install/update proofs remain required before release.
