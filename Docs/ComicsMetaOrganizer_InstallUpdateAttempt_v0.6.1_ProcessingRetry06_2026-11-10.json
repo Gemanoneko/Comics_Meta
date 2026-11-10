@@ -1,0 +1,1541 @@
+{
+  "schema": 1,
+  "purpose": "Actual processing retry06 genuine upgrade reached verified next service but failed exact remembered bounds comparison; closed failed-workflow proof, no update acceptance",
+  "inputManifestSha256": "0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1",
+  "runtimePins": [
+    {
+      "path": "common.mjs",
+      "size": 15503,
+      "sha256": "7678c54c8807dc469a836e83f54151c968cfa5acc095ceadeca65b6b5d3ab7eb"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 6592,
+      "sha256": "960acc654c866797096803810688fa135f4b40554aacbb83fe29db3f0f36c96f"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 22072,
+      "sha256": "1d774489feb9541853894ea7d7066f5cd232abc2897e57e695a6f57cc978a46c"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 11582,
+      "sha256": "cb672f833f8a78916c85149940c82d5dc2508176616966eb702c04607d8778da"
+    },
+    {
+      "path": "node/node.exe",
+      "size": 105319752,
+      "sha256": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 5656,
+      "sha256": "ad3c0b61b7e35846d7bd14c686b603ae2ffb1334475d10bfb81ff4a922b4751c"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "hostSession": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "baseline": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ],
+    "started": 1794319109682,
+    "pass": false,
+    "kernelLaunch": {
+      "eventId": 2500,
+      "recordId": 27299,
+      "timeMs": 1794319115983,
+      "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+      "result": "0x00000000",
+      "processId": 7544,
+      "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce cfa6ed694cb140a11cc929ef4553101c --manifest-sha 0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1 --session-sha 7e537c63bdcacaf36e253666433021762023571e54bc6d719142064afc8a622e",
+      "user": "WDAGUtilityAccount",
+      "existingLogin": true
+    },
+    "computeId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+    "guestStarted": {
+      "schema": 1,
+      "mode": "processing",
+      "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+      "manifestSha256": "0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1",
+      "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+      "identity": {
+        "scriptRoot": "C:\\CMOInput",
+        "pid": 7544,
+        "user": "WDAGUtilityAccount",
+        "profile": "C:\\Users\\WDAGUtilityAccount",
+        "computer": "C080ED3D-E72F-4",
+        "model": "Virtual Machine",
+        "manufacturer": "Microsoft Corporation",
+        "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+        "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+      }
+    },
+    "clientActivation": {
+      "eventId": 201,
+      "recordId": 1477062,
+      "timeMs": 1794319109976,
+      "processId": 57088,
+      "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+      "imageName": "WindowsSandboxRemoteSession.exe",
+      "applicationName": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App"
+    },
+    "client": {
+      "pid": 57088,
+      "parent": 65772,
+      "image": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe",
+      "command": "\"C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe\" \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry06\\processing-live.wsb\"",
+      "owner": "S-1-5-21-478701085-1013477356-1211919822-1000"
+    },
+    "guest": {
+      "schema": 1,
+      "mode": "processing",
+      "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+      "identity": {
+        "scriptRoot": "C:\\CMOInput",
+        "pid": 7544,
+        "user": "WDAGUtilityAccount",
+        "profile": "C:\\Users\\WDAGUtilityAccount",
+        "computer": "C080ED3D-E72F-4",
+        "model": "Virtual Machine",
+        "manufacturer": "Microsoft Corporation",
+        "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+        "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+      },
+      "started": 1794319119856,
+      "finished": 1794319208418,
+      "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+      "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+      "artifact": {
+        "version": "0.6.1",
+        "name": "Comic-Metadata-Setup-0.6.1.exe",
+        "size": 149538466,
+        "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+        "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+      },
+      "pass": false,
+      "failed": "Error: Guest install/update owner did not close normally\n    at requireThat (file:///C:/CMOInput/common.mjs:6:73)\n    at file:///C:/CMOInput/guest-entry.mjs:69:3",
+      "shutdownRequested": true
+    },
+    "after": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ],
+    "kernelExit": {
+      "eventId": 2008,
+      "recordId": 27307,
+      "timeMs": 1794319211956,
+      "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+      "result": "0x00000000",
+      "notification": "1",
+      "exitResult": "0x00000000"
+    },
+    "clientSignaled": true,
+    "finalObservation": {
+      "observedEpochMs": 1794319212636,
+      "label": "successful-closure",
+      "hcs": {
+        "raw": "[{\"Id\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"CmService\",\"RuntimeId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"SavedAsTemplate\"}]\r\n",
+        "computes": [
+          {
+            "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "systemType": "VirtualMachine",
+            "runtimeOsType": "Windows",
+            "owner": "CmService",
+            "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "state": "SavedAsTemplate"
+          }
+        ]
+      },
+      "clients": {
+        "processes": [
+          {
+            "pid": 13800,
+            "parent": 57088,
+            "image": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxServer.exe",
+            "command": "\"C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxServer.exe\" ",
+            "owner": "S-1-5-21-478701085-1013477356-1211919822-1000"
+          }
+        ],
+        "currentSid": "S-1-5-21-478701085-1013477356-1211919822-1000"
+      },
+      "events": [
+        {
+          "eventId": 2008,
+          "recordId": 27307,
+          "timeMs": 1794319211956,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27306,
+          "timeMs": 1794319211956,
+          "systemId": "DD4DA372-DC4C-433B-9D58-BE5E88E2D93D",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27305,
+          "timeMs": 1794319211956,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27304,
+          "timeMs": 1794319211429,
+          "systemId": "DD4DA372-DC4C-433B-9D58-BE5E88E2D93D",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27303,
+          "timeMs": 1794319211429,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27302,
+          "timeMs": 1794319211429,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2500,
+          "recordId": 27299,
+          "timeMs": 1794319115983,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "processId": 7544,
+          "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce cfa6ed694cb140a11cc929ef4553101c --manifest-sha 0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1 --session-sha 7e537c63bdcacaf36e253666433021762023571e54bc6d719142064afc8a622e",
+          "user": "WDAGUtilityAccount",
+          "existingLogin": true
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27295,
+          "timeMs": 1794319111749,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27294,
+          "timeMs": 1794319111749,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27292,
+          "timeMs": 1794319111742,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27291,
+          "timeMs": 1794319111742,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27265,
+          "timeMs": 1794319111582,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27264,
+          "timeMs": 1794319111582,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27262,
+          "timeMs": 1794319111575,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27261,
+          "timeMs": 1794319111575,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27260,
+          "timeMs": 1794319111568,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27258,
+          "timeMs": 1794319111568,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27256,
+          "timeMs": 1794319111357,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27255,
+          "timeMs": 1794319111357,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27253,
+          "timeMs": 1794319111139,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27252,
+          "timeMs": 1794319111139,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        }
+      ],
+      "activations": [
+        {
+          "eventId": 201,
+          "recordId": 1477062,
+          "timeMs": 1794319109976,
+          "processId": 57088,
+          "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+          "imageName": "WindowsSandboxRemoteSession.exe",
+          "applicationName": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App"
+        }
+      ]
+    },
+    "error": "Error: Guest install/update tests failed\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry06/input/common.mjs:6:73)\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry06/input/host-session.mjs:75:3",
+    "failureClosure": {
+      "observedEpochMs": 1794319223007,
+      "label": "failed-attempt-closed",
+      "hcs": {
+        "raw": "[{\"Id\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"CmService\",\"RuntimeId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"SavedAsTemplate\"}]\r\n",
+        "computes": [
+          {
+            "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "systemType": "VirtualMachine",
+            "runtimeOsType": "Windows",
+            "owner": "CmService",
+            "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "state": "SavedAsTemplate"
+          }
+        ]
+      },
+      "clients": {
+        "processes": [],
+        "currentSid": "S-1-5-21-478701085-1013477356-1211919822-1000"
+      },
+      "events": [
+        {
+          "eventId": 2008,
+          "recordId": 27307,
+          "timeMs": 1794319211956,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27306,
+          "timeMs": 1794319211956,
+          "systemId": "DD4DA372-DC4C-433B-9D58-BE5E88E2D93D",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27305,
+          "timeMs": 1794319211956,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27304,
+          "timeMs": 1794319211429,
+          "systemId": "DD4DA372-DC4C-433B-9D58-BE5E88E2D93D",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27303,
+          "timeMs": 1794319211429,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27302,
+          "timeMs": 1794319211429,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2500,
+          "recordId": 27299,
+          "timeMs": 1794319115983,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "processId": 7544,
+          "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce cfa6ed694cb140a11cc929ef4553101c --manifest-sha 0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1 --session-sha 7e537c63bdcacaf36e253666433021762023571e54bc6d719142064afc8a622e",
+          "user": "WDAGUtilityAccount",
+          "existingLogin": true
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27295,
+          "timeMs": 1794319111749,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27294,
+          "timeMs": 1794319111749,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27292,
+          "timeMs": 1794319111742,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27291,
+          "timeMs": 1794319111742,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27265,
+          "timeMs": 1794319111582,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27264,
+          "timeMs": 1794319111582,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27262,
+          "timeMs": 1794319111575,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27261,
+          "timeMs": 1794319111575,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27260,
+          "timeMs": 1794319111568,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27258,
+          "timeMs": 1794319111568,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27256,
+          "timeMs": 1794319111357,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27255,
+          "timeMs": 1794319111357,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27253,
+          "timeMs": 1794319111139,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "0x00000000",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27252,
+          "timeMs": 1794319111139,
+          "systemId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+          "result": "",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        }
+      ],
+      "activations": [
+        {
+          "eventId": 201,
+          "recordId": 1477062,
+          "timeMs": 1794319109976,
+          "processId": 57088,
+          "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+          "imageName": "WindowsSandboxRemoteSession.exe",
+          "applicationName": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App"
+        }
+      ]
+    },
+    "failureClientSignaled": true,
+    "finished": 1794319224904
+  },
+  "hostOwned": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "{\"mode\":\"processing\",\"pass\":false,\"computeId\":\"dd4da372-dc4c-433b-9d58-be5e88e2d93d\",\"error\":\"Error: Guest install/update tests failed\\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry06/input/common.mjs:6:73)\\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry06/input/host-session.mjs:75:3\"}\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 25308,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 211,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 7438,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 116431.8205,
+    "outputBytes": 473
+  },
+  "guestStarted": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+    "manifestSha256": "0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "identity": {
+      "scriptRoot": "C:\\CMOInput",
+      "pid": 7544,
+      "user": "WDAGUtilityAccount",
+      "profile": "C:\\Users\\WDAGUtilityAccount",
+      "computer": "C080ED3D-E72F-4",
+      "model": "Virtual Machine",
+      "manufacturer": "Microsoft Corporation",
+      "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+      "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+    }
+  },
+  "go": {
+    "schema": 1,
+    "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+    "mode": "processing",
+    "computeId": "dd4da372-dc4c-433b-9d58-be5e88e2d93d",
+    "clientPid": 57088,
+    "manifestSha256": "0c0afb907e999f04f38cffd8bbeb475ddc94289e812622404ff9cba1bbb2b1d1"
+  },
+  "updateResult": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "priorVersion": "0.6.0",
+    "nextVersion": "0.6.1",
+    "started": 1794319135402,
+    "pass": false,
+    "priorInstallation": {
+      "exit": {
+        "code": 0,
+        "signal": null,
+        "out": "",
+        "err": ""
+      },
+      "versionFile": "0.6.0"
+    },
+    "priorRegistration": {
+      "DisplayName": "Comic Metadata 0.6.0",
+      "DisplayVersion": "0.6.0",
+      "UninstallString": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\Uninstall ComicMetadata.exe\" /currentuser",
+      "registeredDirectory": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata"
+    },
+    "fixture": {
+      "prepared": true,
+      "library": "C:\\Q\\illuminati-cmo-qa-processing\\library",
+      "fixtures": 500,
+      "gcdSourceSha256": "15dfb0a8074a2294c25afd673936a4ca892fde11b94904c6ee96a2fc20b8db96",
+      "manualSha256": "94345e0b259b10cb556ce8d4a1d445ffbe6a37e0828e95ff5e65d8d5dd950626",
+      "conversionCover": "C:\\Q\\illuminati-cmo-qa-processing\\fixture-cover.png",
+      "conversionArchive": "C:\\Q\\illuminati-cmo-qa-processing\\library\\Bundled Conversion 001.cb7"
+    },
+    "stage": "next verified observer/service/state",
+    "lastPriorRenderer": {
+      "present": true,
+      "url": "file:///C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/setup.html",
+      "loading": false,
+      "finished": true,
+      "failure": null
+    },
+    "priorRenderer": {
+      "present": true,
+      "url": "file:///C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/setup.html",
+      "loading": false,
+      "finished": true,
+      "failure": null
+    },
+    "setupSave": {
+      "configured": true,
+      "savedKeys": {
+        "COMICVINE_API_KEY": true,
+        "METRON_API_TOKEN": true,
+        "GOOGLE_BOOKS_API_KEY": true,
+        "BRAVE_SEARCH_API_KEY": true
+      }
+    },
+    "lastDashboardRenderer": {
+      "present": true,
+      "url": "http://127.0.0.1:8765/",
+      "loading": false,
+      "finished": true,
+      "failure": null,
+      "navigation": {
+        "requestedAt": 1794319158566,
+        "outcome": "pending"
+      }
+    },
+    "dashboardTransition": {
+      "present": true,
+      "url": "http://127.0.0.1:8765/",
+      "loading": false,
+      "finished": true,
+      "failure": null,
+      "navigation": {
+        "requestedAt": 1794319158566,
+        "outcome": "pending"
+      }
+    },
+    "priorBounds": {
+      "x": 40,
+      "y": 40,
+      "width": 900,
+      "height": 600
+    },
+    "realProcessing": {
+      "taggedFixtures": 20,
+      "pendingFixtures": 480,
+      "processes": [
+        {
+          "ProcessId": 7932,
+          "ParentProcessId": 8868,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+          "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe --inspect-brk=127.0.0.1:18991",
+          "CreatedMs": 1794319157347
+        },
+        {
+          "ProcessId": 6440,
+          "ParentProcessId": 7932,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+          "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAOAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAABgAAAAAAAAAGAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --field-trial-handle=1944,i,7592545021962931649,8637627377429579495,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1948,i,10045073162697941619,5766776541209537866,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1940 /prefetch:2",
+          "CreatedMs": 1794319157680
+        },
+        {
+          "ProcessId": 5000,
+          "ParentProcessId": 7932,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+          "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ru --service-sandbox-type=none --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --field-trial-handle=1944,i,7592545021962931649,8637627377429579495,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1948,i,10045073162697941619,5766776541209537866,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2252 /prefetch:11",
+          "CreatedMs": 1794319157687
+        },
+        {
+          "ProcessId": 7972,
+          "ParentProcessId": 7932,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+          "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\engine_host.py --parent-pid 7932 --port 8765",
+          "CreatedMs": 1794319157759
+        },
+        {
+          "ProcessId": 8436,
+          "ParentProcessId": 7972,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+          "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\app.py --no-browser --port 8765",
+          "CreatedMs": 1794319157860
+        },
+        {
+          "ProcessId": 6200,
+          "ParentProcessId": 8436,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+          "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\worker.py",
+          "CreatedMs": 1794319158556
+        },
+        {
+          "ProcessId": 6320,
+          "ParentProcessId": 8436,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+          "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\browser_worker.py",
+          "CreatedMs": 1794319158556
+        },
+        {
+          "ProcessId": 6964,
+          "ParentProcessId": 7932,
+          "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+          "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=renderer --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --app-user-model-id=studio.illuminati.comicmetadata --app-path=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\" --enable-sandbox --disable-gpu-compositing --video-capture-use-gpu-memory-buffer --lang=ru --device-scale-factor=2.5 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1794319084220592 --launch-time-ticks=74355330 --field-trial-handle=1944,i,7592545021962931649,8637627377429579495,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1948,i,10045073162697941619,5766776541209537866,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3304 /prefetch:1",
+          "CreatedMs": 1794319158581
+        }
+      ]
+    },
+    "priorShell": {
+      "loadedShellVersion": "0.6.0",
+      "service": "ready",
+      "control": {
+        "requested": false,
+        "user_requested": false,
+        "phase": "running",
+        "gpu_released": false,
+        "waiting_for": [],
+        "error": "",
+        "stopping": false
+      },
+      "update": {
+        "phase": "available",
+        "check": "idle",
+        "dismissed": false,
+        "version": "0.6.1"
+      },
+      "stopping": null,
+      "failure": null,
+      "verification": false,
+      "verification_engines": []
+    },
+    "before": {
+      "configSha256": "6a249ae79c4e988a76396f05885dc2241c98993784547395ab612277d0ae7929",
+      "legacySha256": "00a83dd69f6710c14b24cf37cb58f7e90a467775efa6390634732855ee7ab292",
+      "credentialSha256": "71f8da512ba5a24f2e03c6e34517fefdf673f215d6e7fb0bea80381aaf2455d3",
+      "credentialFileSha256": "8ed1bbd6d6099bea1352ab298355f45e68c61bbd7f879669fd994e2f3e412cee",
+      "credentialPresence": {
+        "COMICVINE_API_KEY": true,
+        "METRON_API_TOKEN": true,
+        "GOOGLE_BOOKS_API_KEY": true,
+        "BRAVE_SEARCH_API_KEY": true
+      },
+      "credentialsMatchExpected": true,
+      "manual": [
+        "C:\\Q\\illuminati-cmo-qa-processing\\library\\Preserved Human Choice 001 (2020).cbz",
+        "C:\\Q\\illuminati-cmo-qa-processing\\library",
+        "Preserved Human Choice",
+        "1",
+        "2020",
+        "{\"Series\": \"Preserved Human Choice\", \"Number\": \"1\", \"Year\": \"2020\", \"Title\": \"Human title sentinel\", \"Writer\": \"Human writer\"}"
+      ],
+      "manualArchiveSha256": "94345e0b259b10cb556ce8d4a1d445ffbe6a37e0828e95ff5e65d8d5dd950626",
+      "history": [
+        [
+          1,
+          "C:\\Q\\illuminati-cmo-qa-processing\\library\\Preserved Human Choice 001 (2020).cbz",
+          "",
+          "QA synthetic historical manual decision",
+          1600000000
+        ],
+        [
+          2,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 001 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 001 (2020).cbz.1794319165109100900.bak",
+          "https://www.comics.org/issue/1/",
+          1794319165.1133165
+        ],
+        [
+          3,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 002 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 002 (2020).cbz.1794319165118135900.bak",
+          "https://www.comics.org/issue/2/",
+          1794319165.119711
+        ],
+        [
+          4,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 003 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 003 (2020).cbz.1794319165123935800.bak",
+          "https://www.comics.org/issue/3/",
+          1794319165.1255853
+        ],
+        [
+          5,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 004 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 004 (2020).cbz.1794319165130313400.bak",
+          "https://www.comics.org/issue/4/",
+          1794319165.131837
+        ],
+        [
+          6,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 005 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 005 (2020).cbz.1794319165135951200.bak",
+          "https://www.comics.org/issue/5/",
+          1794319165.1374333
+        ],
+        [
+          7,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 006 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 006 (2020).cbz.1794319165142027000.bak",
+          "https://www.comics.org/issue/6/",
+          1794319165.1436985
+        ],
+        [
+          8,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 007 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 007 (2020).cbz.1794319165147707200.bak",
+          "https://www.comics.org/issue/7/",
+          1794319165.149271
+        ],
+        [
+          9,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 008 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 008 (2020).cbz.1794319165153653500.bak",
+          "https://www.comics.org/issue/8/",
+          1794319165.155291
+        ],
+        [
+          10,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 009 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 009 (2020).cbz.1794319165159454200.bak",
+          "https://www.comics.org/issue/9/",
+          1794319165.160959
+        ],
+        [
+          11,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 010 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 010 (2020).cbz.1794319165165705700.bak",
+          "https://www.comics.org/issue/10/",
+          1794319165.167358
+        ],
+        [
+          12,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 011 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 011 (2020).cbz.1794319165172140600.bak",
+          "https://www.comics.org/issue/11/",
+          1794319165.1738572
+        ],
+        [
+          13,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 012 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 012 (2020).cbz.1794319165179553800.bak",
+          "https://www.comics.org/issue/12/",
+          1794319165.181482
+        ],
+        [
+          14,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 013 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 013 (2020).cbz.1794319165185825300.bak",
+          "https://www.comics.org/issue/13/",
+          1794319165.187464
+        ],
+        [
+          15,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 014 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 014 (2020).cbz.1794319165191957400.bak",
+          "https://www.comics.org/issue/14/",
+          1794319165.1934686
+        ],
+        [
+          16,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 015 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 015 (2020).cbz.1794319165197597900.bak",
+          "https://www.comics.org/issue/15/",
+          1794319165.1990912
+        ],
+        [
+          17,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 016 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 016 (2020).cbz.1794319165203359700.bak",
+          "https://www.comics.org/issue/16/",
+          1794319165.2048357
+        ],
+        [
+          18,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 017 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 017 (2020).cbz.1794319165209156800.bak",
+          "https://www.comics.org/issue/17/",
+          1794319165.210688
+        ],
+        [
+          19,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 018 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 018 (2020).cbz.1794319165215472600.bak",
+          "https://www.comics.org/issue/18/",
+          1794319165.217029
+        ],
+        [
+          20,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 019 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 019 (2020).cbz.1794319165221371500.bak",
+          "https://www.comics.org/issue/19/",
+          1794319165.2229488
+        ],
+        [
+          21,
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\Sandbox QA Fixture 020 (2020).cbz",
+          "\\\\?\\C:\\Q\\illuminati-cmo-qa-processing\\library\\.comic-metadata-backups\\Sandbox QA Fixture 020 (2020).cbz.1794319165227208200.bak",
+          "https://www.comics.org/issue/20/",
+          1794319165.2287645
+        ]
+      ],
+      "manualLedger": [
+        [
+          1,
+          "C:\\Q\\illuminati-cmo-qa-processing\\library\\Preserved Human Choice 001 (2020).cbz",
+          "QA synthetic historical manual decision",
+          "human",
+          "{\"Series\": \"Preserved Human Choice\", \"Number\": \"1\", \"Title\": \"Human title sentinel\", \"Writer\": \"Human writer\"}",
+          448,
+          1794319153924146400,
+          448,
+          1794319153924146400,
+          "human"
+        ]
+      ],
+      "recoverySha256": "bedeb9bceeed5542abbc7201b104898523db197b258533556beded7c40cdf299",
+      "taggedFixtures": 20,
+      "pendingFixtures": 480,
+      "userPaused": false
+    },
+    "triggered": "actual install action requested",
+    "priorExit": {
+      "code": 0,
+      "signal": null,
+      "out": "\r\nChecking for update\nGenerated new staging user ID: 94f2d6e0-8451-5e1b-ae76-4c0dd6a28932\nFound version 0.6.1 (url: Comic-Metadata-Setup-0.6.1.exe)\nChecking for update\nFound version 0.6.1 (url: Comic-Metadata-Setup-0.6.1.exe)\nDownloading update from Comic-Metadata-Setup-0.6.1.exe\nupdater cache dir: C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\comic-metadata-updater\nDownload block maps (old: \"http://127.0.0.1:18995/feed/afc51bd151536708c53536adbf945507/Comic-Metadata-Setup-0.6.0.exe.blockmap\", new: http://127.0.0.1:18995/feed/afc51bd151536708c53536adbf945507/Comic-Metadata-Setup-0.6.1.exe.blockmap)\nNew version 0.6.1 has been downloaded to C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\comic-metadata-updater\\pending\\Comic-Metadata-Setup-0.6.1.exe\n",
+      "err": "Debugger listening on ws://127.0.0.1:18991/49795132-67ad-4dda-9531-76dd06678a8d\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\nDebugger attached.\r\ndisableWebInstaller is set to false, you should set it to true if you do not plan on using a web installer. This will default to true in a future version.\nCannot download differentially, fallback to full download: Error: Cannot download \"http://127.0.0.1/feed/afc51bd151536708c53536adbf945507/Comic-Metadata-Setup-0.6.0.exe.blockmap\", status 404: Not Found\n    at ClientRequest.<anonymous> (C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\\node_modules\\builder-util-runtime\\out\\httpExecutor.js:245:34)\n    at ClientRequest.emit (node:events:514:28)\n    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:140171)\n    at SimpleURLLoaderWrapper.emit (node:events:514:28)\nDebugger ending on ws://127.0.0.1:18991/49795132-67ad-4dda-9531-76dd06678a8d\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+    },
+    "oldObserver": {
+      "pid": 7932,
+      "version": "0.6.0",
+      "events": [
+        {
+          "kind": "window-created",
+          "webContentsId": 1,
+          "time": 1794319157717
+        },
+        {
+          "kind": "engine-start",
+          "pid": 7972,
+          "time": 1794319157759
+        },
+        {
+          "kind": "renderer-loaded",
+          "webContentsId": 1,
+          "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/startup.html",
+          "time": 1794319157813
+        },
+        {
+          "kind": "window-ready-to-show",
+          "webContentsId": 1,
+          "time": 1794319158089
+        },
+        {
+          "kind": "renderer-loaded",
+          "webContentsId": 1,
+          "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/setup.html",
+          "time": 1794319158347
+        },
+        {
+          "kind": "renderer-loaded",
+          "webContentsId": 1,
+          "path": "/",
+          "time": 1794319158671
+        },
+        {
+          "kind": "window-created",
+          "webContentsId": 2,
+          "time": 1794319173550
+        },
+        {
+          "kind": "renderer-loaded",
+          "webContentsId": 2,
+          "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/stopping.html",
+          "time": 1794319173616
+        },
+        {
+          "kind": "window-ready-to-show",
+          "webContentsId": 2,
+          "time": 1794319173627
+        },
+        {
+          "kind": "engine-exit",
+          "pid": 7972,
+          "code": 0,
+          "signal": null,
+          "time": 1794319175236
+        },
+        {
+          "kind": "before-installer-helper",
+          "engines": [
+            {
+              "pid": 7972,
+              "exit": {
+                "code": 0,
+                "signal": null
+              }
+            }
+          ],
+          "helper": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\ComicsMeta\\work\\update-launch\\launch-aSgdcn\\runtime\\python\\python.exe",
+          "time": 1794319175800
+        },
+        {
+          "kind": "installer-receipt",
+          "helperPid": 6816,
+          "receipt": {
+            "started": true,
+            "accepted": true,
+            "phase": "started",
+            "installer_pid": 1860
+          },
+          "time": 1794319177943
+        }
+      ]
+    },
+    "relaunch": {
+      "pid": 4300,
+      "exe": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+      "resources": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources",
+      "local": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local",
+      "user": "WDAGUtilityAccount",
+      "builtinModule": "function",
+      "nodeVersion": "24.21.0",
+      "electronVersion": "43.7.9",
+      "version": "0.6.1"
+    },
+    "nextShell": {
+      "loadedShellVersion": "0.6.1",
+      "service": "ready",
+      "control": {
+        "requested": false,
+        "user_requested": false,
+        "phase": "running",
+        "gpu_released": false,
+        "waiting_for": [],
+        "error": "",
+        "stopping": false
+      },
+      "update": {
+        "phase": "idle",
+        "check": "idle"
+      },
+      "stopping": null,
+      "failure": null,
+      "verification": false,
+      "verification_engines": []
+    },
+    "nextRegistration": {
+      "DisplayName": "Comic Metadata 0.6.1",
+      "DisplayVersion": "0.6.1",
+      "UninstallString": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\Uninstall ComicMetadata.exe\" /currentuser",
+      "registeredDirectory": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata"
+    },
+    "nextProcesses": [
+      {
+        "ProcessId": 4300,
+        "ParentProcessId": 5944,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --updated",
+        "CreatedMs": 1794319198224
+      },
+      {
+        "ProcessId": 6896,
+        "ParentProcessId": 4300,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAOAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAABgAAAAAAAAAGAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --field-trial-handle=1796,i,12563235382259568347,14220937750445693197,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1800,i,2120009675355286830,11535360417029403434,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1788 /prefetch:2",
+        "CreatedMs": 1794319198326
+      },
+      {
+        "ProcessId": 7760,
+        "ParentProcessId": 4300,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ru --service-sandbox-type=none --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --field-trial-handle=1796,i,12563235382259568347,14220937750445693197,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1800,i,2120009675355286830,11535360417029403434,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2088 /prefetch:11",
+        "CreatedMs": 1794319198335
+      },
+      {
+        "ProcessId": 7296,
+        "ParentProcessId": 4300,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\engine_host.py --parent-pid 4300 --port 8765",
+        "CreatedMs": 1794319198454
+      },
+      {
+        "ProcessId": 9044,
+        "ParentProcessId": 7296,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\app.py --no-browser --port 8765",
+        "CreatedMs": 1794319198682
+      },
+      {
+        "ProcessId": 2732,
+        "ParentProcessId": 9044,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\browser_worker.py",
+        "CreatedMs": 1794319199261
+      },
+      {
+        "ProcessId": 8500,
+        "ParentProcessId": 9044,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\worker.py",
+        "CreatedMs": 1794319199272
+      },
+      {
+        "ProcessId": 8736,
+        "ParentProcessId": 4300,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=renderer --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --app-user-model-id=studio.illuminati.comicmetadata --app-path=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\" --enable-sandbox --disable-gpu-compositing --video-capture-use-gpu-memory-buffer --lang=ru --device-scale-factor=2.5 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1794319084220593 --launch-time-ticks=115315604 --field-trial-handle=1796,i,12563235382259568347,14220937750445693197,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1800,i,2120009675355286830,11535360417029403434,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3588 /prefetch:1",
+        "CreatedMs": 1794319199600
+      }
+    ],
+    "nextBounds": {
+      "x": 40,
+      "y": 40,
+      "width": 902,
+      "height": 602
+    },
+    "error": "Error: Actual remembered window bounds changed\n    at requireThat (file:///C:/CMOInput/common.mjs:6:73)\n    at file:///C:/CMOInput/guest-update.mjs:135:106\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+    "inspectorTrace": [
+      {
+        "time": 1794319199723,
+        "kind": "request",
+        "id": 1,
+        "method": "Runtime.enable"
+      },
+      {
+        "time": 1794319199726,
+        "kind": "response",
+        "id": 1,
+        "method": "Runtime.enable",
+        "error": false
+      },
+      {
+        "time": 1794319199726,
+        "kind": "request",
+        "id": 2,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "7a8f2f3cbb60ea7ba1dd20567b84ed794b8eddf5ce31d2ab3d4659839f2e959e",
+        "awaitPromise": true
+      },
+      {
+        "time": 1794319199730,
+        "kind": "response",
+        "id": 2,
+        "method": "Runtime.evaluate",
+        "error": false
+      },
+      {
+        "time": 1794319199732,
+        "kind": "request",
+        "id": 3,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "bbab7b004e0cf242d14d83d8dc80051091e8ded2f3b2aa7f61f376a71510b7ac",
+        "awaitPromise": true
+      },
+      {
+        "time": 1794319199734,
+        "kind": "response",
+        "id": 3,
+        "method": "Runtime.evaluate",
+        "error": false
+      },
+      {
+        "time": 1794319199736,
+        "kind": "request",
+        "id": 4,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "953d59c6a214bdd284eb05336428d71d5f84367a780fdb053ddf44591d34e58a",
+        "awaitPromise": true
+      },
+      {
+        "time": 1794319199740,
+        "kind": "response",
+        "id": 4,
+        "method": "Runtime.evaluate",
+        "error": false
+      },
+      {
+        "time": 1794319199742,
+        "kind": "request",
+        "id": 5,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "53826fa47b65ae234dff365b54f5a2e9d5e923e223839804b33212e7485330d2",
+        "awaitPromise": true
+      },
+      {
+        "time": 1794319199746,
+        "kind": "response",
+        "id": 5,
+        "method": "Runtime.evaluate",
+        "error": false
+      },
+      {
+        "time": 1794319203277,
+        "kind": "request",
+        "id": 6,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "d21233599a78cf2b6c9512473c311a93d60cddf6778fb8dc5eba9bf1da1264e4",
+        "awaitPromise": true
+      },
+      {
+        "time": 1794319203279,
+        "kind": "response",
+        "id": 6,
+        "method": "Runtime.evaluate",
+        "error": false
+      },
+      {
+        "time": 1794319203281,
+        "kind": "request",
+        "id": 7,
+        "method": "Runtime.evaluate",
+        "expressionSha256": "e3942725b3ae853164948a35a8926e03efe5f1772d7aeb745efe8dec991de6c0",
+        "awaitPromise": false
+      },
+      {
+        "time": 1794319203286,
+        "kind": "response",
+        "id": 7,
+        "method": "Runtime.evaluate",
+        "error": false
+      }
+    ],
+    "oldDiagnostics": {
+      "pid": 7932,
+      "exitCode": 0,
+      "stderr": "Debugger listening on ws://127.0.0.1:18991/49795132-67ad-4dda-9531-76dd06678a8d\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\nDebugger attached.\r\ndisableWebInstaller is set to false, you should set it to true if you do not plan on using a web installer. This will default to true in a future version.\nCannot download differentially, fallback to full download: Error: Cannot download \"http://127.0.0.1/feed/afc51bd151536708c53536adbf945507/Comic-Metadata-Setup-0.6.0.exe.blockmap\", status 404: Not Found\n    at ClientRequest.<anonymous> (C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\\node_modules\\builder-util-runtime\\out\\httpExecutor.js:245:34)\n    at ClientRequest.emit (node:events:514:28)\n    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:140171)\n    at SimpleURLLoaderWrapper.emit (node:events:514:28)\nDebugger ending on ws://127.0.0.1:18991/49795132-67ad-4dda-9531-76dd06678a8d\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+    },
+    "errorCleanup": {
+      "started": 1794319203281,
+      "requested": true,
+      "finished": 1794319208363,
+      "oldExitCode": 0
+    },
+    "finished": 1794319208364
+  },
+  "oldObserver": {
+    "pid": 7932,
+    "version": "0.6.0",
+    "events": [
+      {
+        "kind": "window-created",
+        "webContentsId": 1,
+        "time": 1794319157717
+      },
+      {
+        "kind": "engine-start",
+        "pid": 7972,
+        "time": 1794319157759
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/startup.html",
+        "time": 1794319157813
+      },
+      {
+        "kind": "window-ready-to-show",
+        "webContentsId": 1,
+        "time": 1794319158089
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/setup.html",
+        "time": 1794319158347
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/",
+        "time": 1794319158671
+      },
+      {
+        "kind": "window-created",
+        "webContentsId": 2,
+        "time": 1794319173550
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 2,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/stopping.html",
+        "time": 1794319173616
+      },
+      {
+        "kind": "window-ready-to-show",
+        "webContentsId": 2,
+        "time": 1794319173627
+      },
+      {
+        "kind": "engine-exit",
+        "pid": 7972,
+        "code": 0,
+        "signal": null,
+        "time": 1794319175236
+      },
+      {
+        "kind": "before-installer-helper",
+        "engines": [
+          {
+            "pid": 7972,
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "helper": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\ComicsMeta\\work\\update-launch\\launch-aSgdcn\\runtime\\python\\python.exe",
+        "time": 1794319175800
+      },
+      {
+        "kind": "installer-receipt",
+        "helperPid": 6816,
+        "receipt": {
+          "started": true,
+          "accepted": true,
+          "phase": "started",
+          "installer_pid": 1860
+        },
+        "time": 1794319177943
+      }
+    ]
+  },
+  "guestOwned": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "",
+    "err": "",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 8780,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 100,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 4555,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 73408.8893,
+    "outputBytes": 0
+  },
+  "guestWrapper": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "cfa6ed694cb140a11cc929ef4553101c",
+    "identity": {
+      "scriptRoot": "C:\\CMOInput",
+      "pid": 7544,
+      "user": "WDAGUtilityAccount",
+      "profile": "C:\\Users\\WDAGUtilityAccount",
+      "computer": "C080ED3D-E72F-4",
+      "model": "Virtual Machine",
+      "manufacturer": "Microsoft Corporation",
+      "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+      "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+    },
+    "started": 1794319119856,
+    "finished": 1794319208418,
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "pass": false,
+    "failed": "Error: Guest install/update owner did not close normally\n    at requireThat (file:///C:/CMOInput/common.mjs:6:73)\n    at file:///C:/CMOInput/guest-entry.mjs:69:3",
+    "shutdownRequested": true
+  },
+  "trace": {
+    "path": "Docs/ComicsMetaOrganizer_InstallUpdateTrace_v0.6.1_ProcessingRetry06_2026-11-10.jsonl",
+    "sha256": "a6c9d2a18e44b4231e63bfacb5e6af18ce92f2a7ba3cfa3521993b36cfcaa40e"
+  },
+  "postClosureObservation": {
+    "observedAtUtc": "2026-11-10T14:02:16.3374046Z",
+    "computeCommand": "C:/Windows/System32/hcsdiag.exe list",
+    "computeOutput": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\r\n    VM,                       \tSavedAsTemplate, A90A3CA5-CF2C-4AA3-8DA2-E81E62EB3A71, CmService\r\n\r\n",
+    "clientQuery": "Get-CimInstance Win32_Process filtered to actual Sandbox UI/server and classic clients",
+    "clients": [],
+    "pausedLaunched": false,
+    "manualUIActions": false
+  }
+}
