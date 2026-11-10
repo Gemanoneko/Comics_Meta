@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "purpose": "Actual failed processing Sandbox attempt plus post-shutdown read-only host observation; no installer permit",
+  "inputManifestSha256": "6690c5aabdb730478261b5505d9c0e2bdd2018c2a3858e860c03bab3eab5b313",
+  "hostSession": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "6a470c182cc84d84a6aa66b86c267e90",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "baseline": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "description": "VM,                       \tSavedAsTemplate, A90A3CA5-CF2C-4AA3-8DA2-E81E62EB3A71, CmService"
+      }
+    ],
+    "started": 1794313567440,
+    "pass": false,
+    "error": "Error: Cannot uniquely bind new compute session\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/input/common.mjs:6:73)\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/input/host-session.mjs:34:3",
+    "finished": 1794313645608
+  },
+  "hostOwned": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "{\"mode\":\"processing\",\"pass\":false,\"error\":\"Error: Cannot uniquely bind new compute session\\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/input/common.mjs:6:73)\\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/input/host-session.mjs:34:3\"}\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 56012,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 11,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 5083,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 79466.536,
+    "outputBytes": 413
+  },
+  "guestStarted": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "6a470c182cc84d84a6aa66b86c267e90",
+    "manifestSha256": "6690c5aabdb730478261b5505d9c0e2bdd2018c2a3858e860c03bab3eab5b313",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "identity": {
+      "scriptRoot": "C:\\CMOInput",
+      "user": "WDAGUtilityAccount",
+      "profile": "C:\\Users\\WDAGUtilityAccount",
+      "computer": "C080ED3D-E72F-4",
+      "model": "Virtual Machine",
+      "manufacturer": "Microsoft Corporation",
+      "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+      "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+    }
+  },
+  "guestWrapper": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "6a470c182cc84d84a6aa66b86c267e90",
+    "identity": {
+      "scriptRoot": "C:\\CMOInput",
+      "user": "WDAGUtilityAccount",
+      "profile": "C:\\Users\\WDAGUtilityAccount",
+      "computer": "C080ED3D-E72F-4",
+      "model": "Virtual Machine",
+      "manufacturer": "Microsoft Corporation",
+      "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+      "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+    },
+    "started": 1794313618077,
+    "finished": 1794313690516,
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "pass": false,
+    "failed": "Error: Host did not establish unique owned Sandbox identity; no installer started\n    at requireThat (file:///C:/CMOInput/common.mjs:6:73)\n    at file:///C:/CMOInput/guest-entry.mjs:41:3",
+    "shutdownRequested": true
+  },
+  "postClosureObservation": {
+    "observedAtUtc": "2026-11-10T12:30:26.0699720Z",
+    "computeCommand": "C:/Windows/System32/hcsdiag.exe list",
+    "computeOutput": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\r\n    VM,                       \tSavedAsTemplate, A90A3CA5-CF2C-4AA3-8DA2-E81E62EB3A71, CmService\r\n\r\n",
+    "clientQuery": "Get-CimInstance Win32_Process filtered to WindowsSandbox.exe/WindowsSandboxClient.exe",
+    "clients": [],
+    "onlyOriginalSavedTemplateAndNoClients": true,
+    "goExists": false,
+    "guestOwnedExists": false,
+    "updateResultExists": false
+  }
+}

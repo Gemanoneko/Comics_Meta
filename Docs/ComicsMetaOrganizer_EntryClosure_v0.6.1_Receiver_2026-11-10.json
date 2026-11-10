@@ -1,0 +1,31 @@
+{
+  "code": 0,
+  "contextSha": "3a9638511c42f8c446cd9c9ea95ff1120173d698e5d84f7301d5e55261c5d246",
+  "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+  "browserClosure": {
+    "leaseId": "de409a9a3f63",
+    "reason": "stop-requested",
+    "verified": true,
+    "remaining": 0,
+    "personal": {
+      "clean": true,
+      "added": [],
+      "changed": [],
+      "removed": [],
+      "errors": [],
+      "allowed": [],
+      "notes": [],
+      "created": {},
+      "window": {
+        "fromMs": 1794312701298,
+        "toMs": 1794312859294
+      },
+      "watched": {
+        "folders": 7,
+        "driveRoots": 10
+      },
+      "verdict": "clean",
+      "lines": []
+    }
+  }
+}

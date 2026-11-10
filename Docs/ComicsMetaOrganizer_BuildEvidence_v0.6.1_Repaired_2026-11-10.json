@@ -1,0 +1,46 @@
+{
+  "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+  "command": {
+    "file": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\node-v26.12.1-win-x64\\node.exe",
+    "args": [
+      "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/candidate/scripts/build-installer.cjs",
+      "--inputs",
+      "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/release-061-20261110/toolchain"
+    ]
+  },
+  "kind": "result",
+  "code": 0,
+  "signal": null,
+  "error": null,
+  "out": "Verifying prepared toolchain ...\nCopying offline dependencies into node_modules ...\nStaging runtime and engine for 0.6.1 ...\nBuilding 0.6.1 installer ...\n{\"nsisPathBound\":{\"limit\":254,\"count\":445,\"max\":194,\"longest\":\"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110\\\\candidate\\\\node_modules\\\\app-builder-lib\\\\templates\\\\nsis\\\\include\\\\allowOnlyOneInstallerInstance.nsh\"}}\n  • electron-builder  version=26.15.3 os=10.0.26300\n  • author is missed in the package.json  appPackageFile=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\\package.json\n  • skipped dependencies rebuild  reason=npmRebuild is set to false\n  • packaging       platform=win32 arch=x64 electron=43.7.9 appOutDir=dist\\win-unpacked\n  • using custom unpacked Electron distribution  electronDist=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\toolchain\\native\\electron\n  • copying unpacked Electron  source=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\toolchain\\native\\electron destination=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\\dist\\win-unpacked\n  • searching for node modules  pm=npm searchDir=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\n  • updating asar integrity executable resource  executablePath=dist\\win-unpacked\\ComicMetadata.exe\n  • signing with signtool.exe  path=dist\\win-unpacked\\resources\\runtime\\python\\python.exe\n  • signing with signtool.exe  path=dist\\win-unpacked\\resources\\runtime\\python\\pythonw.exe\n  • signing with signtool.exe  path=dist\\win-unpacked\\resources\\runtime\\python\\Lib\\site-packages\\playwright\\driver\\node.exe\n  • signing with signtool.exe  path=dist\\win-unpacked\\resources\\runtime\\7zip\\7z.exe\n  • signing with signtool.exe  path=dist\\win-unpacked\\ComicMetadata.exe\n  • building        target=nsis file=dist\\Comic-Metadata-Setup-0.6.1.exe archs=x64 oneClick=true perMachine=false\n  • resolved ELECTRON_BUILDER_7ZIP_PATH from environment variable  ELECTRON_BUILDER_7ZIP_PATH=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\\node_modules\\7zip-bin\\win\\x64\\7za.exe\n  • resolved ELECTRON_BUILDER_NSIS_RESOURCES_DIR from environment variable  ELECTRON_BUILDER_NSIS_RESOURCES_DIR=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\toolchain\\native\\nsis-resources\n  • resolved ELECTRON_BUILDER_NSIS_DIR from environment variable  ELECTRON_BUILDER_NSIS_DIR=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\toolchain\\native\\nsis\n  • signing with signtool.exe  path=dist\\Comic-Metadata-Setup-0.6.1.__uninstaller.exe\n  • resolved ELECTRON_BUILDER_NSIS_DIR from environment variable  ELECTRON_BUILDER_NSIS_DIR=C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110\\toolchain\\native\\nsis\n  • signing with signtool.exe  path=dist\\Comic-Metadata-Setup-0.6.1.exe\n  • building block map  blockMapFile=dist\\Comic-Metadata-Setup-0.6.1.exe.blockmap\n{\"leanBuild\":{\"version\":\"0.6.1\",\"installer\":\"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110\\\\candidate\\\\dist\\\\Comic-Metadata-Setup-0.6.1.exe\",\"size\":149538466,\"sha256\":\"718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d\",\"uninstallerSha256\":\"1008e168e6ff1b093205bd8946579eee4bf5eb6ee1b2d10cae27263c03a024e6\",\"referenceEqual\":true,\"signCalls\":1,\"npmQueries\":[[\"list\",\"-a\",\"--include\",\"prod\",\"--include\",\"optional\",\"--omit\",\"dev\",\"--json\",\"--long\",\"--silent\",\"--loglevel=error\"]],\"bootstrapExecuted\":false}}\nBUILD OK C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\\dist\\Comic-Metadata-Setup-0.6.1.exe 149538466 bytes sha256 718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d\n",
+  "err": "",
+  "supervisorErr": "",
+  "ok": true,
+  "closed": true,
+  "forced": false,
+  "timedOut": false,
+  "overflow": false,
+  "truncated": false,
+  "outputComplete": true,
+  "reason": null,
+  "closureError": null,
+  "pid": 70996,
+  "ownership": "private-job",
+  "native": {
+    "active": 0,
+    "assigned": 0,
+    "listed": 0,
+    "retained": 14,
+    "unsignaled": 0,
+    "complete": true,
+    "zero": true,
+    "sampling": {
+      "queries": 2446,
+      "incompleteQueries": 0,
+      "firstIncomplete": null,
+      "lastIncomplete": null
+    }
+  },
+  "elapsedMs": 38810.993800000004,
+  "outputBytes": 4139
+}

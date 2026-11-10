@@ -1,0 +1,42 @@
+{
+  "environment": {
+    "USERPROFILE": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile",
+    "APPDATA": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile/AppData/Roaming",
+    "LOCALAPPDATA": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile/AppData/Local",
+    "TEMP": "C:/Antigravity Projects/Illuminati-CMO-EntryQA-061-20261110/receiver-temp"
+  },
+  "knownFolders": [
+    {
+      "name": "LocalAppData",
+      "flags": 0,
+      "hresult": "0x0",
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile\\AppData\\Local",
+      "exists": true,
+      "insidePrivateProfile": true
+    },
+    {
+      "name": "LocalAppData",
+      "flags": 16384,
+      "hresult": "0x0",
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile\\AppData\\Local",
+      "exists": true,
+      "insidePrivateProfile": true
+    },
+    {
+      "name": "RoamingAppData",
+      "flags": 0,
+      "hresult": "0x0",
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile\\AppData\\Roaming",
+      "exists": true,
+      "insidePrivateProfile": true
+    },
+    {
+      "name": "RoamingAppData",
+      "flags": 16384,
+      "hresult": "0x0",
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/receiver-profile\\AppData\\Roaming",
+      "exists": true,
+      "insidePrivateProfile": true
+    }
+  ]
+}

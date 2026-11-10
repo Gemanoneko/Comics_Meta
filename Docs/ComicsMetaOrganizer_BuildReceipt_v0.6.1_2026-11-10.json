@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "version": "0.6.1",
+  "profile": "production",
+  "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+  "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+  "nativeResult": {
+    "root_exit": 0,
+    "active_after": 0,
+    "reason": "completed"
+  },
+  "nativeResultReceipt": {
+    "sha256": "03b870e13545ceb8d09704dbed08f51178419b5824ce2e71e787ad935ebee2cd",
+    "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/build-owned.json"
+  },
+  "artifacts": {
+    "files": [
+      {
+        "path": "Comic-Metadata-Setup-0.6.1.exe",
+        "size": 149538466,
+        "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d"
+      },
+      {
+        "path": "Comic-Metadata-Setup-0.6.1.exe.blockmap",
+        "size": 156933,
+        "sha256": "00698173e8cb3b8807ab0a3c32a885bab27d9ef327c499366d39bd398d31fcf4"
+      },
+      {
+        "path": "latest.yml",
+        "size": 357,
+        "sha256": "b6e75f57692123ec1a709ea750228dc7de5e30c829e2dd6917e44301d45fa18a"
+      }
+    ],
+    "directories": []
+  },
+  "provenance": {
+    "kind": "reviewed-canonical-lean-build translation",
+    "sourceManifest": {
+      "sha256": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/source-manifest.json"
+    },
+    "dispatcher": {
+      "sha256": "49ef1cbb36e31d54d13cb7ec0844debf507dfda81723beabc914207a22c94e0d",
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/run-owned.mjs"
+    },
+    "owned": {
+      "sha256": "03b870e13545ceb8d09704dbed08f51178419b5824ce2e71e787ad935ebee2cd",
+      "path": "C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/build-owned.json"
+    },
+    "productionConfig": {
+      "path": "electron-builder.config.cjs",
+      "size": 1273,
+      "sha256": "b441fd783bbaeb3a5e3fbfb33b1cb509249158922d32187532010e4dc2e69ac9"
+    },
+    "sourceFilesVerified": 345,
+    "canonicalNative": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 14,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 2446,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "leanBuild": {
+      "version": "0.6.1",
+      "installer": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\candidate\\dist\\Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "uninstallerSha256": "1008e168e6ff1b093205bd8946579eee4bf5eb6ee1b2d10cae27263c03a024e6",
+      "referenceEqual": true,
+      "signCalls": 1,
+      "npmQueries": [
+        [
+          "list",
+          "-a",
+          "--include",
+          "prod",
+          "--include",
+          "optional",
+          "--omit",
+          "dev",
+          "--json",
+          "--long",
+          "--silent",
+          "--loglevel=error"
+        ]
+      ],
+      "bootstrapExecuted": false
+    }
+  },
+  "state": "build completed; packaged installation/update QA still required"
+}

@@ -1,0 +1,37 @@
+{
+  "kind": "result",
+  "code": 0,
+  "signal": null,
+  "error": null,
+  "out": "PASS actual accepted build/source/production/artifact translation\nPASS wrong requested version rejected\nPASS incomplete actual-owner derivative rejected despite zero/exit0 flags\nPASS tampered installer rejected with unchanged feed/blockmap\n{\"controls\":4,\"pass\":4,\"fail\":0,\"receipt\":\"C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/build-receipt.json\",\"receiptSha256\":\"3ceb3255106376e3dbe3b5ffd76473de432ddaeb575287111018daaed13e0b65\",\"artifacts\":\"C:/Antigravity Projects/Studio Illuminati/WIP/Comics Meta Organizer/scratch/qa-repair-061-20261110/build-release-artifacts.json\",\"artifactsSha256\":\"4fc3d56389e93a4f6a75f65441a37c5537391eb82aa4e831697b55f1f6bb6610\",\"sourceHead\":\"8e66ca4d14ec5a052e9967d6af2590ef957142aa\",\"sourceIdentity\":\"11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3\"}\n",
+  "err": "",
+  "supervisorErr": "",
+  "ok": true,
+  "closed": true,
+  "forced": false,
+  "timedOut": false,
+  "overflow": false,
+  "truncated": false,
+  "outputComplete": true,
+  "reason": null,
+  "closureError": null,
+  "pid": 6348,
+  "ownership": "private-job",
+  "native": {
+    "active": 0,
+    "assigned": 0,
+    "listed": 0,
+    "retained": 4,
+    "unsignaled": 0,
+    "complete": true,
+    "zero": true,
+    "sampling": {
+      "queries": 80,
+      "incompleteQueries": 0,
+      "firstIncomplete": null,
+      "lastIncomplete": null
+    }
+  },
+  "elapsedMs": 1265.7189,
+  "outputBytes": 853
+}
