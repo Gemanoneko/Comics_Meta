@@ -1,0 +1,3131 @@
+{
+  "schema": 1,
+  "source": "516c812d90b9482f5cd63003d660f178e0c65444",
+  "sourceIdentity": "1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a",
+  "artifact": {
+    "name": "Comic-Metadata-Setup-0.6.1.exe",
+    "size": 149538531,
+    "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca"
+  },
+  "adapters": [
+    {
+      "path": "native-smoke.mjs",
+      "sha256": "5607be32eef97a9bc61258fba43d2c29f366e2905b95675a5438fe1c4b21bcf4"
+    },
+    {
+      "path": "guards.cjs",
+      "sha256": "bac42d0c230500f173d537352ea1920a67d662f158c55abc6a11f8ba61fafeee"
+    },
+    {
+      "path": "cleanup.mjs",
+      "sha256": "eceb3f781330e6ccff60062368b210f58385ddddd3827a72bb3723e2975944d3"
+    }
+  ],
+  "packageFiles": [
+    {
+      "path": "ComicMetadata.exe",
+      "size": 239070208,
+      "sha256": "c2a376b1bfe7daa85a923c2ece3abfa1d75af3fe7efb5209de97afd596712f0f"
+    },
+    {
+      "path": "LICENSE.electron.txt",
+      "size": 1096,
+      "sha256": "5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d"
+    },
+    {
+      "path": "LICENSES.chromium.html",
+      "size": 20313960,
+      "sha256": "c971fa90cb787337e9df73773f3b43cd5621f035e53cded439bd927b3b759e0c"
+    },
+    {
+      "path": "chrome_100_percent.pak",
+      "size": 119905,
+      "sha256": "d76fe8fa3a14cd73e4c858746e2ab2d2fa6f2df38a906fa5814b50a8a895fc96"
+    },
+    {
+      "path": "chrome_200_percent.pak",
+      "size": 197089,
+      "sha256": "b74ad439f3d3762657f3ba533a6af3ac63315c838ed46519891366f43d834a0e"
+    },
+    {
+      "path": "d3dcompiler_47.dll",
+      "size": 4741488,
+      "sha256": "a05f99734f7c4822fefc12b367af21fd0976ed6608752fb1e1e80b6ece7ecbbb"
+    },
+    {
+      "path": "dxcompiler.dll",
+      "size": 25610240,
+      "sha256": "1ac8383fd7ef82e962e80a6688a008a3030ab61cce3180c4044322bde9b00fe8"
+    },
+    {
+      "path": "dxil.dll",
+      "size": 1509760,
+      "sha256": "77e039c905030a641e53658a008b74e90635a5ea9b6b79eabd0f2003bdfca59a"
+    },
+    {
+      "path": "ffmpeg.dll",
+      "size": 3061248,
+      "sha256": "92d407cf0047e31ebe2a17dabedf9431764b1168d8621b613d95c44116320e64"
+    },
+    {
+      "path": "icudtl.dat",
+      "size": 10875024,
+      "sha256": "67c332a252ae56e300213753784e4256b201a6bd5156db9eb87a6afda20215f2"
+    },
+    {
+      "path": "libEGL.dll",
+      "size": 467968,
+      "sha256": "086920ae64dce97a3db59f22b0c7317d446b37ad88896142b7621f8c0c91f3f5"
+    },
+    {
+      "path": "libGLESv2.dll",
+      "size": 8058368,
+      "sha256": "4671f73c8d84d4a4f432b5355be4aa185b2ebd49d4cc0ad9c247c04e65330cc9"
+    },
+    {
+      "path": "locales/af.pak",
+      "size": 614017,
+      "sha256": "dcf39c3edbb6b0a625baee0263a9b426eadd1a6d1bfbf03a209501a18bc4b0e4"
+    },
+    {
+      "path": "locales/am.pak",
+      "size": 994699,
+      "sha256": "b1d444f2346105a6e15f9b14fc5653e1edaa2b435290fb8f1238347a4d4ca8f9"
+    },
+    {
+      "path": "locales/ar.pak",
+      "size": 1096145,
+      "sha256": "0baa84907ae148d2fc772cdd6c62dbeedfcc45aa4bc67c9d7164906ff0c69247"
+    },
+    {
+      "path": "locales/bg.pak",
+      "size": 1138139,
+      "sha256": "e4a5bea23a26a06af611a7cb518b22a1d53ec5df45a6322f0e264b99c7318441"
+    },
+    {
+      "path": "locales/bn.pak",
+      "size": 1461103,
+      "sha256": "8e4aebe835b6b46f31c4a902e833d645cfe2990dcf354d1d3c5851e468b4c277"
+    },
+    {
+      "path": "locales/ca.pak",
+      "size": 692259,
+      "sha256": "8a472eabdc3f30d94c56367d526f6d345ad65732827097aac747438f233a536f"
+    },
+    {
+      "path": "locales/cs.pak",
+      "size": 718691,
+      "sha256": "5804ba5b76974b48b15922cf91c3e9dbbf549e2d88218dc767e4650520503135"
+    },
+    {
+      "path": "locales/da.pak",
+      "size": 644715,
+      "sha256": "57f4637094de41122da569415c16c5524794bc90aa3af226da14703d04981db0"
+    },
+    {
+      "path": "locales/de.pak",
+      "size": 693336,
+      "sha256": "4919ce127533d3cac698d837306161c00cf69ce30f9fa4b25b80fda171d78f89"
+    },
+    {
+      "path": "locales/el.pak",
+      "size": 1251062,
+      "sha256": "48d430dca8785ce24fc605851b2bb739164b8e5fb5588909329a82e58f6902d0"
+    },
+    {
+      "path": "locales/en-GB.pak",
+      "size": 559903,
+      "sha256": "7d3f5c381b1ec39bc57d6cee58f9bd69be9b36aa98ffca0b94e81f4df92e5388"
+    },
+    {
+      "path": "locales/en-US.pak",
+      "size": 566095,
+      "sha256": "74404352908184e834397df60b238f23462e77d69ac4136b4f20af2db6191436"
+    },
+    {
+      "path": "locales/es-419.pak",
+      "size": 683097,
+      "sha256": "cd173ec7abdc3609b8ea33764fa8e106147121ee2d262cf5aef22d50fd386fb9"
+    },
+    {
+      "path": "locales/es.pak",
+      "size": 679701,
+      "sha256": "9ff88eabacab95f8bbef9e95f63d3619fa8d640ec03523d80abb26243b059a65"
+    },
+    {
+      "path": "locales/et.pak",
+      "size": 620420,
+      "sha256": "0292298736847491828465a3dcf04cf4a0d9bd63d4b1a9d183c7eeb389343d26"
+    },
+    {
+      "path": "locales/fa.pak",
+      "size": 1026888,
+      "sha256": "61323fafa841e5cb977e80d27b2c2746ab3eee7fdeec4e9312915d9e0c45b52e"
+    },
+    {
+      "path": "locales/fi.pak",
+      "size": 632436,
+      "sha256": "0535e2acd4517ce8099aa0a4a3e562af37ca6a699faca1de3b348b8bfacf2a8b"
+    },
+    {
+      "path": "locales/fil.pak",
+      "size": 715769,
+      "sha256": "f9e86324deee168d160a51402588da9987646c8c5899b76b6255d7e3a46a7bb5"
+    },
+    {
+      "path": "locales/fr.pak",
+      "size": 738348,
+      "sha256": "843d7236fef5375ef08b9af9eb7e443ecafe0593deebc18a45ba5cf67a3a1f00"
+    },
+    {
+      "path": "locales/gu.pak",
+      "size": 1443762,
+      "sha256": "34e4d54d66a0b0471542ee76c55cc9d3b27fcaf15cdf63c3d7e7b46cfdfb3f4f"
+    },
+    {
+      "path": "locales/he.pak",
+      "size": 898800,
+      "sha256": "75fbe196eda1791775243822da4e7f9737710f627b6ee27cc4c6d975865ea7cd"
+    },
+    {
+      "path": "locales/hi.pak",
+      "size": 1529643,
+      "sha256": "7557c5d5b46c8ff4ebc159bbdf0477d28e4baa7c3bedcb947d59028301ff21e6"
+    },
+    {
+      "path": "locales/hr.pak",
+      "size": 691185,
+      "sha256": "9ef77921560c91e5d6e42df6504589b8b7efb84c9b5119ac51e9a10d8c83a089"
+    },
+    {
+      "path": "locales/hu.pak",
+      "size": 738546,
+      "sha256": "31e407f43bbd0cd0692755f961bb39d10af1f9f0af205455dd70fb4c7eeb85a5"
+    },
+    {
+      "path": "locales/id.pak",
+      "size": 612462,
+      "sha256": "e7957c9c58f890b5d053ea50c5fcb4b66cbc3c47478c42a5962810cb15814249"
+    },
+    {
+      "path": "locales/it.pak",
+      "size": 669241,
+      "sha256": "4b06d5f8a4f75b3122bc3f1c54af59eadf6117507758d4efbcb5f1f88f322e61"
+    },
+    {
+      "path": "locales/ja.pak",
+      "size": 815509,
+      "sha256": "89178f1acd5af747dde41399ba0c1e229eb53e2800d4b15ea2d9f3358e69edd3"
+    },
+    {
+      "path": "locales/kn.pak",
+      "size": 1661701,
+      "sha256": "9744dbadbb7c31cc6393a0682daf91045be270bab934dff7dbad79b76287616e"
+    },
+    {
+      "path": "locales/ko.pak",
+      "size": 694030,
+      "sha256": "fa24cc7d4089c81247ed9d5e81d8b67890a09a82ff6d450fe94a654374a2a46e"
+    },
+    {
+      "path": "locales/lt.pak",
+      "size": 752001,
+      "sha256": "bc5d99751f1b252ed074bfc4bf6dc94321b3f785a0a0d4300209acae40220f74"
+    },
+    {
+      "path": "locales/lv.pak",
+      "size": 749059,
+      "sha256": "e91342ed84e1847968b40194250b4d76bbd2ea13133675b8b099dca45ee0f197"
+    },
+    {
+      "path": "locales/ml.pak",
+      "size": 1705593,
+      "sha256": "b813f87ec80ffb496413949ef7bc8208db6fb7ceaaf88145f160bf8abcfe2f01"
+    },
+    {
+      "path": "locales/mr.pak",
+      "size": 1415199,
+      "sha256": "fa87d519a8545b2748c52ccd7704b320877b2d03385991ceabe75c2745200331"
+    },
+    {
+      "path": "locales/ms.pak",
+      "size": 644669,
+      "sha256": "2ab44645c1ed7b68c9121ee0ab9cdf8c7b9d1721d131b08f258b8a85b8ed0af0"
+    },
+    {
+      "path": "locales/nb.pak",
+      "size": 616327,
+      "sha256": "8eaa23c418a3fafb9e85b5445e73fb2f5e13be1f033ff2487c4081148aaa2f4e"
+    },
+    {
+      "path": "locales/nl.pak",
+      "size": 642143,
+      "sha256": "432dcf6ae7f418986244ed3c953aa36176fce7218de4e48158213389594e7dcd"
+    },
+    {
+      "path": "locales/pl.pak",
+      "size": 717729,
+      "sha256": "5e47475490d1514e3670c44f55a2061672c8e7f6219211b3d907bacbe5aa0a5c"
+    },
+    {
+      "path": "locales/pt-BR.pak",
+      "size": 673197,
+      "sha256": "0be502c6b71b94ccd76b30a0b8ce3a816d7223ab1d4c0a81c150df0cf3fc43f5"
+    },
+    {
+      "path": "locales/pt-PT.pak",
+      "size": 676984,
+      "sha256": "98daa1072e7c405e3f5e030bfe25ef1e12b31a96e0b1db245d6805a564390f75"
+    },
+    {
+      "path": "locales/ro.pak",
+      "size": 702574,
+      "sha256": "da5c79d06ae972aa460724ef378f91bf4afda911b167a896963f6e0d4daf9aec"
+    },
+    {
+      "path": "locales/ru.pak",
+      "size": 1163483,
+      "sha256": "e4236ef1cad608c76dc1594645c345feb3459f8ccdcdf4ed2f5b33ba188dabeb"
+    },
+    {
+      "path": "locales/sk.pak",
+      "size": 730264,
+      "sha256": "ca41ac3e8b3352f1bdd66ce54afaddfaf86c1cebfd5bfa3e82a23bded674a83f"
+    },
+    {
+      "path": "locales/sl.pak",
+      "size": 699179,
+      "sha256": "2bc385d457dc844794f9396458c4090e6233afec5a08b4a5a92e45ef31e07b78"
+    },
+    {
+      "path": "locales/sr.pak",
+      "size": 1075898,
+      "sha256": "c3b4a5aba1e86ea0088e5c33002bb055ed567840b2859b277014be0a7283013e"
+    },
+    {
+      "path": "locales/sv.pak",
+      "size": 624021,
+      "sha256": "3af85c15ce3e76344404c37325a60932ce53763539c8cd8b3120424f709f73de"
+    },
+    {
+      "path": "locales/sw.pak",
+      "size": 660623,
+      "sha256": "a806d782b21930ec6243b8e5b393e7fa970ce9d297e96b02e6596fa6ce6c8a86"
+    },
+    {
+      "path": "locales/ta.pak",
+      "size": 1696711,
+      "sha256": "516660683214c01341300fa8d15c7e39aecc38792b76fe74bdcc464024f4294f"
+    },
+    {
+      "path": "locales/te.pak",
+      "size": 1571940,
+      "sha256": "5439181ded31f8cc5dbcc1eed358753d4b7449ad29380baabe4cb893d8751a06"
+    },
+    {
+      "path": "locales/th.pak",
+      "size": 1320867,
+      "sha256": "946b4a45a9d43b15359927f33307fc35f50d7e880f02890b07bdfd1160f2db59"
+    },
+    {
+      "path": "locales/tr.pak",
+      "size": 672669,
+      "sha256": "98151ed08e518b76f33cf20926717e0d8e28d8e4eb111e0c6e33b95c8acaa99e"
+    },
+    {
+      "path": "locales/uk.pak",
+      "size": 1172739,
+      "sha256": "6cdfc2782df67c0b72962fc62d2c2eb8d93102255115dae093dde530e345c643"
+    },
+    {
+      "path": "locales/ur.pak",
+      "size": 1010270,
+      "sha256": "d57cd219249e207d34c21a619935d0f0a7814a0ccdd36051a42400c60a599e47"
+    },
+    {
+      "path": "locales/vi.pak",
+      "size": 799770,
+      "sha256": "37f2c01a308ad8bb93d9525d81480880f97d54191dbe7c1c1e75aa9fcf009450"
+    },
+    {
+      "path": "locales/zh-CN.pak",
+      "size": 571748,
+      "sha256": "e2c2d278e66e1cd806f707259fabf8fed43f0e2e04edb23e4808c46fb872d8d7"
+    },
+    {
+      "path": "locales/zh-TW.pak",
+      "size": 564374,
+      "sha256": "f4c2f92b0de0326377b7d441fab0fe7441ab3d09c188c530445c210a88377234"
+    },
+    {
+      "path": "resources.pak",
+      "size": 7236872,
+      "sha256": "b88115979b34be771ce2547a550cc46cb11fa19882e02f54f84a5471fa94f9f3"
+    },
+    {
+      "path": "resources/app-update.yml",
+      "size": 118,
+      "sha256": "f1622a7a5bb806f5a2f5b12ab9b36804d6a6c70cef53053052701702834280bb"
+    },
+    {
+      "path": "resources/app.asar",
+      "size": 2255249,
+      "sha256": "b2a7c47757450b1f05b0327dd9d6557c9113b279d188b349b3da1cec17ffe494"
+    },
+    {
+      "path": "resources/default_app.asar",
+      "size": 110862,
+      "sha256": "0eb2491b0a9ac94790389d39c09dd5005c6c1f0665842943829bbd0193f6cc4f"
+    },
+    {
+      "path": "resources/engine/VERSION",
+      "size": 7,
+      "sha256": "f5ec409041ad1a0e6348478c4e94611f7a757a9a4a9f1d0f3d3e00d570a71fee"
+    },
+    {
+      "path": "resources/engine/app.py",
+      "size": 69421,
+      "sha256": "bca8da7dbccc016e847e844ea741b6cdfa9d2f630a11ae3dfbb2d6a5eaf7ea07"
+    },
+    {
+      "path": "resources/engine/app_paths.py",
+      "size": 948,
+      "sha256": "abb74b92887d46b53e40ce0c9a92ef7be34c717feea41e7465157cd57db1f88a"
+    },
+    {
+      "path": "resources/engine/archive_conversion.py",
+      "size": 10426,
+      "sha256": "6e73ca233e5fcd920c56daafa194758f34edb4ef2bd32c79ba187a5764d95955"
+    },
+    {
+      "path": "resources/engine/automatic.py",
+      "size": 47945,
+      "sha256": "77ba3ca14fad4ecd9b7032ed708fd08723573690b1bfcc5549546ef068d8ced8"
+    },
+    {
+      "path": "resources/engine/batch.py",
+      "size": 14738,
+      "sha256": "6b10e7016cf08a279aecb903cc9cc961bf12d6acedefc53f3124e75b657d3cf9"
+    },
+    {
+      "path": "resources/engine/browser_search.py",
+      "size": 14799,
+      "sha256": "09a28af218d7be8cf736927d1d67d52f55328065b031623242a694d290b51e39"
+    },
+    {
+      "path": "resources/engine/browser_worker.py",
+      "size": 12895,
+      "sha256": "0d64f5b66a007d508287530474cbb13f68dabc32e52d878e350be82a7ac8362a"
+    },
+    {
+      "path": "resources/engine/comic_recovery.py",
+      "size": 18561,
+      "sha256": "23bc183e966e183d13c91513914825806d63bb13f70dd91e02a34da78f45cde8"
+    },
+    {
+      "path": "resources/engine/cover_match.py",
+      "size": 4412,
+      "sha256": "1c3588fab2b6c78b9dc4a1ba70fce2f4c93690a2c21e9934d14bd6067c70d1ff"
+    },
+    {
+      "path": "resources/engine/cover_tasks.py",
+      "size": 8365,
+      "sha256": "14f13808d040e9c37d8780857a545c472171b662a9c9034a1cfffe7aaca02f3e"
+    },
+    {
+      "path": "resources/engine/coverage_priority.py",
+      "size": 13746,
+      "sha256": "da33eedb4f0e431a26b0101bc2181bdd7958fe3b22d8b5ca8125a2011ac12a63"
+    },
+    {
+      "path": "resources/engine/credential_store.py",
+      "size": 6263,
+      "sha256": "e2caeb7fc6ba4eed897855fcdd631aa9d443a88621f6ebc2c712acab3dd042e3"
+    },
+    {
+      "path": "resources/engine/discovery_state.py",
+      "size": 8609,
+      "sha256": "fd3d57dedac7cdd90515b14ce14c4db3a432c17378d32ddd1ffa3596cffc65e9"
+    },
+    {
+      "path": "resources/engine/engine_host.py",
+      "size": 11090,
+      "sha256": "c95e82d7ec50dac5f07cdb94287e5db511785c2cbde123f34a9661ac1033527e"
+    },
+    {
+      "path": "resources/engine/file_lock.py",
+      "size": 1133,
+      "sha256": "c8bb37584ea753d6a803a1ebf2a86974e3a7100f5c6d5baa95d76226de534d0b"
+    },
+    {
+      "path": "resources/engine/filename_identity.py",
+      "size": 2826,
+      "sha256": "708dab3e3fc3ac53c7bb611dc4aece2a02ee03b87512ccf94cb663ae06f9cc53"
+    },
+    {
+      "path": "resources/engine/folder_help.py",
+      "size": 36656,
+      "sha256": "c93dc3609b5cc3c20301e6d22e7014d5cd893f14d5e5ac38344d8e643969bb21"
+    },
+    {
+      "path": "resources/engine/free_search_browser.py",
+      "size": 20808,
+      "sha256": "6cf49b5e773d6bd24f0f51c6b1e2f99205488e97579eaaba5fad0e82903c853f"
+    },
+    {
+      "path": "resources/engine/gcd_index.py",
+      "size": 9571,
+      "sha256": "239e31c0b67774860ad77e7eb400c26cc98ccfa0f3abce47ca2f8aa3b0576306"
+    },
+    {
+      "path": "resources/engine/gcd_matching.py",
+      "size": 10082,
+      "sha256": "d9d811ee241e9d9b6a822ee198fd14b20233677d0a1d5e562cde9586bd4b68b1"
+    },
+    {
+      "path": "resources/engine/gcd_offline.py",
+      "size": 16087,
+      "sha256": "badf157008f8c6f8c2ae51ed7c159e9baabb17f75728445dfff8ac5f48e65e5c"
+    },
+    {
+      "path": "resources/engine/getcomics.py",
+      "size": 4775,
+      "sha256": "55880851934fd4ffa1f337d5dda578833ffb55f963f4658f228ea4b8ae7f9bfa"
+    },
+    {
+      "path": "resources/engine/image_safety.py",
+      "size": 445,
+      "sha256": "9894159b06d9ed105597f4362b18486ec771efbef3b9de437f8097c00922819b"
+    },
+    {
+      "path": "resources/engine/imprints.py",
+      "size": 4049,
+      "sha256": "e7c07532f0ad13a6c07c2b826cab59a5a0586a40f08669a9db9ef44c2732dd66"
+    },
+    {
+      "path": "resources/engine/in_book.py",
+      "size": 41120,
+      "sha256": "02d6e4e84855d01c92213c43df410a69725d840b17e6d63109e3217be4e438a8"
+    },
+    {
+      "path": "resources/engine/installer_launch.py",
+      "size": 20195,
+      "sha256": "420519c31cd7aa7f9d748a503db0bb8742e8aa97c127e90457ccff7659dbe102"
+    },
+    {
+      "path": "resources/engine/kept_backups.py",
+      "size": 12671,
+      "sha256": "dd544dd28976727d32c0e1fc2c35595948d412c5f586c95166e4843ae0d5ce1a"
+    },
+    {
+      "path": "resources/engine/language_tags.py",
+      "size": 17288,
+      "sha256": "76f5f0b56577398a309d5c135662dac3165533121e640673edfb5df970fd1e8d"
+    },
+    {
+      "path": "resources/engine/lens_browser_owner.py",
+      "size": 4459,
+      "sha256": "4d6521e4e45a7386a9075e8d84e43d026282e3569d994d5f82278e8bd8753c1a"
+    },
+    {
+      "path": "resources/engine/lens_verification.py",
+      "size": 13497,
+      "sha256": "7ec513b69389641769c48f05f8e4f78e197627bd7d7e55fc97c8619917cdfbaf"
+    },
+    {
+      "path": "resources/engine/library_lock.py",
+      "size": 10114,
+      "sha256": "c03cb9cf4f6d333ae56fc5962a467ae48aedaa6f3dfdab36b3bab77039d797a4"
+    },
+    {
+      "path": "resources/engine/local_model.py",
+      "size": 15283,
+      "sha256": "1235a00891a723e6f96a180cdb50bad3a21963d8dfd0d51a885eed88e6b64a16"
+    },
+    {
+      "path": "resources/engine/maintenance.py",
+      "size": 5378,
+      "sha256": "7be1d68ad0f8845507be003b66132a876c8efccb2fcd786f7d3ff08c872b72f9"
+    },
+    {
+      "path": "resources/engine/metron.py",
+      "size": 18260,
+      "sha256": "8b87aad2dba391b4ff8858806684f49e6151975ed76859d89b7b1c3c24149747"
+    },
+    {
+      "path": "resources/engine/open_library.py",
+      "size": 3323,
+      "sha256": "0dda23802dd4fe7e7136ea70d0080947a9b9806a056603b8fdebfa9d893ec6b9"
+    },
+    {
+      "path": "resources/engine/pause_control.py",
+      "size": 8662,
+      "sha256": "5c6a54e544aa9f795410ac4b6e3719ddb50d7ecb958405e27b1dc063fc976e4f"
+    },
+    {
+      "path": "resources/engine/pilot_credits.py",
+      "size": 11102,
+      "sha256": "be53ab0e08d1e01cb682a74e827b9e73af128704cd28126ffd519580a3e2972a"
+    },
+    {
+      "path": "resources/engine/pipeline_config.py",
+      "size": 5922,
+      "sha256": "e6f06b89457a7703fc32ff2198fcedc749bd05675988150be7501c9808b2a090"
+    },
+    {
+      "path": "resources/engine/problems.py",
+      "size": 9530,
+      "sha256": "3adbc8d92c0645f7135fb17fb2f43ce2fd6f9f29e442288eae9d85d1705659f5"
+    },
+    {
+      "path": "resources/engine/progress_snapshot.py",
+      "size": 6267,
+      "sha256": "ac6cb04ff8f82800032eae1644f77559698edcba3c56e485bb7d44ad61bbd3f3"
+    },
+    {
+      "path": "resources/engine/provenance.py",
+      "size": 9861,
+      "sha256": "28579e23c700ce8cb5fbf72f31e2b3af0f2ab8ae57c76bef7977b65a307af83b"
+    },
+    {
+      "path": "resources/engine/provider_wait.py",
+      "size": 1740,
+      "sha256": "9f19e6e33182a0cfa6be3ba0a93da603a71a6c09b3d86a04d429fcf9240d0b31"
+    },
+    {
+      "path": "resources/engine/providers.py",
+      "size": 13035,
+      "sha256": "1422fa2568a0b4aa5cb65d9a0f2f98056235ef62542b59d151328b4c09830b46"
+    },
+    {
+      "path": "resources/engine/publisher_catalogs.py",
+      "size": 9052,
+      "sha256": "e43559573de25be27e3c5bea098a1741c083d69fff5958f4d5c04c982de3b38a"
+    },
+    {
+      "path": "resources/engine/qa_runtime.py",
+      "size": 9360,
+      "sha256": "15ba6649dd69ff3dd480b300ac882a664a23a365d3d58e3a67944678af5dd2e8"
+    },
+    {
+      "path": "resources/engine/relabel_cover_tasks.py",
+      "size": 6924,
+      "sha256": "6072c6eb31076466d50bb8d1529d538c72936557adf11ee8656de4fae3e49bf7"
+    },
+    {
+      "path": "resources/engine/requirements.txt",
+      "size": 447,
+      "sha256": "3ed153416498a4ee2d79df1a4abf8c16f0628df43695f15776725e53ae1ef3d6"
+    },
+    {
+      "path": "resources/engine/research.py",
+      "size": 34163,
+      "sha256": "41cb9918cc67bc9de8c0e0dd047f4752b03721653b7472b5c5d1472c7fd3d985"
+    },
+    {
+      "path": "resources/engine/research_runtime.py",
+      "size": 10234,
+      "sha256": "ca7c1118aaffe1ebbd67a79d6793e3e4fc64b995043b513b75682cd0b896aca3"
+    },
+    {
+      "path": "resources/engine/reverse_image.py",
+      "size": 7243,
+      "sha256": "8bf04f48348987095363dd2500daf746495720a7662de66cc21d466bdc43c1a9"
+    },
+    {
+      "path": "resources/engine/scheduler.py",
+      "size": 6526,
+      "sha256": "c23b85653b7506cb510c699c9ecb7eade07948837fe71b805a6c16e0857e48b1"
+    },
+    {
+      "path": "resources/engine/server_host.py",
+      "size": 1341,
+      "sha256": "b1a884a7eab1633c4e5cfd0795767f73ea3fef87df32a697c089a1e0c0f6c9ae"
+    },
+    {
+      "path": "resources/engine/setup_state.py",
+      "size": 10520,
+      "sha256": "2a59880cb4e8ab54e0d2f4a9b93f86f640e9efe106c14f355bbc471255b58470"
+    },
+    {
+      "path": "resources/engine/source_scheduling.py",
+      "size": 9993,
+      "sha256": "9eef13d0f10fc94874d37ff38dbbeb3c4a9b188d756eca6340d68089ce5abf17"
+    },
+    {
+      "path": "resources/engine/static/comic-recovery.css",
+      "size": 7874,
+      "sha256": "d4e596d9d5c183860745e252a90514ca7f684e9cd3a11a33e83a56465677af71"
+    },
+    {
+      "path": "resources/engine/static/comic-recovery.js",
+      "size": 23890,
+      "sha256": "1fcc59ec4a18ba1d9d770aa672a1d01e48c005aa96a02949a124749d1412fe08"
+    },
+    {
+      "path": "resources/engine/static/folder-help.js",
+      "size": 34362,
+      "sha256": "a892a50ea45326b5f26b2a6d1dbb2244ff13c3dd5b47487044bcaebadb5d8e5b"
+    },
+    {
+      "path": "resources/engine/static/gcd-offline.css",
+      "size": 1921,
+      "sha256": "48f5044c360d6c878a4f47beb2a9ffceb499249c723b5a8e4cc59a872a79220f"
+    },
+    {
+      "path": "resources/engine/static/gcd-offline.js",
+      "size": 15300,
+      "sha256": "91f012a2ed2a85fb5173bbe27bdae7195b190e2ecc77d46e122130f88aaae047"
+    },
+    {
+      "path": "resources/engine/static/index.html",
+      "size": 51051,
+      "sha256": "94050851c536ada59153062a90d5d402a9acdb851aa1b2c8edc1385d5655abbe"
+    },
+    {
+      "path": "resources/engine/static/kept-backups.js",
+      "size": 17269,
+      "sha256": "392a35251cce9a7d83a577ab45e3f81a13710ae7f3362ac4cdb928def63cf179"
+    },
+    {
+      "path": "resources/engine/static/lens-control.js",
+      "size": 5485,
+      "sha256": "c54eda95b5d82fde179f865e4478e81ac461479a2208e18d7984b514ef0a08f2"
+    },
+    {
+      "path": "resources/engine/static/reverse-image.js",
+      "size": 1092,
+      "sha256": "5abdc1d10fe7ef7c29fb45f1f7788c3de6c6fe26030c158065aa35ec4bb88ba2"
+    },
+    {
+      "path": "resources/engine/static/shell-ui.js",
+      "size": 11585,
+      "sha256": "7d22449076ab26608dde901d71465065d9951a0274a7e053ad36756cf1d9feeb"
+    },
+    {
+      "path": "resources/engine/static/update-stats.js",
+      "size": 22167,
+      "sha256": "21b3a0b949221892603c788800155c430498d446afcd9a24805bb24b5c19b263"
+    },
+    {
+      "path": "resources/engine/storage.py",
+      "size": 1250,
+      "sha256": "cfa1c5f14da990e1505c39c0000417a104d94ecbfeb7c77b001b10284154bed8"
+    },
+    {
+      "path": "resources/engine/supervisor.py",
+      "size": 2367,
+      "sha256": "677a960586f14c59696bd512d516e65dd679b3040e9e4d984bfdb2fd76bdc448"
+    },
+    {
+      "path": "resources/engine/update-runtime-manifest.json",
+      "size": 83885,
+      "sha256": "100afee9af12858aa8c8f81708ae345e86ebe5bd6fd4bc383f81f0e2c3c88b18"
+    },
+    {
+      "path": "resources/engine/update_stats.py",
+      "size": 16916,
+      "sha256": "f73a0c6b2c1f4475b3ecb9c279d35d53ac409548ab492ccf5054bd1866681d74"
+    },
+    {
+      "path": "resources/engine/web_search.py",
+      "size": 17318,
+      "sha256": "64ad0c76d2f1de44c29ebb12a51cff8223d3a57853e3dddd567c58b2fe850d57"
+    },
+    {
+      "path": "resources/engine/worker.py",
+      "size": 10092,
+      "sha256": "ea9bcf29c8d932f0b6a8e43904fb9e81a252b3310b33d4d9921ebcdd73101439"
+    },
+    {
+      "path": "resources/engine/yandex_verification.py",
+      "size": 9842,
+      "sha256": "7da3f5d4e413babee92a33724b85f042dd04ea76ec6296bae5c217e36782f06f"
+    },
+    {
+      "path": "resources/engine/year_hints.py",
+      "size": 1953,
+      "sha256": "360d77700243611b1eb35605ac80b5414d074de0ba8132841c159545ee3008b8"
+    },
+    {
+      "path": "resources/licenses/Python-LICENSE.txt",
+      "size": 35407,
+      "sha256": "935cf13e19f8c31b497d20b05d73623431a226b230c3599bc30fa3348979bc68"
+    },
+    {
+      "path": "resources/licenses/runtime-lock.json",
+      "size": 2621,
+      "sha256": "2c89c9ede8b0e6befad17a97743eb8d4d2adeba542579db3d8b72c6cc8d4f974"
+    },
+    {
+      "path": "resources/runtime/7zip/7z.dll",
+      "size": 1907712,
+      "sha256": "899cd73d7fc60e1c1c35c7de0f5bed3dc69bfe2cecbd48014d868a347970a0b1"
+    },
+    {
+      "path": "resources/runtime/7zip/7z.exe",
+      "size": 577536,
+      "sha256": "95fff19b73eff77c87c0d7bd32822e43fb90dd2932459f962eb532d8dfb6ba53"
+    },
+    {
+      "path": "resources/runtime/7zip/License.txt",
+      "size": 6031,
+      "sha256": "519ac0a4bded9c18ea02e0afb71f663d8c47373bd9facd3ac96a79f51d77765d"
+    },
+    {
+      "path": "resources/runtime/python/Include/greenlet/greenlet.h",
+      "size": 4919,
+      "sha256": "82847d669ac6a2aef5981461cc1b9ec45bd336bcaf7f8b9c78c1cc21a4b1877a"
+    },
+    {
+      "path": "resources/runtime/python/LICENSE.txt",
+      "size": 35407,
+      "sha256": "935cf13e19f8c31b497d20b05d73623431a226b230c3599bc30fa3348979bc68"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/AvifImagePlugin.py",
+      "size": 9323,
+      "sha256": "602c37986b198aef0b0e9bbc79466e7f8a3eee7b8f4ce5ba08503a1483e45933"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/BdfFontFile.py",
+      "size": 3409,
+      "sha256": "99bd5634968cd1e7bced1b1f44b0f815913fa8e101cac2074fd7da59f9b9773b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/BlpImagePlugin.py",
+      "size": 17066,
+      "sha256": "1291e85528585f2a6ac671288924a19e00fb08f842798f1e7f0487d46e659d79"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/BmpImagePlugin.py",
+      "size": 20395,
+      "sha256": "71ac1005307f5d9a2306ddae03bb9df0f0e0b32a9ad10491a813fdb8802086c0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/BufrStubImagePlugin.py",
+      "size": 1757,
+      "sha256": "3b2a82334b9422e153315099108f4fda20377a83785d540f7c57cdb835bfc9e4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ContainerIO.py",
+      "size": 4777,
+      "sha256": "23ac8efd814412a30a035724804133176aff224e69fc68ccf91ad63896234a56"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/CurImagePlugin.py",
+      "size": 1866,
+      "sha256": "3bf6c5b56f3662100cf3f17cb69af73b952bcca3cfca257d4b6ce357d430a9a2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/DcxImagePlugin.py",
+      "size": 2264,
+      "sha256": "2f6d5cde0557e883e6938cee7ff96db779807917dcb8209c5e1902569b9e7765"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/DdsImagePlugin.py",
+      "size": 19556,
+      "sha256": "d89c73bd3b276a2684e71584f9b523363bae37a1e3842695ba8cd8ef8325f585"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/EpsImagePlugin.py",
+      "size": 17105,
+      "sha256": "8e542a423b8a4b36ffbd585d355947ffebc2f4468badac08227262ce661a2083"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ExifTags.py",
+      "size": 10339,
+      "sha256": "362cafb665044fbf41322a248a3313a7fabc75e596ce9c9db5371305f272f0a1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/FitsImagePlugin.py",
+      "size": 4893,
+      "sha256": "6cc4f109c3647977760d14221f6f79b3eb7e69ac0573dd9fb0fb3f3b2294937b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/FliImagePlugin.py",
+      "size": 5113,
+      "sha256": "2f5bdfe108ec68c57479141399fcb5c27a89f65f61195e65bd320b5bbce7cc3f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/FontFile.py",
+      "size": 4367,
+      "sha256": "396411a1da03f7640305e12e6a979d0e4efb53f80ef0c2254dc7cab7f44086cc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/FpxImagePlugin.py",
+      "size": 7590,
+      "sha256": "776ea3af362809c49c249c00db0fcbb237612b3fb4010dca11e53009177767e5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/FtexImagePlugin.py",
+      "size": 3685,
+      "sha256": "fb32afbe131373351ede8d1fe07a430bdfc32ba94a1d3e4b0017f4af9fb797ee"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GbrImagePlugin.py",
+      "size": 3156,
+      "sha256": "21bff2df967334e98ca86d92b8eca3c518773b1b78d90a5c11c80b6ba0619ad0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GdImageFile.py",
+      "size": 2892,
+      "sha256": "e4d41054f16930c95eb4a0c29eb3f5dfc7761809ea8440a60dc6b464fc379f4c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GifImagePlugin.py",
+      "size": 43596,
+      "sha256": "0cf9dd837ba23b412c95765aea4422bbf6e7c2210c6eefde91eab43d4308b0d5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GimpGradientFile.py",
+      "size": 4137,
+      "sha256": "cec216d4c915ea4a39964e072555de8121d4df250fc16d695329d1b39cf48990"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GimpPaletteFile.py",
+      "size": 1935,
+      "sha256": "126047710f44c42e1fe3bb5a0fb4bb1ba55a324afd1e3ca7955f0d7535d5e624"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/GribStubImagePlugin.py",
+      "size": 1786,
+      "sha256": "73c88f12a40e48171616a756122b9cb9b8da5f061f6520761a365761568f0313"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/Hdf5StubImagePlugin.py",
+      "size": 1768,
+      "sha256": "ac831d7fbb83b248c9ab07ba0af18bc3fb6325f875828e6f2929e67ed05d08a8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/IcnsImagePlugin.py",
+      "size": 12798,
+      "sha256": "4e8092cb968527bffa9e266ccc53917c232bf3f5393babe0775447315aff27fa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/IcoImagePlugin.py",
+      "size": 13499,
+      "sha256": "0d9a018f6ccabfbe9293de8f2aaf1e97d69900cd89df050b56a3dea27a3fd33d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImImagePlugin.py",
+      "size": 11992,
+      "sha256": "5fd881490e31eeb6aec5b3889fbda3eefe9301481995da580f970073a67530d0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/Image.py",
+      "size": 157992,
+      "sha256": "218c0bc17cb7ce1e8223dfb32c11e4818ccca141fd57b84ce65d149308dd425a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageChops.py",
+      "size": 8257,
+      "sha256": "859f043d43e5408cee82c11e755f2dae4297d230420c66fa0acce66ba65e3194"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageCms.py",
+      "size": 41752,
+      "sha256": "e6b0cdf8588b1de6ca9563f690dea36ef0c417d8dc6f7b289a405a0d7f1d15bb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageColor.py",
+      "size": 9761,
+      "sha256": "295faeec79d95abacbdf3b8100e2ea7ab23eeef15c5d3c5d2dea1a6158ec9f02"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageDraw.py",
+      "size": 37268,
+      "sha256": "43b40ebe2a6b0ea983826db1a655d6efcf813713d1b76047a3cf419255020ec0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageDraw2.py",
+      "size": 7470,
+      "sha256": "1b4388cfbb0e5bf4e7af5b431ee8d3c8f54476aa216fb33838e3ade19424550c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageEnhance.py",
+      "size": 3740,
+      "sha256": "ba00d4d2c963691ff369389bb6e9a54ef7fea851f5c755ba97640ca5cdfce975"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageFile.py",
+      "size": 30806,
+      "sha256": "31dc81e04801d9ba1c62058650bab3213910717a96702241538814eab23c9e8c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageFilter.py",
+      "size": 19336,
+      "sha256": "9f7693d4c91b2aba863dea12baac665a5895aa19213a02d9de2c632e7f2fa8af"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageFont.py",
+      "size": 64454,
+      "sha256": "9259953ec8b7d24a05dc6c74b13c5c88e60c1e5894f258b57d44567e451dfbba"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageGrab.py",
+      "size": 8349,
+      "sha256": "2984fe43cbbae3c24faf62317c1b92f27f653112c0a27febf822bbb90f4c3841"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageMath.py",
+      "size": 10683,
+      "sha256": "c6118186f7addafedb8322d197f69dcd55a7999ef355c6d3f1dd6ad5ca491c52"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageMode.py",
+      "size": 2480,
+      "sha256": "50b900fa3b02806c31563af62cf48fe367439a3ea759a424f4be142a3eca7d28"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageMorph.py",
+      "size": 10673,
+      "sha256": "56bd50401e6f198a4655f7d11894287781fbfc095098ede5f81961a5a61e0f22"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageOps.py",
+      "size": 26313,
+      "sha256": "d107343d3839afcb7c25281a2a4cddf9c8d8306b4c5143120645e699a266f895"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImagePalette.py",
+      "size": 9498,
+      "sha256": "f4a973fbb23a253494a7695f64933a5740f270540a926e91c5fc970d3e14fe7c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImagePath.py",
+      "size": 391,
+      "sha256": "6679c9baf40db5b2918429abeb54c4984875bd5579ffdd163043cbf0ea72e65f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageQt.py",
+      "size": 6903,
+      "sha256": "4a9c4778f81687981d8d5206342e061b9bfd577b26426fe73e224372b8671d77"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageSequence.py",
+      "size": 2341,
+      "sha256": "82e64751da56af39f3664718d0e6290f3b85d2e15794212edbad283feedefdf2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageShow.py",
+      "size": 10468,
+      "sha256": "4ea3ba9f38f910cc29e5d1316a0de3841257747a2371c9c5c79f4b3a73106a8d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageStat.py",
+      "size": 5662,
+      "sha256": "5b4b946bc60d0babe1a3095ead2cd923013b46ef8aa76ad6baa18d2c114b672a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageText.py",
+      "size": 19084,
+      "sha256": "186eb1ea932861427e3bfb60b196c3a1c1ef7054ae6d1ea2b057a9be31d1891d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageTk.py",
+      "size": 8398,
+      "sha256": "4f1d337fd913681b801af66ea342401eb35b9379fa7b0af86677569d6c592b44"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageTransform.py",
+      "size": 4052,
+      "sha256": "66eea8c925c436dabbd76fa792a14ba9a7d83ef891020b209337cb586d0add5f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImageWin.py",
+      "size": 8332,
+      "sha256": "6fe7ceea49f889c1e9cbece4f9783e9cedfcdb33d797e30a8d972cdef0179754"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/ImtImagePlugin.py",
+      "size": 2768,
+      "sha256": "afe643cf75e38ba10117c7949caea2b8211912d965a74c4b452210d3f875e141"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/IptcImagePlugin.py",
+      "size": 6663,
+      "sha256": "e05b6e7b88dd6bba546342e1dbbd8e0df84e0488893992b4410d9ed0f610c228"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/Jpeg2KImagePlugin.py",
+      "size": 14867,
+      "sha256": "eb6f25b2108b2316f407918356e574cbbbb55df611374ee9b0f30eb5842c2fb7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/JpegImagePlugin.py",
+      "size": 32223,
+      "sha256": "049fc12cf436b101a5622456a1b83ba8b28b54cf8106d3953aed751bb0c08f3f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/JpegPresets.py",
+      "size": 12621,
+      "sha256": "51422c2b3bf2cdd3f3b2774e0ddf747aefe5b8ca9ab86d4f261d7450eb90be68"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/McIdasImagePlugin.py",
+      "size": 1955,
+      "sha256": "3fd77592be12b5ed10564c5faa2c77d6c7c60fcb169fe7959982b4c20e83bc8c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/MicImagePlugin.py",
+      "size": 2702,
+      "sha256": "b82c463389652053e37eed8a8e2fb34a73da727aa2194646aacfc3b5bdc992d2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/MpegImagePlugin.py",
+      "size": 2094,
+      "sha256": "91e9bdce87ec06d22aeb194c25cb0590e5d370908f1080a4f657214df47da432"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/MpoImagePlugin.py",
+      "size": 6987,
+      "sha256": "ffc580b1881e62444336ab32d08ff2c38a72c3471a75dadfd4c5940cd2808636"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/MspImagePlugin.py",
+      "size": 6090,
+      "sha256": "4a46ec6c294eb87aef074751d974bbf117e03cd85a009bb62c30f88888db3fa8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PSDraw.py",
+      "size": 7230,
+      "sha256": "eec05f0067c19aa9d958c4e445f2e6e28057b519415c0b984fffcd3f71ad1f0d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PaletteFile.py",
+      "size": 1270,
+      "sha256": "41d11af7d8cb0be3cf844a86cbaff87c3b9af13cca4925339007987029455fb3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PalmImagePlugin.py",
+      "size": 8965,
+      "sha256": "2247aeefa9db5ba83130696a516c1b579ec12441abd775465c842f9162b9e265"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PcdImagePlugin.py",
+      "size": 1842,
+      "sha256": "819b027170c8a845532b6cfe1962a9b53db9a455350143a0a6bdc9d3a7233c28"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PcfFontFile.py",
+      "size": 7498,
+      "sha256": "0bac22e4ab8869c994b3f7041a6f0ca26c2966b0d4a5854212625ec81ea79093"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PcxImagePlugin.py",
+      "size": 6596,
+      "sha256": "5e6f1423fe7f01006c89693b07c489add784ffccfb0d20405269cda636e79396"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PdfImagePlugin.py",
+      "size": 9632,
+      "sha256": "80932bd2c4845b3ca7ecb9cae4fe56408f7de42bbf97e5b74fc157e2356061ff"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PdfParser.py",
+      "size": 39338,
+      "sha256": "24a393828693225c049bd9abad01d186fcd096397a5d24fe8363a78534cb7b1c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PixarImagePlugin.py",
+      "size": 1830,
+      "sha256": "f919ee2521a1185f0cb14b221d9ab757307157e04d9cadf99018c97e1633c17b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PngImagePlugin.py",
+      "size": 53289,
+      "sha256": "76351c316e43adbc3b58d1ab83b8f62f6a8eef93c83fb7f6df5cb20b2f3ad6fe"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PpmImagePlugin.py",
+      "size": 12766,
+      "sha256": "5a1b4294614c00ef1565953d9850597cc8fb0db932b59f173fb9d06d5b593795"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/PsdImagePlugin.py",
+      "size": 9173,
+      "sha256": "11d0df7cb76fe2f557c9fe3edcd285716212a56453c7a40e3dc49d504786de2b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/QoiImagePlugin.py",
+      "size": 8842,
+      "sha256": "5ca593eafe5fee5ff75a64d6c5b9a6356b0c9339798fe521e699c9c15db26c58"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/SgiImagePlugin.py",
+      "size": 6620,
+      "sha256": "c35c55e3e10b6011ca2ff01a19ff68252609cc1c13a5d27eacd3ea880aca806b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/SpiderImagePlugin.py",
+      "size": 10659,
+      "sha256": "a7557f8b14b2b5896e194c4e1b0e37ca667d8bde6909031e5013fda981bb1392"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/SunImagePlugin.py",
+      "size": 4734,
+      "sha256": "60a604bee1b84149227acdf838ab5758a4d8499f14deacdc13fbdd4eb3ae46cc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/TarIO.py",
+      "size": 1503,
+      "sha256": "2bab4b9050dc69aaf7bdbe84c986fb1b8a15101e35c7f2ccb8625e513f70e434"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/TgaImagePlugin.py",
+      "size": 7873,
+      "sha256": "500bcc62e6b303bf4e17355ebda979b9468cae6b103c74754ec6eaac25ad2a24"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/TiffImagePlugin.py",
+      "size": 88194,
+      "sha256": "741bf673de2f1f4ea9bb40c518b6db5e8f8f40dcc8cbc1af866e2f47c50bf5fd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/TiffTags.py",
+      "size": 17772,
+      "sha256": "16c76a6c8409388ee2846ecc67f2b8614403678ce8fab6986e28550dee3653d1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/WalImageFile.py",
+      "size": 5891,
+      "sha256": "70b442298cac9c4d2fe59fd47745ded180de338988c45197a83231f157ae31c6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/WebPImagePlugin.py",
+      "size": 10171,
+      "sha256": "9aa75b945dd4459fd5d9d8a3597b65a0cdf6f3f25afadc4c51eaefcc4548d169"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/WmfImagePlugin.py",
+      "size": 5390,
+      "sha256": "136d180c964920aad44327ed3a6ac9ac0b97ba60c6662c231f237620a282c9b8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/XVThumbImagePlugin.py",
+      "size": 2209,
+      "sha256": "384b448508022cb82fc7c275888f75d533338c9e624e538ea90a4b431d5bcd0e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/XbmImagePlugin.py",
+      "size": 2767,
+      "sha256": "c1cd0da5f4f3952871f589a2d33c28d1a5598c36b8fc1ecd1221b64e008eeb94"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/XpmImagePlugin.py",
+      "size": 4557,
+      "sha256": "c187fb43b4c6a3824bea7e68b90c7ca5b4cc9cc655b21829fb1c2800c64450a8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/__init__.py",
+      "size": 2122,
+      "sha256": "3fffff8502f4b59ca61d39cce713d55ffef046954262fce1abac3e97f3803734"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/__main__.py",
+      "size": 140,
+      "sha256": "5fc788a469661df9e9ef36b3a7999d6afdb6f08b5c7f696488c3f4b4b53a5fd7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_avif.cp314-win_amd64.pyd",
+      "size": 7892992,
+      "sha256": "c934bd54355739daff001ca516f566ce942cf02e76b4b1727568a02542625a17"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_avif.pyi",
+      "size": 66,
+      "sha256": "cc3f2f0283c2f1a1085637dc90bb45b24456e6c6a255e977fac254036a476867"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_binary.py",
+      "size": 2664,
+      "sha256": "ba6dc47fa221e747297ee81afcbdaef2ea9be664c7a4b51f5382563132e0b20b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_deprecate.py",
+      "size": 2106,
+      "sha256": "522ac3970b3279feaeeac2ffae51379a72ad45fd666af9a7864b7fd4f03b43c0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imaging.cp314-win_amd64.pyd",
+      "size": 2584576,
+      "sha256": "b4e06283c347910b5973bd5732159ea9eb26eda48e3eed183be2e3382db26597"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imaging.pyi",
+      "size": 924,
+      "sha256": "8d2446dead5dc2204ca8ec0884bb5305edcb30ac2c8b76244dc0dfb0a577d84d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingcms.cp314-win_amd64.pyd",
+      "size": 269824,
+      "sha256": "68b85230ac4d44a2a377b69965936dfa7a5aff04b7a9ba562af3438d9a5a6550"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingcms.pyi",
+      "size": 4576,
+      "sha256": "e7f48329eecac13f5a6f911e1bec27e85e6cbff7ecd28db5db1a0f066dc7f88a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingft.cp314-win_amd64.pyd",
+      "size": 2162688,
+      "sha256": "7e6910e39fa06b4049f058a781a20bcac40c4844d46037859c76de76852dbb3e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingft.pyi",
+      "size": 1903,
+      "sha256": "535ae9c2a417d6150bbd3028f1f634fc8ad79e0f953ee09755a581523da9d73d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingmath.cp314-win_amd64.pyd",
+      "size": 25600,
+      "sha256": "a1c024d3e0e75802e3249a1a33335809b6cf032749ed2c4507d622d6610e36f2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingmath.pyi",
+      "size": 66,
+      "sha256": "cc3f2f0283c2f1a1085637dc90bb45b24456e6c6a255e977fac254036a476867"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingmorph.cp314-win_amd64.pyd",
+      "size": 13824,
+      "sha256": "0c875607f9f3b951dac36d1d4ab58969ae8d1479b926642aa87f12745efabfa5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingmorph.pyi",
+      "size": 66,
+      "sha256": "cc3f2f0283c2f1a1085637dc90bb45b24456e6c6a255e977fac254036a476867"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingtk.cp314-win_amd64.pyd",
+      "size": 14848,
+      "sha256": "783d411905ecd94a341401c12b267f74e649627e046051e9813f8a8114851a60"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_imagingtk.pyi",
+      "size": 66,
+      "sha256": "cc3f2f0283c2f1a1085637dc90bb45b24456e6c6a255e977fac254036a476867"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_tkinter_finder.py",
+      "size": 558,
+      "sha256": "1f5530ddd57b8161c88ffa2c527245c56875691b10d8c74aa4d3f7bd0c10716d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_typing.py",
+      "size": 964,
+      "sha256": "b7e3154b97ffa5174bf8cd3bd9866a957141fc3f33d4a3a5f0470ab13fddf6ce"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_util.py",
+      "size": 713,
+      "sha256": "78ff087e658999b13f3ea6d425be2a4ea18d2e2e334f44d369daebaa6ca483b6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_version.py",
+      "size": 91,
+      "sha256": "fd367f32370d65c5bfc97dbefbc77d6d17a9c2576f64d414c4429e07ac4c616b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_webp.cp314-win_amd64.pyd",
+      "size": 409600,
+      "sha256": "1f61a83c78f034f06f9229c80008e900ea7fd5422e1b5b8e1515fc6df31820eb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/_webp.pyi",
+      "size": 66,
+      "sha256": "cc3f2f0283c2f1a1085637dc90bb45b24456e6c6a255e977fac254036a476867"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/features.py",
+      "size": 11118,
+      "sha256": "cbf7a5342ce007a46030ff4031fdc274e3f78dda0de21a38bf1a122b383a7967"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/py.typed",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/PIL/report.py",
+      "size": 105,
+      "sha256": "ea6ecd3afd5adb8e7bed9889a315fcf62a7925e3a07f63b517de5febed4ae5a3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/METADATA",
+      "size": 3881,
+      "sha256": "cf2d7aec2b6ba3bafc9c9fddbb767a18921f119e5201d1bdbe64f5a34a27dc3f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/RECORD",
+      "size": 8954,
+      "sha256": "53ec9162ef27e7672e1a72caae4faf1af9a59262ee6fbb0a41fe07060f5d6b7e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/WHEEL",
+      "size": 101,
+      "sha256": "f8868e546779e082b2f4ef1acdce705bd9cc24829ee8add213946b7906f8242d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/licenses/LICENSE",
+      "size": 1464,
+      "sha256": "ab977b654605670319509481ece49198f405a129372ac38c96f51cd96c2f452e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/licenses/LICENSE.PSF",
+      "size": 2471,
+      "sha256": "69efa689cc7aec7736236d3039c1d665e4b0c734a5bfea5abf633023abb2fff4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet-3.5.6.dist-info/top_level.txt",
+      "size": 9,
+      "sha256": "6129d1b024683bad491a53f9ee8f2228beab74b5835ae8b2283f1e929594b037"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/CObjects.cpp",
+      "size": 3813,
+      "sha256": "908372d63543d8406fac38790643c49b18b9cd7075177544b04d78c967b93588"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/PyGreenlet.cpp",
+      "size": 29070,
+      "sha256": "9f9f2abf1e4d9761128234c15b06d64acefef9e47ba29c3e1f6a2bd775602724"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/PyGreenlet.hpp",
+      "size": 1498,
+      "sha256": "2e151580b3a25863a59df8c77dca638ea858b86ace74eb2e2a3872572453d1fd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/PyGreenletUnswitchable.cpp",
+      "size": 4306,
+      "sha256": "de65a6183cde3827707ccd455a1f335b1e9a55e745536914217f05f7871acadf"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/PyModule.cpp",
+      "size": 9091,
+      "sha256": "ccb76496b329472e137a964e54637ec04f1d306cc3f4d361c48ee22b94c9eed0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TBrokenGreenlet.cpp",
+      "size": 1066,
+      "sha256": "fe12d5e2f3e152c8b06f9ae7367ad435bc820477b434f6d6be507e52dc8d4ce2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TExceptionState.cpp",
+      "size": 1421,
+      "sha256": "18a3c958d82f52d51589c196da09799e54f7aae77e19e04d94ac52882a1600b5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TGreenlet.cpp",
+      "size": 27123,
+      "sha256": "a7bf26eb72a7de2525fb3b02f1fdd86b155f5d3ce98351ada29f510a7e95d0d4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TGreenlet.hpp",
+      "size": 31174,
+      "sha256": "37baf83c8254f96ccef2e06f2833b0bd0793a231b7d1d56b5a2dbb11ded337b4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TGreenletGlobals.cpp",
+      "size": 4043,
+      "sha256": "df724f6cfcec3e86981385a44c50485341c7f556cbafd71e2de3cc347f88444e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TMainGreenlet.cpp",
+      "size": 3756,
+      "sha256": "220a2f4b3f4c58292a1f5b631d54ce233ea49ad682ade5950f57348ef282127d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TPythonState.cpp",
+      "size": 26493,
+      "sha256": "0bd57dc6ecc93a00d98dfe585259474ecb8c502cb5d6e931e2695bd3006eacd2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TStackState.cpp",
+      "size": 7646,
+      "sha256": "4f6f7973f5519f7a2fdb243c9f47af24def762589e5d7ffc4e0d9d751e174597"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TThreadState.hpp",
+      "size": 24529,
+      "sha256": "2a6b3e65cdc80def6a3a61a52d23c6185802182f9ed0354f24afed11d852b850"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TThreadStateCreator.hpp",
+      "size": 2872,
+      "sha256": "764794b5035dff80dbaf051a33b62dab8287822ac6912a71cf9250e443f0992a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TThreadStateDestroy.cpp",
+      "size": 8395,
+      "sha256": "27aa343f77312210b8a1a90281bdfc2e2eeac054e911d870843534ecfacbf6c1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/TUserGreenlet.cpp",
+      "size": 25162,
+      "sha256": "e497dbc5679682c5444602a9758dd763b404b04b7daf1c0cc1d747143cbd1150"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/__init__.py",
+      "size": 1504,
+      "sha256": "e1ac342fe20b33feee48fbe633616f45e64e4dfd4ccbe3c450c2b2d04048e92e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/_greenlet.cp314-win_amd64.pyd",
+      "size": 221184,
+      "sha256": "385172d6468131fdb243502d73f9edbc0e1c344673bca47e24648f86d9b7b23c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet.cpp",
+      "size": 11412,
+      "sha256": "1010b296eb91456ef654365213bc004a31aa569b58a9465fc29ccea6b0081803"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet.h",
+      "size": 4919,
+      "sha256": "82847d669ac6a2aef5981461cc1b9ec45bd336bcaf7f8b9c78c1cc21a4b1877a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_allocator.hpp",
+      "size": 1911,
+      "sha256": "6267a8af928e1bf326881452a4963a22716c6ad2091e704f06b3bb113ce58851"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_compiler_compat.hpp",
+      "size": 4444,
+      "sha256": "b4fd807ec52edf38e44aa8794144bd316808dbaef9fb03298307ac9a58b8a68d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_cpython_compat.hpp",
+      "size": 3442,
+      "sha256": "6301c19f665dd3d91eba48f4ce44e3604eaed241db04af6a9f69a82e53ec9424"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_exceptions.hpp",
+      "size": 4674,
+      "sha256": "13a33cd1e4acce8e5d7c47ef7e6d221c994439234c63499ea7389feb867a99f6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_internal.hpp",
+      "size": 2877,
+      "sha256": "11791810b11f857474950011ebbf0662810a47f748a7fb84b1b1209a21e3ae79"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_msvc_compat.hpp",
+      "size": 5056,
+      "sha256": "746ef2cbc033a6d1db5918a780b6d583d8aeb456ae82e36a2ab4330bfbc5b87f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_refs.hpp",
+      "size": 39266,
+      "sha256": "95381782ccc9cc16f303b1f058b3b44497178c54509a4cfb466f35fe128b1d1b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_slp_switch.hpp",
+      "size": 3401,
+      "sha256": "611cfe2967aa8bc13dffacacb9fb25cc455bbace843345ad71e5565e6e40d0f4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/greenlet_thread_support.hpp",
+      "size": 898,
+      "sha256": "2a82caa33d6b1b6353dfbc356c0fc6100cf7ef454b50f18a4df5101eab4ac050"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/setup_switch_x64_masm.cmd",
+      "size": 143,
+      "sha256": "6690a5509794d2e8c43d24d63527a93f45b67fd5e2610280f10292a15a2ef045"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_aarch64_gcc.h",
+      "size": 4431,
+      "sha256": "073b771cb5ea3e905e5cc16a3c7bff885ae5dea43e84b6e0e54d7e04bc61bc30"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_alpha_unix.h",
+      "size": 701,
+      "sha256": "93d2c0dc102da234c21aa333998c9683923bde38c70ea0c4fd4299b96ac42131"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_amd64_unix.h",
+      "size": 2835,
+      "sha256": "62f303e77d319041bf4b8cc14a0477225bc04493008883f994ef39907f88c69c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_arm32_gcc.h",
+      "size": 2558,
+      "sha256": "f3dfed69e75ddd57a5bd873ff93cb034456a015efbc7fcc361a00fb4e5463cfd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_arm32_ios.h",
+      "size": 1959,
+      "sha256": "1848b70db8d5630b922ac03a3d406dc15dbba167dbb45a63fe767e0f1d98af3f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_arm64_masm.asm",
+      "size": 1298,
+      "sha256": "46d2877c9113cdc77a45552fe542f58e15c2bb355ce482044be36d3d3fa73c5a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_arm64_masm.obj",
+      "size": 746,
+      "sha256": "0e62e7201fe2728107033d676ae7bfa493d366047d12533bf8d9b3b6bfa8f7f5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_arm64_msvc.h",
+      "size": 414,
+      "sha256": "0a717305b12a6889625f0ccd4f106d6c6e563697e986e65ab691d35d551fca52"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_csky_gcc.h",
+      "size": 1379,
+      "sha256": "749c75702922aa035aae2fdc398fca7e78f34771be2766ff31fe9328dcda5ef9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_loongarch64_linux.h",
+      "size": 810,
+      "sha256": "9b274780deb214d4336c34564d84d85ccd37ad4fef42781e2722d3ac66d8e2ab"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_m68k_gcc.h",
+      "size": 966,
+      "sha256": "b3c039f00cd3d3f72c53d1fb8f916547d03c9b228fdc224b59f0e28fbe7a122c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_mips_unix.h",
+      "size": 1527,
+      "sha256": "acf1f90f8467d88cd40411c72701c5ec66bd407bedbe8896cff2c9b4954310df"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc64_aix.h",
+      "size": 3963,
+      "sha256": "d24a738c7fa0164ea5ec9d2a8cd7c500b015c9d9be19bfb7c501207851c2e534"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc64_linux.h",
+      "size": 3920,
+      "sha256": "2761fb9d07626681619155865841444baef9f1516ca50ecf9146c7b2165ff322"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc_aix.h",
+      "size": 3028,
+      "sha256": "eda92423adfcfe45dc4e3fb3df7cf81e9fb25c2cc12990a073da32c23823dac2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc_linux.h",
+      "size": 2843,
+      "sha256": "cf51b41b7b059957aec1e6696df9d6e13e18b2a5cbb06a401a42e13754b31138"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc_macosx.h",
+      "size": 2706,
+      "sha256": "c7a79e30de09942ba677aa0bd919db4cedb862f122e48b3523000d0a581cc5b4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_ppc_unix.h",
+      "size": 2734,
+      "sha256": "0787b6c6f2b7ee2c73ec4dde5d4c9a7e6e28258c27492b5b064e0723e7a097b3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_riscv_unix.h",
+      "size": 990,
+      "sha256": "30185a177d7d84b73350db5fbb2b81405970ddf3fd717b6ff1f4e72dbae80537"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_s390_unix.h",
+      "size": 2850,
+      "sha256": "be576e150c3a92991a964c799ab795ba0c03efbff725966610680b5146c2660f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_sh_gcc.h",
+      "size": 937,
+      "sha256": "49a95be5a0571d3fc2ea6c88001f50ce85608ed0f84f86f506c0cea066d10888"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_sparc_sun_gcc.h",
+      "size": 2889,
+      "sha256": "03b4f900c3334d0696ed94cb340565d11c0961cd4e37f65a81c451d5d454e378"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x32_unix.h",
+      "size": 1572,
+      "sha256": "6eb2dd9041029a998caa5f64e11363d52cde01e6adefb2ee9a4272f0ef46eb66"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x64_masm.asm",
+      "size": 1951,
+      "sha256": "92b00ce224dc14551c70d940a6d5e0c78d687af3cee73b0638074c763534ac06"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x64_masm.obj",
+      "size": 1078,
+      "sha256": "18db5337161da3b89d15462c42ffa6ad75a0c93e4427ddfef6af7494deacbed4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x64_msvc.h",
+      "size": 1864,
+      "sha256": "2c7e198104c2d0f46e1b7f07ee7442511e5d0cb42bcfad5bc5a1b8fb9999f52d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x86_msvc.h",
+      "size": 13164,
+      "sha256": "9d6b515c57c76fdac4de98c27b9a39b5da09c9cb64947043e2456aecb5fd7cbb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/platform/switch_x86_unix.h",
+      "size": 3164,
+      "sha256": "2aa6a4ccb6d695ea14c20b698c31adff8a3addb3b2e50d02c6af117b99f93b20"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/slp_platformselect.h",
+      "size": 4036,
+      "sha256": "f2da6881ba72ee5f264bcf0db15a24ad5a72f2b190589417fd7df08c618ab064"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/__init__.py",
+      "size": 9984,
+      "sha256": "f84bf56902186e776b3f40df73f3fc83a26538a9c958c389152acb3a5df01eb4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/_test_extension.c",
+      "size": 7580,
+      "sha256": "e2f219faf71566d208642ffb020ac262f222d4bcbb15fdd60185b42a7aabb54a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/_test_extension.cp314-win_amd64.pyd",
+      "size": 14336,
+      "sha256": "a3593fdd185c4271f829b7e39dfd4d22550933b04afa6ffa85448dd69131302d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/_test_extension_cpp.cp314-win_amd64.pyd",
+      "size": 14848,
+      "sha256": "3e76f97e59d7fb9c042ddad3643a8a71d916bb671c8ab51dd61aa6265f87af85"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/_test_extension_cpp.cpp",
+      "size": 6943,
+      "sha256": "59393a0fefb5eea43615f2603c71b3802716a3f27d2f3620b8dbe8c7ac7bbed0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_c_stack_refs_suspended_gc.py",
+      "size": 3467,
+      "sha256": "2f53761a334dedf2b27b04bd02dffa9c69435c95f50ac6ab6a68b0ed69483c54"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_clearing_run_switches.py",
+      "size": 1310,
+      "sha256": "bfa963d46ec64d19a5ec2ad43d1bb3c6493af29d4c7cc98dc3291b6b59857377"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_cpp_exception.py",
+      "size": 1018,
+      "sha256": "fa7507f2c9493b181355f171dae13b1f00e5561f9d12c92beb347e8f28ec2603"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_initialstub_already_started.py",
+      "size": 2039,
+      "sha256": "2aef12c55469c04e532bcfbb35eb677778bafe7ae4506b4aa5347c4e2b100f31"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_issue_515_freethread_gc.py",
+      "size": 4112,
+      "sha256": "654051e30dbd21109e3d920a55a77cb46f4ee140ab4f1fe46b8491e5d3a3fe41"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_slp_switch.py",
+      "size": 553,
+      "sha256": "166528f18b06997b751ea02ef67b096701f938a8e09a0cc7da791cf22131091b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_switch_critical_section.py",
+      "size": 1519,
+      "sha256": "2de6d4383c0daeee101ae59adb78f5e53ff62f70abb8f99e432c9f5b2c853c4f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_switch_three_greenlets.py",
+      "size": 1000,
+      "sha256": "2977df492198a4a16b7cbcc5f600ee548bd2b3e18a56e0d0c397317671c5d78b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_switch_three_greenlets2.py",
+      "size": 1340,
+      "sha256": "2435c4f4241d55e275af0e18182d70036002de1377377268b0b7147e35f5ae6e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/fail_switch_two_greenlets.py",
+      "size": 858,
+      "sha256": "52e5026ba62a57b2ec866dd16bb333b8b9c8a70ff535566d4fe36e9b40d53018"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/leakcheck.py",
+      "size": 13976,
+      "sha256": "9dddbad48e8a4ec5a9d9319c3012d0e587f902894e4b1c304ccf5520e7aac85d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_contextvars.py",
+      "size": 9846,
+      "sha256": "5ffc9b67a2e510aad6b17d9695fefeb5a19ce322bcb4557602a97e7f3e05488a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_cpp.py",
+      "size": 3255,
+      "sha256": "f58653fba49b58c042489523c723b4ca56e15cdf0de4506fe8f423ec7f23b469"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_extension_interface.py",
+      "size": 4961,
+      "sha256": "dc7d4a5d61aaae0f4e29f3ce6c26830c13fc1a5f8b8f58bd91479e7d2c81e697"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_gc.py",
+      "size": 6154,
+      "sha256": "b2ee5c8eaa698ed924263e12445cf3ea93aca3fce24c83a06d6895f32e69ad8e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_generator.py",
+      "size": 1299,
+      "sha256": "e3a0ce85d43ad62c80bf80eefe3e41555af0944a19c2696ba3a8f90ca01243b6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_generator_nested.py",
+      "size": 3886,
+      "sha256": "32381232f52d276b1df735d254c4c1a1bb115d0a7ae2b1d3592df1ca8aac01b8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_greenlet.py",
+      "size": 54821,
+      "sha256": "39ff81b51adf723d73d919a59b7a1b29c84fd0155a73fe8ef8c4b461cae3fc65"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_greenlet_trash.py",
+      "size": 8564,
+      "sha256": "b84a6b7f0a8d9e87d68a633a9b392738327310a33ca0e2806572516bb8718a09"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_interpreter_shutdown.py",
+      "size": 33886,
+      "sha256": "f5fbd51dd5c141a90c6a3f15333c0a36fcf0e3e9cbf503d2161321e4325ef074"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_leaks.py",
+      "size": 20983,
+      "sha256": "230d3972283e986043639a8b7d754db4bbc950688592a1c9601ff9b81def2b55"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_stack_saved.py",
+      "size": 465,
+      "sha256": "dabdb1fec4d5a0c4ce8f34c65501e160544ac8cd45a2da38934e11b0ef4675ae"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_throw.py",
+      "size": 3840,
+      "sha256": "8516ce33b721be67a30cec8af7dffdb555d9b4b2155dbf1d19e3421355a1b259"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_tracing.py",
+      "size": 8851,
+      "sha256": "051e4dab3a680f46ca8152d42e2b4565d3a500f5d2259514d6e2c0db73763ba8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_version.py",
+      "size": 1574,
+      "sha256": "8777ea0ac0b0b9ebcee2ae1dec41efd1f51956e1ce2010b8af138bb772a44db8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/greenlet/tests/test_weakref.py",
+      "size": 918,
+      "sha256": "be0e3882fe34229d7349f82ef8d3d614a0d4bdcf99fdec385058eccc14177f49"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/METADATA",
+      "size": 8989,
+      "sha256": "500a4dcf2154f5291661ea4a9025898081d536c3026d506c648c31b68a7a66cc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/RECORD",
+      "size": 9268,
+      "sha256": "e13cad9de4cbf0c846db42cd3a0b9d4c3d9c10fb01c3f4f59eb1f6c36bf39966"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/WHEEL",
+      "size": 101,
+      "sha256": "8e1c6b44fded7447e6eeda01d57edd979c7a7f46eee93bded9c5b021d91b2fc5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/licenses/LICENSE",
+      "size": 78014,
+      "sha256": "75bb81b58f9b39786eeb2e56a1eb829aae501042d49e1dc766ca187b6ce9656f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/top_level.txt",
+      "size": 4,
+      "sha256": "ae266aae4fa1c99aa1e5fd59d19c228b774a7f112c07286ef5c53d20e0c5f8d6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pillow-12.2.0.dist-info/zip-safe",
+      "size": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/METADATA",
+      "size": 3328,
+      "sha256": "6b7333d9190588afc36f61995e10874d192ef86b5127c4e94a8912b876b4e789"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/RECORD",
+      "size": 20499,
+      "sha256": "0be9041160aa76e51167a2f5c40ea807cb18cd039e9bed1e2451e72789ecdd51"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/WHEEL",
+      "size": 91,
+      "sha256": "69e6228a0d35958183cc1812f07c565ce837b95eb51bd8a33acba9fa4f68d6c9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/entry_points.txt",
+      "size": 130,
+      "sha256": "1be952e6d9d0c36d4f1dc5ca6d9146cbcd657338a775720351e8c879f1fc5686"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/licenses/LICENSE",
+      "size": 11399,
+      "sha256": "7fab1461b41970ff376f1c9303a637076bfaaeb71cd12dd3a1c44aaf59a1a2b9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright-1.63.0.dist-info/top_level.txt",
+      "size": 11,
+      "sha256": "a188b3e7e65be32db700d668b768b794cb0af81022c17a93950e21cad2c962e1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/__init__.py",
+      "size": 805,
+      "sha256": "06c3acdadd13e2813fcb95ad91d53ee3885c2b5f473beccc45a579d9ceead70b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/__main__.py",
+      "size": 1064,
+      "sha256": "f8d65489384929eb763a34c14e3cec32cacd2f92fcb30059343e0f0b9b56ddc7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/__pyinstaller/__init__.py",
+      "size": 691,
+      "sha256": "5a8c0cfeb2d84ed4287afdec24ffcec60d1ed827b92afdfbd82b2351ffae1c15"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/__pyinstaller/hook-playwright.async_api.py",
+      "size": 695,
+      "sha256": "d4a8c45554b3ba55e8102f03f576bab6ea4abfb70cdc60095471d504e34a1014"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/__pyinstaller/hook-playwright.sync_api.py",
+      "size": 695,
+      "sha256": "d4a8c45554b3ba55e8102f03f576bab6ea4abfb70cdc60095471d504e34a1014"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_api_structures.py",
+      "size": 7314,
+      "sha256": "7117217bc28b93311e0ded2232935bbb3e71cd36a69ace95faa5b5f019b6186d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_artifact.py",
+      "size": 2702,
+      "sha256": "3596db711366248a193c6a0f1be8547034987b7274c949d2ccbe3c6d3198ac71"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_assertions.py",
+      "size": 36149,
+      "sha256": "c8063d4bb88121be4d73359b768b6737a439a4276ecd7cc992d8012a0c85b07e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_async_base.py",
+      "size": 3242,
+      "sha256": "11d3ac217e1c6df2bba4da15e2a58ad4e6845b51ab983e7701c3592d22b941f7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_browser.py",
+      "size": 10465,
+      "sha256": "49ab46355ff642472f46f07c6708d1bb965cc2b01eedd67fbcfd38e3d3414d41"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_browser_context.py",
+      "size": 28054,
+      "sha256": "595800a63fa0b9901b46e30a5a8defca46f746b8c2a20bd7e8cb02193151e494"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_browser_type.py",
+      "size": 14330,
+      "sha256": "52ab654cb0a1741c590fca4aa7ea447526a35881ec96816f533ffd4a71365b2e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_cdp_session.py",
+      "size": 1625,
+      "sha256": "bf4e67bd5790e1c59bfbafd0600967c23c762d06ca6d0419f8921bbb7c32f4e9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_clock.py",
+      "size": 3040,
+      "sha256": "49c61ec40edfa7eddc264c6f4610515431fff376f303276a3db37a3a23e2fe40"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_connection.py",
+      "size": 26879,
+      "sha256": "7a1fe6c84e5108024b58d2afa4f2d8323ca86d76adecde5e8a747c3bab2bd49b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_console_message.py",
+      "size": 3123,
+      "sha256": "d21d639fe1b7c129ba3a991c2076d1ed35b1d9b9a9142f908a3341245ebd81db"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_credentials.py",
+      "size": 2037,
+      "sha256": "df6d9224a19c5cfaf0ba30b31d6a79179e265ef61cdeeacee1071a5d9ce7e514"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_debugger.py",
+      "size": 1978,
+      "sha256": "19584aa1e61a689600167922c00f199522845567c6bc707d88559d25ce4ef648"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_dialog.py",
+      "size": 2080,
+      "sha256": "1ae8bf9d12b694a4c737d6ee0ffef3ccee139efec47ffb7e22f0ee253fa148aa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_disposable.py",
+      "size": 2933,
+      "sha256": "9796cf3d9fc674fe1f662d5040b51afdf63baf937c2501f14a482910faeae982"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_download.py",
+      "size": 1977,
+      "sha256": "064d6807d82b5dcd8094a2f1b910c1d336363bf135200ee194fef1ec3ba75e04"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_driver.py",
+      "size": 1399,
+      "sha256": "9a15469de4b0e15773169d32df12a2a694298a8b03ee68655c504532a27d4eaa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_element_handle.py",
+      "size": 15309,
+      "sha256": "c5761618b1f08d9c0d6c3e104f97bef0cc72f72114c2ad90efe0b9c2843f2b00"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_errors.py",
+      "size": 1950,
+      "sha256": "49407bd6164ab563f82b2bf37863a265555071544dcabedbf7beba8be1b618cd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_event_context_manager.py",
+      "size": 1044,
+      "sha256": "55ea0fab5a17acbb3f6f797610cf20a77efcbc7b62e8c19bac53a138f39c7127"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_fetch.py",
+      "size": 21249,
+      "sha256": "11b3b5489efd175631be5dff10a8b3b102a4862da21d9971eebeb7213cb824b8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_file_chooser.py",
+      "size": 1859,
+      "sha256": "b51fd516285582608c8551812fb490ab8ea269528b2ba2557aeff0dec8c332a0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_form_data.py",
+      "size": 1205,
+      "sha256": "a9f8b8c6ba2509de30b84e9062338e31114de64de35bd204b24f3a7e429a0a0c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_frame.py",
+      "size": 31620,
+      "sha256": "b93ab0e6d457ca1f3e04b3668cdb6a2bc6226c3a7ba5fe45d487270ee024183a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_glob.py",
+      "size": 2269,
+      "sha256": "af927c1cc1a33e12094224ca96158964ce2c7ad9f4b4de3ac60e16e0baf9f887"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_greenlets.py",
+      "size": 1410,
+      "sha256": "27456c0ecfc181a04a6a1245e0f72549129e3af0b611e60607cb5d29f4fe2634"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_har_router.py",
+      "size": 4492,
+      "sha256": "d970f6118cd53461d44432ef6796521dd902134d2a17329a0f8edf99948e7e7e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_helper.py",
+      "size": 19505,
+      "sha256": "b6a448ddd5f0fbab04872932cdb5d88b35cfa031440fc3a372b29aa1328a7ed9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_impl_to_api_mapping.py",
+      "size": 5431,
+      "sha256": "0fbe7a5abb606bbe519b0be953a43411163bd402f748c99cf5b3f289f1355a91"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_input.py",
+      "size": 3753,
+      "sha256": "00462564d19a5b9c46ae6e5fe81bdf0c9557d7de16202dedf20b0751839c2475"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_js_handle.py",
+      "size": 10159,
+      "sha256": "2db455b97af07dbf007e114ee3f546139ee09ab2f7a1d6b15293cdfb61792d79"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_json_pipe.py",
+      "size": 2616,
+      "sha256": "d6839b40db3ced87646e72c8e55c508226b11350ca4bfb9cbffc4ec1ef826469"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_local_utils.py",
+      "size": 3388,
+      "sha256": "684167aa077aaa9f404bb892cbc4a792ae0e220aa7d57a4daf168c0ebbe831c7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_locator.py",
+      "size": 32390,
+      "sha256": "70be0d4933d5baa2f353fdf334b0770056b9a8f1e415ffe766048e9a7563c1bc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_map.py",
+      "size": 1045,
+      "sha256": "606086b53edc29605a5ff0b22147dfc640e38c65089df790063aed9cb89bfaa7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_network.py",
+      "size": 35253,
+      "sha256": "5194cbeecc43dde0a6f9009414505f821f435806da03ec1d5f2a4e0c9fcf96a6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_object_factory.py",
+      "size": 4406,
+      "sha256": "577db2ad75ed58873b078c3a85bb8c9c6e347137140232e1c2d79b416347e513"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_page.py",
+      "size": 55317,
+      "sha256": "3b79b620022bb32786a39fe6338b3f7fdc84f1c8cc5699a95c0eea278d0d0fdd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_path_utils.py",
+      "size": 958,
+      "sha256": "2c0c34e8c14e04d350044e5ecca4d804b4c5f9191a94c450f58e6a3f9d8bcd1c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_playwright.py",
+      "size": 2091,
+      "sha256": "9656f14fc1d521b1cb54925599646d5aa00721b164b6b263256727712370c825"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_screencast.py",
+      "size": 5929,
+      "sha256": "96e3ac3025da420432545284f111d7c5657b50d9643fe56c90f1212a644d3839"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_selectors.py",
+      "size": 2636,
+      "sha256": "b57b4cc6cdbf574ee51313f8d997aee1463ac912643a0051f51d5f6e263f05b6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_set_input_files_helpers.py",
+      "size": 5605,
+      "sha256": "a1ce8e5a4103719e6a9cf569a9192e5f48dfdf91199cf572d02a7715d0d471e0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_str_utils.py",
+      "size": 2403,
+      "sha256": "0ff1b72ae6d0dfefc92939fca4cc0c2dcb7efe4fd8e520c72c630a6bd94b0fe3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_stream.py",
+      "size": 1673,
+      "sha256": "8a016483e4d62ff5a64b4454a6e67ec5610b385cb16c5e849819bd30149a9df2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_sync_base.py",
+      "size": 4661,
+      "sha256": "f9924a820f7e74ddd71514598142363f3484c364178935eefbe80f9db8998997"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_tracing.py",
+      "size": 10124,
+      "sha256": "dbd5e2562b4d297f203cabb4e447742c0bdf6d9594e5ae4b3161f9570e587401"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_transport.py",
+      "size": 6656,
+      "sha256": "edac83a94c76c0f7cda78b58beaed30432fd43f611bb65480e52e160da54425b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_video.py",
+      "size": 2060,
+      "sha256": "63297dd16e3a143ca5ea93da3d23bcb859123e6e7baba779a838d6e4ccd1f36b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_waiter.py",
+      "size": 6493,
+      "sha256": "a3666070cfb04dce7306eefc6a9aaef9253e3c06087becfb931f16824cce2023"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_web_error.py",
+      "size": 1420,
+      "sha256": "55df8219be4192cfa3fd3d9a8d330561a5473da48bd0505a9a515f7c2c1034fa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_web_storage.py",
+      "size": 2039,
+      "sha256": "23ac268226374c4092e3a1079cd110420be3079ba8d1b08c648551ec55f6f6f0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_impl/_writable_stream.py",
+      "size": 1472,
+      "sha256": "25fea9a4f7725300fe78d096c59843af97a3a13175359fc61862bdf7d79070bf"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/_repo_version.py",
+      "size": 530,
+      "sha256": "badb07ba76fc374fb7723a895e40fdeedb2a615c69c6595ceef10b013a096ae4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/async_api/__init__.py",
+      "size": 7833,
+      "sha256": "941e8f56867f513330ed55fea08979a370f98b22a064ea59394c1cf6b7e52f6e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/async_api/_context_manager.py",
+      "size": 2041,
+      "sha256": "4d6591f906bd9a19a8391c805559ea8a75fa457e37a31c6bac652577f43a00fa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/async_api/_generated.py",
+      "size": 972025,
+      "sha256": "4ce7017cc59fb0e5d84596cbbc5c614fd302716aa855ddeaaa21d9f8605f6178"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/LICENSE",
+      "size": 160555,
+      "sha256": "ed34dd8e3f0a78dbaf00d0444ce8e285b015b765379c2e17880455f70370f8e9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/README.md",
+      "size": 28,
+      "sha256": "6617b10cd51f9e6856d33fd912e807a4046ab0124e2d782aba278db9f310ddc5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/node.exe",
+      "size": 93580104,
+      "sha256": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/LICENSE",
+      "size": 11601,
+      "sha256": "45873d00a0dd243596deb4aa23b2493b3d1f0671921bf2538ea431d7380220eb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/NOTICE",
+      "size": 254,
+      "sha256": "6d602191187b35b9b01d2cffa01c8469c2c8d9de8a96f1bf868e0f264f51c81d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/README.md",
+      "size": 120,
+      "sha256": "d16ff7f8e38fa1fc954f695ad551cdc118d9c9bdd5f3d83203901f4c317d7d7e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/ThirdPartyNotices.txt",
+      "size": 676,
+      "sha256": "a549d329bad8806fe279f0ecae0fc0270dec7e7c2dc8ec10f90e394f7c32b144"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/install_media_pack.ps1",
+      "size": 174,
+      "sha256": "bc20f049badf021e3a53bdb4156603caa5ef482c9a9a251f927605e676a44171"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/install_webkit_wsl.ps1",
+      "size": 1464,
+      "sha256": "bc61beda37a808eef27d39ce684baa792f6d17737a25a432b1a84d3b591ab815"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_beta_linux.sh",
+      "size": 1217,
+      "sha256": "dc8c22b9dde76583cece2857575b88094299615f3136a3c598149710c45dee3a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_beta_mac.sh",
+      "size": 563,
+      "sha256": "a92eaeb4ebcf5633a4e9c981481e14c80764fc81b6fcbc0565398e50ff319433"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_beta_win.ps1",
+      "size": 957,
+      "sha256": "b6d9e44742feafb98d5edc56fa20042949973cf30d141a1c5b4fb384096967c5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_stable_linux.sh",
+      "size": 1212,
+      "sha256": "dc72ab3567a4ce43bd8353d4ecf41f1d9c03e870169367cd3ed9043aabf67dd1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_stable_mac.sh",
+      "size": 519,
+      "sha256": "bb43a96c192a6cc81524ade0264686fff7809c019a89f7db0a9849635879c3be"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_chrome_stable_win.ps1",
+      "size": 923,
+      "sha256": "3d96c4e2f4ebbb3fad44cf3ba58d9cf90af1c9fb3073e3b27d45a74cf005515b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_beta_linux.sh",
+      "size": 1494,
+      "sha256": "10b26f35dbc2000b94edf1172d803a29c5873a4eb8d523afbc687997b642767e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_beta_mac.sh",
+      "size": 377,
+      "sha256": "0036d738bc90d686100d81f328ba0003bf07863f5500b792c8da391d149750fa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_beta_win.ps1",
+      "size": 874,
+      "sha256": "b173c378a59f0cc38033cee702de1f44f09276c9b2270d1a650ebe66ee312433"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_dev_linux.sh",
+      "size": 1489,
+      "sha256": "00e4947e7a4f8339c6db09c87976d808583c07f9179e4aa7694d88614b82fe95"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_dev_mac.sh",
+      "size": 372,
+      "sha256": "6f899e3b311f742c24ca37ff9e32298e8290514ffc14bf588cc51556a29da4c0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_dev_win.ps1",
+      "size": 869,
+      "sha256": "46f7f98c81cb0abe687d7f4a5afea9b897a38d2a6dd6f6662fbd847f7a22bd51"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_stable_linux.sh",
+      "size": 1507,
+      "sha256": "ec0a31a5f09c565e108473a1850895a4458ab00c713ac1de3aa2001912e4668f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_stable_mac.sh",
+      "size": 371,
+      "sha256": "3af1e893527ff2257aa2dbc3b259a053b92f45c3eadb13e38eba46e87902655d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/bin/reinstall_msedge_stable_win.ps1",
+      "size": 856,
+      "sha256": "40bb5fcbfcebbbe2ce43c6e736e7c5deefc5be03b6e9c6914423c06ec1f591be"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/browsers.json",
+      "size": 1137,
+      "sha256": "545d52f8382c391e605562c330e9c1c534a16045898203037a49bb8bd769a946"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/cli.js",
+      "size": 839,
+      "sha256": "f1c4075aef116c766092250d7f37b3249a7cee6465d953207fc38c8f6145becd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/index.d.ts",
+      "size": 634,
+      "sha256": "7a8ec10b0834eb7183e4bfcd929838ac77583828e343211bb73676d1e47f6f01"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/index.js",
+      "size": 697,
+      "sha256": "a58fb2cec4293e7dcf73c58a179898a4f3986666451a19da4e731fa3af63265b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/index.mjs",
+      "size": 1063,
+      "sha256": "3d36e2132d3c8b62397d23f0bb4177336aaee503203ae2a2c90fbeb5bf3317dd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/bootstrap.js",
+      "size": 3481,
+      "sha256": "4637f4dbfef9cfc01baeb5f5d2cb63fa0901522c96915ea2227290558d27123e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/coreBundle.js",
+      "size": 3477183,
+      "sha256": "549070af3acabb3efcc4f55bfe6210f9f7c2fcf633cf7eaa59bfe60719969171"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/entry/cliDaemon.js",
+      "size": 197,
+      "sha256": "062f256fb29a7bf91793a014b9c3f1f9cf2dc6b12e40a8a2ebba88a630ae16a0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/entry/dashboardApp.js",
+      "size": 108,
+      "sha256": "209962c6eaeef11629f226d6a2ab33ec7a2480754242b6e19590a9e6eb71d126"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/entry/mcp.js",
+      "size": 442,
+      "sha256": "cc87dc0020cb41caebbf04f50e42bc7835b033a6d80e9c3f0a3d0b3dbdf341c7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/entry/oopBrowserDownload.js",
+      "size": 120,
+      "sha256": "87567cdbd67dd2f50bb232d47d3784701ece7c81e39c0287bb7d1b466b68cf06"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/package.js",
+      "size": 2112,
+      "sha256": "9f938e1d44a0dd231b1660ca62f7dae964859b79cbdc370b8542c5d375ca3c05"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/server/chromium/appIcon.png",
+      "size": 16565,
+      "sha256": "6ba994f05c5cf18e22d9b6bef9898fbdec6ad4d4d77f5187d0609cb42d72d01e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/server/electron/loader.js",
+      "size": 4994,
+      "sha256": "699fb5564539da34ed72f49e9821af28f9fc06940adb639cac55dc9c477cfe7c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/serverRegistry.js",
+      "size": 57039,
+      "sha256": "38025f08f335705b099b9f188bf45b5908a56a722825fe895b1e90f56d5595b6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/serverRegistry.js.LICENSE",
+      "size": 2982,
+      "sha256": "3098a6efcbc11752cbdf6075fa65480f5470f78c8d981fab9c0796dc9a41cefe"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/channelSessions.js",
+      "size": 7087,
+      "sha256": "6b9c613e87340f48ad7182addd7495a8ff3fbe55feb1bbd0ce04f59f1552e126"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/cli.js",
+      "size": 153,
+      "sha256": "dfde8e9dfde30c4b3914eb25ba1c5a8524ec64651d866171d75cd7b41a827180"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/help.json",
+      "size": 38799,
+      "sha256": "e78d7a22d059196e838d1f076b563eae185b851e3e36063fa4ae77a8dc1415b1"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/minimist.js",
+      "size": 4109,
+      "sha256": "9430489ebc06fd02231dccfe844516f743e812a9ac4fe8e6748a67718738851c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/output.js",
+      "size": 11972,
+      "sha256": "b4c3ebab965e73d621971cd3c76b60c22cf460a0921f14c5c6c51e46e06f02d2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/program.js",
+      "size": 16373,
+      "sha256": "55a9a10132c680ecdec25b5000afb12035745ac9e75dd9cc0ef3e5d5e08d7f3e"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/registry.js",
+      "size": 6768,
+      "sha256": "4976cd5b2b3a25572cc1a4b5f055a756dacd4cc1b19d48987ee3253428e759b8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/cli-client/session.js",
+      "size": 9544,
+      "sha256": "a71e03ba6dc99d6d9cca4577d534daa6d0c20c32e50065311823f41caba29b46"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/dashboard/appIcon.png",
+      "size": 18945,
+      "sha256": "38037bcf18c7f9b950da2e1a2d8800d38fb27637ccda293d38368a3704b67f18"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/SKILL.md",
+      "size": 12726,
+      "sha256": "1a609c93bff3eea9ab99fed93c0334c851fdc39fb6ac5335551bfb87c171d57c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/element-attributes.md",
+      "size": 665,
+      "sha256": "bf19aa4671e0a50a0fefa9c790f39124e803060eefe395042b723c29fcb7faa2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/playwright-tests.md",
+      "size": 1690,
+      "sha256": "c5b0719fef2cfdff50bd744051b2f9afc119775db4b48e9b2882c1cf3886797c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/request-mocking.md",
+      "size": 2182,
+      "sha256": "54e801c9663fc2b6d68ceb058cb1c360724c2499f42acc7852a68e83e5b5f37c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/running-code.md",
+      "size": 5642,
+      "sha256": "d95c539a5990b71d02d8bdf1d9414df16191eb6cff95b0063820518b7a13dcb2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/session-management.md",
+      "size": 5671,
+      "sha256": "cd3e261b8763bf952f1e371b876cb78d054379afec85482f9250633e1b7e6c44"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/storage-state.md",
+      "size": 5198,
+      "sha256": "9ac47f9ae4a1aedcd2077f8ac9ab1ba6bee1962cb83ff51adcd36fb6d83b5ec6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/test-generation.md",
+      "size": 16114,
+      "sha256": "12f54cfa718d9e559bad918120a4ca4f11c933167713d1b9c5f99872eddaf749"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/tracing.md",
+      "size": 3456,
+      "sha256": "ef73e71bee792e341df9cd4f60529c929ade48b538ac76e033f4f20843e8dbda"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-cli/references/video-recording.md",
+      "size": 5387,
+      "sha256": "8555ab5400df0d90e66318aacc0a8a4418fbf872e7463824d55d5c41615abd83"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/SKILL.md",
+      "size": 10404,
+      "sha256": "60f57b31767d562c30cc5332081418c2945f4d9c998efa6e09191333654dd429"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/references/gallery-spec.md",
+      "size": 6199,
+      "sha256": "0ca25dde6112eb379f56eb618585b64dc2dfd13c2f7f956ac7eabbd76a68912b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/references/migration.md",
+      "size": 5031,
+      "sha256": "bc3a336f7970bb7455fa5a38f937e45b35fb0c18d6c3b9f37916a4ff757b7acc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/references/react.md",
+      "size": 3115,
+      "sha256": "54af9cc1cdb6d4ccdb8e811c0abb29b960d5c9304f4df7d1dcf9b8df3f973102"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/references/typing.md",
+      "size": 6883,
+      "sha256": "c511025b5c9b02d7f49034a5613c8b478193bf60c90ea6dddb3faf9c6985c82b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-component-testing/references/vue.md",
+      "size": 3374,
+      "sha256": "d1b129f126c700702a3c00ad8eb6c86898bc941c29a656c1191eb7230650bf8b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/skills/playwright-trace/SKILL.md",
+      "size": 4845,
+      "sha256": "4124dd790915bb76108377121d1e6ca93a5544c90485c090fa5655235efe22aa"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/utils/extension.js",
+      "size": 4689,
+      "sha256": "404ae19e57a7c7c5ed3e6ecf9df26a3fcf95867250732f954823078ccb879e63"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/tools/utils/socketConnection.js",
+      "size": 3317,
+      "sha256": "973c2bea70a1f1445f4673f99e9fa351e50a2ec9fd93d7381b2c41bb4de764dd"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/utilsBundle.js",
+      "size": 3048692,
+      "sha256": "2d1ccc01d21b7d54ca99a6305991d7fb6e072ea4e725d7fec5eb6184188c52c9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/utilsBundle.js.LICENSE",
+      "size": 106591,
+      "sha256": "2495f30be29620d54b58339821eda0ebabdfb6ee9b09455f7285a06fd46fb9f3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/codeMirrorModule--QdMvsKi.css",
+      "size": 6251,
+      "sha256": "20be824a82832b62cc04642d31da3c609fd280b23f1cdcb1e622c4f40aac5ab8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/codeMirrorModule-CQ8RZGBm.js",
+      "size": 307374,
+      "sha256": "56b9c6a50c09dfac28eea5ec3e76c8ae85a26009b20ebac9928959cf3c3312bb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/codicon-DCmgc-ay.ttf",
+      "size": 80340,
+      "sha256": "0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/firefox-1bWoP6pv.svg",
+      "size": 7488,
+      "sha256": "3f3742d1e78c0db6c2d3531250f70c30675ee5310de32fa89befaf738c54efd0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/firefox-beta-k3eOH_eK.svg",
+      "size": 9280,
+      "sha256": "7eab5ffdc25903ba33a7202f7fffa1999f119c7be45a39e9e703c118904f917a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/firefox-nightly-Cp5nfeDT.svg",
+      "size": 9143,
+      "sha256": "f311c074b0fa999fcd6b73441301fb54ee87a48ff3bf05f318647928110476da"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/index-AwgwcYie.css",
+      "size": 139111,
+      "sha256": "82d06f291a7d0860e1b1e1803ab6f2e49c637541779a37168652e10b062b67f9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/index-hRvO4yU2.js",
+      "size": 336491,
+      "sha256": "3a05ed0b026442a1459952df25b9a836d4fa1a917838cf6f9357daefc0e42285"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/assets/safari-na3_-uQk.svg",
+      "size": 5254,
+      "sha256": "80fd72ca5eb8545f1981277b31f4f92951d469d4efebd078e4086b676fe517dc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/index.html",
+      "size": 1078,
+      "sha256": "202903aad66040604bc1a0c85615dda4bfc7e6f4a4674e60d9eda4d44f6faea7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/dashboard/playwright-logo.svg",
+      "size": 5645,
+      "sha256": "511524a1c145819303a18fb71870a4307c3e740f9e9722f7686a2b42b0995b6c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/htmlReport/index.html",
+      "size": 464,
+      "sha256": "ce7c098020a0eb9ce10edd416245ea6da50dfeaab18dfd0a2176979d22643be6"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/htmlReport/report.css",
+      "size": 100452,
+      "sha256": "d98a244bf950333ade383b109e97d396f970f650b20f2e5ef5ecc2740205dff7"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/htmlReport/report.js",
+      "size": 415864,
+      "sha256": "3db0c0291241102b14b62af4b80d84dd8169a281bb2ff360c986b9d7da57c339"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/assets/codeMirrorModule--QdMvsKi.css",
+      "size": 6251,
+      "sha256": "20be824a82832b62cc04642d31da3c609fd280b23f1cdcb1e622c4f40aac5ab8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/assets/codeMirrorModule-CVQWJZAA.js",
+      "size": 307374,
+      "sha256": "45f900fd93bf33545e6915308a964c49ce342c2e175a54aaef0898f05b25fcf5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/assets/codicon-DCmgc-ay.ttf",
+      "size": 80340,
+      "sha256": "0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/assets/index-BZpYJZ-P.css",
+      "size": 85502,
+      "sha256": "cc24563b96f286614b88f74da413e9984de263227971c4cdfabe1f73be095514"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/assets/index-hrlLqLtq.js",
+      "size": 358603,
+      "sha256": "f7f3dfd9113b0119821adf1f3fc873fa5dddba8b2c278014e0fb0ecc1b3f492b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/index.html",
+      "size": 1078,
+      "sha256": "5783e9b7e2cc78dd8a1a409d84b44b2431bf60f8f54b8be36c6e433c6a1086ed"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/recorder/playwright-logo.svg",
+      "size": 5033,
+      "sha256": "6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/assets/codeMirrorModule-BbkfBe3n.js",
+      "size": 307393,
+      "sha256": "274b964242426bf4e1c662a84f6345d8a99f67821caa508fb12c52e2d1dfd48c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/assets/defaultSettingsView-Ds6CBOo0.js",
+      "size": 654294,
+      "sha256": "0b48f13034cfa075338cc0839f212297d22cadab9219d9699d161d2b18c79019"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/assets/urlMatch-L3liM589.js",
+      "size": 2510,
+      "sha256": "1bc6321e32d11c31a452bc75896f0b344e6153321854d9f1658818be7f845c16"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/assets/xtermModule-DywYcAf8.js",
+      "size": 288730,
+      "sha256": "2546783e4f74a432bbccd88a6763cf78ac4e951686262cdf85b54d5a26ca3995"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/codeMirrorModule.-QdMvsKi.css",
+      "size": 6251,
+      "sha256": "20be824a82832b62cc04642d31da3c609fd280b23f1cdcb1e622c4f40aac5ab8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/codicon.DCmgc-ay.ttf",
+      "size": 80340,
+      "sha256": "0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/defaultSettingsView.Bqk9acqE.css",
+      "size": 107049,
+      "sha256": "cd1d3c277d4962246ed92d7d42734c5ffed6bac5c499232693f9c8331b71801f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/index.B4cLoZK3.js",
+      "size": 6628,
+      "sha256": "7b96efd541639738a8d46e4b6ba9780ffaf57a5c104db66764e0cec46d9f64e8"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/index.B_TqY17P.css",
+      "size": 2055,
+      "sha256": "08a212fcacae1866f44f065654afcc4c7d03409c68c74b3315c5bda17a0ca003"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/index.html",
+      "size": 2363,
+      "sha256": "139ac80123fb450cfc0631296e9f01463313ca2fec961b3a247ec6c9528447a2"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/manifest.webmanifest",
+      "size": 429,
+      "sha256": "d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/playwright-logo.svg",
+      "size": 5033,
+      "sha256": "6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/snapshot.B_Jk1wbt.js",
+      "size": 650,
+      "sha256": "d4d09e05451d107d8e1a6bbd041405fe518b9fd2833890e4ebaaad83b7f554f5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/snapshot.html",
+      "size": 389,
+      "sha256": "c608c8899c95c5a74d3f556e20146c3d852b9df85ae2854c659a7cc773c9b727"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/sw.bundle.js",
+      "size": 95459,
+      "sha256": "37b230329280e28e32b03df20738d2ed3bfd0ea45b408a69213158bb8400adb3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/uiMode.CU5KtEkS.js",
+      "size": 38057,
+      "sha256": "0c0dc5e0c822c27e60420a5c1659683fda89398f1561e43608f9d829eafdc197"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/uiMode.CyMfwkXJ.css",
+      "size": 54590,
+      "sha256": "fb403cf0b07007bc1d771e29737f7408924da300e2fab8b289a3ef2e8fc08d7b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/uiMode.html",
+      "size": 727,
+      "sha256": "c6e92923ea7f2b617db3a2128ac8889c6c1461a77764651588e0111b729c3a3d"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/vite/traceViewer/xtermModule.kHJ-D0s7.css",
+      "size": 2853,
+      "sha256": "0dd60056134e6a2994a86b59a1e9789b9f04e92924da109aef8c923acaf08ce5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/webp_codec.LICENSE",
+      "size": 8841,
+      "sha256": "995c7ee35aceb7666829b7a501ca89c0864e12b493c1174b155774ab1e03d831"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/webp_codec.wasm",
+      "size": 565369,
+      "sha256": "164cd9583a3e4d081f767d3b41ff0a730443dc7535fcc5caff83561463384b79"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/lib/xdg-open",
+      "size": 32416,
+      "sha256": "7d759d54f0d4ce1beeb34ee62c587985b5042374e8de237b0dcb8cd47aa698cf"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/package.json",
+      "size": 876,
+      "sha256": "f061c58427e47e843e26d201f0a57076c734e57c734ecbbd87d4a23b7a20db9b"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/types/protocol.d.ts",
+      "size": 814210,
+      "sha256": "0410ed82a9ac63269dc1471ed249b280e2d461249a3a331e71cdb54cdf10db33"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/types/structs.d.ts",
+      "size": 2455,
+      "sha256": "c9b9179b7291c8562eb0fb781219ddbdcf36149ebd7bd355e5b4a553d6b60b81"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/driver/package/types/types.d.ts",
+      "size": 1131883,
+      "sha256": "2806f6d7810fba0306066d500cd716a6d1128d90af2c3cf71723e3ea0a8904c4"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/py.typed",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/sync_api/__init__.py",
+      "size": 7828,
+      "sha256": "d99c6765ea8213ae219ab4a41c4e336effcd2b9e1acd311458a7dbe38e3ab947"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/sync_api/_context_manager.py",
+      "size": 3510,
+      "sha256": "4ad37eb82b50490219069bb3fd755e74947adf57b64acc9a49a20568c10e6e3f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/playwright/sync_api/_generated.py",
+      "size": 972691,
+      "sha256": "2fe12ee05ea24145f026c707e80d3502bd6cfca84a43e164339784c48c95b0ce"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee-13.0.1.dist-info/METADATA",
+      "size": 2951,
+      "sha256": "7512d063d60cb405124a6c5fdd2c688d78a4c6b6841b8eeb00a59474ef59d43c"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee-13.0.1.dist-info/RECORD",
+      "size": 1017,
+      "sha256": "0a31dd7d68f57ef131da6d9db052b27ae5f61e1e62175a99effb796a6e662b88"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee-13.0.1.dist-info/WHEEL",
+      "size": 91,
+      "sha256": "6027f0606398322e49870d9f538c8d83012bc9b6f6217e4f13004a57865b741a"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee-13.0.1.dist-info/licenses/LICENSE",
+      "size": 1080,
+      "sha256": "1ff556ca206b107f10e1c562ae454d3292e0296c3510eb90eb7f114caee32a66"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee-13.0.1.dist-info/top_level.txt",
+      "size": 5,
+      "sha256": "868bf9b972abc68a66ac58878534a0980ce2213f179c6935ab67dd71d4af4448"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/__init__.py",
+      "size": 762,
+      "sha256": "aa4f9a8ede4618ab005b60bf8751769ed424bbdc65ae0a65ed025aebebad9b81"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/asyncio.py",
+      "size": 5655,
+      "sha256": "5b2a46661b00f08876efb9ff4d95c1a2518c5839fad0db3dc410d457fc7474af"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/base.py",
+      "size": 8547,
+      "sha256": "4b39e4d616ba26df139d4c6f43c35e650a7b3b01a91c5cbc65dd1deafb892b6f"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/cls.py",
+      "size": 2952,
+      "sha256": "75821cc1fbb36a79fa29beeb2e0cf49a649c22ee9f17409ea28728257627b8d0"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/executor.py",
+      "size": 2528,
+      "sha256": "566a5bb888db751aa0c328b686510fcb94f06b6b7f1ca5e944d50259cef2c3f5"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/py.typed",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/trio.py",
+      "size": 4608,
+      "sha256": "c338ed0490030ce39af8c7349e17df2f727fc68c1edc53ae8acd5cc2755518bb"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/twisted.py",
+      "size": 2979,
+      "sha256": "8edf2c192330f4ec3bb078354e4f57afd6f70c8241bc837f290439bc6d3e77d3"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/pyee/uplift.py",
+      "size": 6580,
+      "sha256": "09835503965e8bcea9562eb8bf4278fa5881eb036a6857ac677f4053aa29e1fc"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/typing_extensions-4.16.0.dist-info/METADATA",
+      "size": 3310,
+      "sha256": "b05084ca1d50879865178d9fff9fabeab61bdfb1f361bfbde95421ffc8f9be46"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/typing_extensions-4.16.0.dist-info/RECORD",
+      "size": 427,
+      "sha256": "44dcf97810bea7b84bcd83890b6674bbcc2f4c5ef899a4887f15d524bdf6bb97"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/typing_extensions-4.16.0.dist-info/WHEEL",
+      "size": 82,
+      "sha256": "1b68144734c4b66791f27add5d425f3620775585718a03d0f9b110ba3a4d88db"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/typing_extensions-4.16.0.dist-info/licenses/LICENSE",
+      "size": 13936,
+      "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+    },
+    {
+      "path": "resources/runtime/python/Lib/site-packages/typing_extensions.py",
+      "size": 165012,
+      "sha256": "4040ca1a1ecbee00d1385c12a93084d1c5bd46f0b774f07e5ae7e91c4f55e696"
+    },
+    {
+      "path": "resources/runtime/python/_asyncio.pyd",
+      "size": 78560,
+      "sha256": "58b3e50104db6bf9d76e3d8106f9f477d34109a887d547ee086b0289e6a4e224"
+    },
+    {
+      "path": "resources/runtime/python/_bz2.pyd",
+      "size": 87776,
+      "sha256": "b02f580daa0b390b2228d2a8186ef119be658c89cc64d0bd909550786ed993f2"
+    },
+    {
+      "path": "resources/runtime/python/_ctypes.pyd",
+      "size": 143072,
+      "sha256": "b96680c6bcad9e9403711ec0977866325e8e5aab93b56e83c3df6280ae72a82a"
+    },
+    {
+      "path": "resources/runtime/python/_decimal.pyd",
+      "size": 290016,
+      "sha256": "196c42414c16e804874988783b8a356bf1d012d32e99efbc6e360e94920c46ec"
+    },
+    {
+      "path": "resources/runtime/python/_elementtree.pyd",
+      "size": 138976,
+      "sha256": "31aff8dca815a05904b5d3020fbdd5bdb596b6a07a36f31728996f28e06dab24"
+    },
+    {
+      "path": "resources/runtime/python/_hashlib.pyd",
+      "size": 69344,
+      "sha256": "5dee7b9fff3e6d0abe20601b9e62f3a14cd048167ee0b80781131dc81dec9469"
+    },
+    {
+      "path": "resources/runtime/python/_lzma.pyd",
+      "size": 160992,
+      "sha256": "9099ef451fe61d8feef9e02894902b88fdc8ee404e3f8b7412b150878c973803"
+    },
+    {
+      "path": "resources/runtime/python/_multiprocessing.pyd",
+      "size": 38624,
+      "sha256": "18041441b3f558925f903bc7af644a4d84b1cd746a4998748b4fffd82e767a6b"
+    },
+    {
+      "path": "resources/runtime/python/_overlapped.pyd",
+      "size": 58080,
+      "sha256": "eca5d3df23b762c846801194b6c971aae4eb288e1fc2914752b3a6c2df5aebfb"
+    },
+    {
+      "path": "resources/runtime/python/_queue.pyd",
+      "size": 36576,
+      "sha256": "1e2e1ede7eeaf30a80ece546420dec67a02716e25d3a7c638e4deb0c21e973a1"
+    },
+    {
+      "path": "resources/runtime/python/_remote_debugging.pyd",
+      "size": 93408,
+      "sha256": "0497ee6846cd92419ada56c091ab675ab6896ad3bfdcf88eec4dcda2cdfd5a4d"
+    },
+    {
+      "path": "resources/runtime/python/_socket.pyd",
+      "size": 87776,
+      "sha256": "18a77c4e1f4a71ca60b9dbbba809e98cd324f3e1470d091689b87754a8c65588"
+    },
+    {
+      "path": "resources/runtime/python/_sqlite3.pyd",
+      "size": 133344,
+      "sha256": "e69caeadb409777bce26f78622653558bbb86f08479b412399eaa0e6fd1e44f1"
+    },
+    {
+      "path": "resources/runtime/python/_ssl.pyd",
+      "size": 192224,
+      "sha256": "49df86fe76ed8fd97bb11a485286b49f5f5ebe953383648976a39c9de6f0524d"
+    },
+    {
+      "path": "resources/runtime/python/_uuid.pyd",
+      "size": 28384,
+      "sha256": "7e2cdd954b44b1be1fac1c354f774dab5f5becfce59688e62338427b125c62bf"
+    },
+    {
+      "path": "resources/runtime/python/_wmi.pyd",
+      "size": 40160,
+      "sha256": "5366924c1c96d9c9f82f95967fbf73244d4b4930f39103d7e7ba2b01046e0a46"
+    },
+    {
+      "path": "resources/runtime/python/_zoneinfo.pyd",
+      "size": 51936,
+      "sha256": "cdf82faa904e557b847a0ac6e97b4274945615fdbd319a28bcaa1f70f740636f"
+    },
+    {
+      "path": "resources/runtime/python/_zstd.pyd",
+      "size": 503520,
+      "sha256": "526d977236cc63895902977f216bf3ca93a4233489240656b295eafb6f518d07"
+    },
+    {
+      "path": "resources/runtime/python/libcrypto-3.dll",
+      "size": 6021880,
+      "sha256": "75495fe0e079ab00d49be740d3c710a0b94e3f74f9648cb7cc9f768fc7f52319"
+    },
+    {
+      "path": "resources/runtime/python/libffi-8.dll",
+      "size": 39696,
+      "sha256": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a"
+    },
+    {
+      "path": "resources/runtime/python/libssl-3.dll",
+      "size": 1308920,
+      "sha256": "8957182a9c385bfd9f3f790921de2ddc614cf91f99edbed4e9e5446a46504e32"
+    },
+    {
+      "path": "resources/runtime/python/libtommath.dll",
+      "size": 95456,
+      "sha256": "aaea8a20db7a7a96d4bef74ad724c4a02595a9c47659f6cbd6f145af0c97aa78"
+    },
+    {
+      "path": "resources/runtime/python/pyexpat.pyd",
+      "size": 201440,
+      "sha256": "36d775e2c2fa5bbda86ddc7c6ea632414df04f7a403b9e17587c99088d29cd7b"
+    },
+    {
+      "path": "resources/runtime/python/python.cat",
+      "size": 601161,
+      "sha256": "8d723cf908852e0ae02d6ad4451a0214ce7c7a09aa6d9a4a7fc48024583f8494"
+    },
+    {
+      "path": "resources/runtime/python/python.exe",
+      "size": 106208,
+      "sha256": "434b361fe0c5960d404974feed493db47f2603a1ace2574312104fbed0182c6f"
+    },
+    {
+      "path": "resources/runtime/python/python3.dll",
+      "size": 73952,
+      "sha256": "f9acdbcf3383a52353f8d7db3cbda3d3701b1cf7ac3053985fdac766c29e7808"
+    },
+    {
+      "path": "resources/runtime/python/python314._pth",
+      "size": 47,
+      "sha256": "ce454c0723b006fea4cf1bd60463cfd3a18905fa7aa2107a861df9fc0fe18045"
+    },
+    {
+      "path": "resources/runtime/python/python314.dll",
+      "size": 6792928,
+      "sha256": "854fe7549eb4b2ac478935a38ae2ca1b774c6fdc3d87f0263fbd697ff86d7149"
+    },
+    {
+      "path": "resources/runtime/python/python314.zip",
+      "size": 4152838,
+      "sha256": "dfa08b46ce09089b7e6bc139784d5609a07770bab66df8d37938ca9bd508e436"
+    },
+    {
+      "path": "resources/runtime/python/pythonw.exe",
+      "size": 104672,
+      "sha256": "4e24680bce514188c85ae91323691dcb0364990da0d6319558519e50cbb5a43c"
+    },
+    {
+      "path": "resources/runtime/python/select.pyd",
+      "size": 33504,
+      "sha256": "a341519a00befc3b86dfddf5938915fed52ded1ad5aab518c57d0b3c8969e835"
+    },
+    {
+      "path": "resources/runtime/python/sqlite3.dll",
+      "size": 1584864,
+      "sha256": "5c47df970d2e8cc41239754ff167056fcecb1089f876736e51dab5d89f980300"
+    },
+    {
+      "path": "resources/runtime/python/unicodedata.pyd",
+      "size": 758496,
+      "sha256": "0527fee5192ab4567451d1296533600661571f6ebf9e8f4e0f60b63a4a4fd2e8"
+    },
+    {
+      "path": "resources/runtime/python/vcruntime140.dll",
+      "size": 178616,
+      "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7"
+    },
+    {
+      "path": "resources/runtime/python/vcruntime140_1.dll",
+      "size": 50112,
+      "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+    },
+    {
+      "path": "resources/runtime/python/winsound.pyd",
+      "size": 32992,
+      "sha256": "7681b4d88ac96763bb89f018d1c658feeca782d8bfc6d223b06d2ef125780579"
+    },
+    {
+      "path": "snapshot_blob.bin",
+      "size": 365488,
+      "sha256": "ce6d9f6fd162f67bed258c02bddddb581b62557d8af745cff93c11b033a92bc7"
+    },
+    {
+      "path": "v8_context_snapshot.bin",
+      "size": 740048,
+      "sha256": "ebf321244c8787409d2c1dd69d0499319521a612f96edacf9d2f57ca8b74f5f8"
+    },
+    {
+      "path": "version",
+      "size": 6,
+      "sha256": "1a2f44382a6604fd7d4b0e527c630dc12f43d52250b32c4fe59a85068dfe48ca"
+    },
+    {
+      "path": "vk_swiftshader.dll",
+      "size": 5506048,
+      "sha256": "10d7eac1d3596f84d9cbd1c6abba0a7e584a08014cbd7722758ab5104c265908"
+    },
+    {
+      "path": "vk_swiftshader_icd.json",
+      "size": 106,
+      "sha256": "32d83ff113fef532a9f97e0d2831f8656628ab1c99e9060f0332b1532839afd9"
+    },
+    {
+      "path": "vulkan-1.dll",
+      "size": 924160,
+      "sha256": "18fee328817913725653308664ab4527915c3c623423afb09cfd5e0c16c41a56"
+    }
+  ]
+}
