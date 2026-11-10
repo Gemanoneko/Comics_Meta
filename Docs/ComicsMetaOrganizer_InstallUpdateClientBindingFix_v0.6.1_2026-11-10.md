@@ -1,0 +1,13 @@
+# Actual Windows Sandbox UI binding — 0.6.1
+
+The corrected retry01 successfully bound the guest via exact event2500 nonce, command, PID and raw HCS SystemId. It granted no install permit because its client query included only classic executable names. Actual AppModel event201 identifies the installed MicrosoftWindows.WindowsSandbox package UI as WindowsSandboxRemoteSession.exe, PID63276. The earlier inventory checked the wrong package name. The guest watchdog then shut the guest down; actual system-exited result zero, original saved-template restoration and empty current classic/modern process inventory are retained. No comic app installer ran.
+
+Preserve the complete original retry01 inputs, observations and failed outputs. Archive its seven runtime files and manifest before correction. Stage another fresh root; never overwrite the 6690 or 1c6 attempts. Keep ordinary guest install/update flow, product source8e66 and actual installer718590fb unchanged.
+
+Keep the existing WindowsSandbox.exe .wsb launch. Pin the actually installed package's RemoteSession executable and AppxManifest bytes. Extend read-only client inventory to include WindowsSandboxRemoteSession.exe, WindowsSandboxServer.exe and wsb.exe. Require no such processes before launch. Persist observations before assertions.
+
+Bind exactly one fresh current-user UI process at the pinned RemoteSession path to structured AppModel event201 with the same positive PID, exact installed package, ImageName and ApplicationName, timestamp after this launch. Require the already-reviewed exact successful event2500 nonce/manifest/session/guest-PID binding and new raw HCS SystemId concurrently. Retain and verify the actual UI process handle/image before granting go. Reject missing, wrong-package, stale or ambiguous activation records. The observed AppModel activation establishes the packaged launch route rather than a guessed classic parent relationship.
+
+Keep the strict authoritative system-exited result-zero, raw ComputeID absence, full original template baseline restoration and exact retained UI handle signaled conjunction. WM_CLOSE may only tidy that bound UI after the guest is already proven gone. Keep the original 600000ms deadline and independent guest shutdown watchdog with closure reserve; no unknown kills, host shutdown, profile changes, feature enables, diagnostic VM, CLI migration or automatic retry.
+
+Add focused controls from the retained actual activation fields. Freeze the new full manifest for Senua review; Futaba runs only after explicit executor handoff. Both genuine processing and paused install/update acceptance flows remain required. A closed pre-install startup failure does not count as app QA acceptance.

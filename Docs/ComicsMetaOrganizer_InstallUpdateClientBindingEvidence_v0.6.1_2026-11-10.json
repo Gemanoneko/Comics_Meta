@@ -1,0 +1,384 @@
+{
+  "schema": 1,
+  "originalManifestSha256": "1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f",
+  "originalRuntime": [
+    {
+      "path": "common.mjs",
+      "size": 9170,
+      "sha256": "3bfc3cefe99d99ed5aa7fdb7e50acce4fabe069fc1d7eb7749f4b91611d5676f"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 5598,
+      "sha256": "54eaf34a6744a8f79a6844df2a476809002195f7934ccbf601147d072c42dd1b"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 19195,
+      "sha256": "5ce30790da8113a1ee442f8cd7c1eaa922fbd09bbb183273185f04d0fdc171dc"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 10617,
+      "sha256": "49f92ce51dc785c56fe2dd2aa065dc45312fc2f659545db2c464aa76e3813b27"
+    },
+    {
+      "path": "input-manifest.json",
+      "size": 398907,
+      "sha256": "1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 4355,
+      "sha256": "3360e0b1f19ef9d8e2b2233fabcd5443123b6c3ae9223554638f602c5a2bab2a"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "activeObservation": {
+    "observedEpochMs": 1794315250169,
+    "label": "before-binding",
+    "hcs": {
+      "raw": "[{\"Id\":\"107e1277-c358-4d21-9945-684ae0dd240d\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"WindowsSandbox\",\"RuntimeId\":\"107e1277-c358-4d21-9945-684ae0dd240d\",\"RuntimeTemplateId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"Running\"},{\"Id\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"CmService\",\"RuntimeId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"SavedAsTemplate\"}]\r\n",
+      "computes": [
+        {
+          "id": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "systemType": "VirtualMachine",
+          "runtimeOsType": "Windows",
+          "owner": "WindowsSandbox",
+          "runtimeId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "state": "Running"
+        },
+        {
+          "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+          "systemType": "VirtualMachine",
+          "runtimeOsType": "Windows",
+          "owner": "CmService",
+          "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+          "state": "SavedAsTemplate"
+        }
+      ]
+    },
+    "clients": {
+      "processes": [],
+      "currentSid": "S-1-5-21-478701085-1013477356-1211919822-1000"
+    },
+    "events": [
+      {
+        "eventId": 2500,
+        "recordId": 27127,
+        "timeMs": 1794315222778,
+        "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+        "result": "0x00000000",
+        "processId": 7500,
+        "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce 9b5f692cc1d403687d9443807af15447 --manifest-sha 1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f --session-sha 82bbfbee490d2edf3f94ed2b02f56fdefbcf14b4c773810159fd0aeb2db5ed8d",
+        "user": "WDAGUtilityAccount",
+        "existingLogin": true
+      }
+    ]
+  },
+  "failedSession": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "9b5f692cc1d403687d9443807af15447",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "baseline": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ],
+    "started": 1794315216615,
+    "pass": false,
+    "kernelLaunch": {
+      "eventId": 2500,
+      "recordId": 27127,
+      "timeMs": 1794315222778,
+      "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+      "result": "0x00000000",
+      "processId": 7500,
+      "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce 9b5f692cc1d403687d9443807af15447 --manifest-sha 1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f --session-sha 82bbfbee490d2edf3f94ed2b02f56fdefbcf14b4c773810159fd0aeb2db5ed8d",
+      "user": "WDAGUtilityAccount",
+      "existingLogin": true
+    },
+    "computeId": "107e1277-c358-4d21-9945-684ae0dd240d",
+    "guestStarted": {
+      "schema": 1,
+      "mode": "processing",
+      "nonce": "9b5f692cc1d403687d9443807af15447",
+      "manifestSha256": "1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f",
+      "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+      "identity": {
+        "scriptRoot": "C:\\CMOInput",
+        "pid": 7500,
+        "user": "WDAGUtilityAccount",
+        "profile": "C:\\Users\\WDAGUtilityAccount",
+        "computer": "C080ED3D-E72F-4",
+        "model": "Virtual Machine",
+        "manufacturer": "Microsoft Corporation",
+        "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+        "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+      }
+    },
+    "error": "Error: Cannot uniquely bind owned classic Sandbox client\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry01/input/common.mjs:6:73)\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry01/input/host-session.mjs:46:3",
+    "failureClosure": {
+      "observedEpochMs": 1794315304124,
+      "label": "failed-attempt-closed",
+      "hcs": {
+        "raw": "[{\"Id\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"CmService\",\"RuntimeId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"SavedAsTemplate\"}]\r\n",
+        "computes": [
+          {
+            "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "systemType": "VirtualMachine",
+            "runtimeOsType": "Windows",
+            "owner": "CmService",
+            "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+            "state": "SavedAsTemplate"
+          }
+        ]
+      },
+      "clients": {
+        "processes": [],
+        "currentSid": "S-1-5-21-478701085-1013477356-1211919822-1000"
+      },
+      "events": [
+        {
+          "eventId": 2008,
+          "recordId": 27135,
+          "timeMs": 1794315303073,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27134,
+          "timeMs": 1794315303073,
+          "systemId": "107E1277-C358-4D21-9945-684AE0DD240D",
+          "result": "0x00000000",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27133,
+          "timeMs": 1794315303073,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "1",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27132,
+          "timeMs": 1794315302585,
+          "systemId": "107E1277-C358-4D21-9945-684AE0DD240D",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27131,
+          "timeMs": 1794315302585,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27130,
+          "timeMs": 1794315302585,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "16",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2500,
+          "recordId": 27127,
+          "timeMs": 1794315222778,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "processId": 7500,
+          "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce 9b5f692cc1d403687d9443807af15447 --manifest-sha 1c6faa6a9e096fc997f4c915f9d09726e8368d48e243248b625ec81a6aff511f --session-sha 82bbfbee490d2edf3f94ed2b02f56fdefbcf14b4c773810159fd0aeb2db5ed8d",
+          "user": "WDAGUtilityAccount",
+          "existingLogin": true
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27123,
+          "timeMs": 1794315218623,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27122,
+          "timeMs": 1794315218623,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27120,
+          "timeMs": 1794315218616,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27119,
+          "timeMs": 1794315218616,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27093,
+          "timeMs": 1794315218415,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27092,
+          "timeMs": 1794315218415,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27090,
+          "timeMs": 1794315218409,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27089,
+          "timeMs": 1794315218409,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27088,
+          "timeMs": 1794315218399,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27086,
+          "timeMs": 1794315218399,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "15",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27084,
+          "timeMs": 1794315218247,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27083,
+          "timeMs": 1794315218247,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "6",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2008,
+          "recordId": 27081,
+          "timeMs": 1794315218037,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "0x00000000",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        },
+        {
+          "eventId": 2009,
+          "recordId": 27080,
+          "timeMs": 1794315218037,
+          "systemId": "107e1277-c358-4d21-9945-684ae0dd240d",
+          "result": "",
+          "notification": "5",
+          "exitResult": "0x00000000"
+        }
+      ]
+    },
+    "finished": 1794315305568
+  },
+  "activation": {
+    "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+    "installLocation": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+    "events": [
+      {
+        "eventId": 201,
+        "recordId": 1477039,
+        "timeMs": 1794315216904,
+        "processId": 63276,
+        "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+        "imageName": "WindowsSandboxRemoteSession.exe",
+        "applicationName": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App"
+      }
+    ],
+    "currentClients": []
+  },
+  "pinnedUI": {
+    "path": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe",
+    "sha256": "c0377d7bc592b3d911a7ec7057fb72b922c420fc7b04202bef10b1cad34f2351"
+  },
+  "packageManifest": {
+    "path": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\AppxManifest.xml",
+    "sha256": "4a0901c7c34b97d56f217c865f53ac1b50e401088a90661544dced9ae2ccf230"
+  },
+  "conclusion": "The captured active query omitted the actual packaged RemoteSession UI executable. Event201 identifies PID63276 for the installed MicrosoftWindows.WindowsSandbox package. No install permit was granted; actual system-exit and restored baseline are retained."
+}
