@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "state": "Separate frozen two-file consumer correction; original e104 inventory preserved",
+  "actualBuiltSourceHead": "516c812d90b9482f5cd63003d660f178e0c65444",
+  "baseInventory": {
+    "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\Docs\\ComicsMetaOrganizer_InstallUpdateTooling_v0.6.1_2026-11-10.json",
+    "sha256": "48b4b7bafef5e1c73b9ed12008e4d0742cf1395f9cf758c765eafca2fb6cd65a"
+  },
+  "files": [
+    {
+      "path": "scripts/packaging/install-update-qa/binding.test.mjs",
+      "size": 4681,
+      "sha256": "c6a7354b1d10e883ddf951a1c29a17923a742b2c00f493467de341dd0c3f29c1"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/build-receipt.mjs",
+      "size": 6564,
+      "sha256": "9f0c0fe8125a1f6470aad2bc9a12e160877c27ecad08f22d6efe6b18d950c397"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/build-receipt.test.mjs",
+      "size": 3300,
+      "sha256": "98852ce076ae420b2168f9990d1d54064528b2772a1dd8d133545c9c8e456a94"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/common.mjs",
+      "size": 20179,
+      "sha256": "d878a4609ef52f2393b91196a67bfb639e764c024c14a238c82a9724fd04d533"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/common.test.mjs",
+      "size": 3176,
+      "sha256": "f323d3e77396267a68cee643a723804a985650c9a25db00ccfe8dc701172123d"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/create-promotion.mjs",
+      "size": 3042,
+      "sha256": "ffb596e6317df05e5557055a9853b8d63e41aad357f4475448a7653327e6edcd"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/failure-abort-native-probe.mjs",
+      "size": 7930,
+      "sha256": "dce8619ace4c7d44d17dd8419e2f3b84267a9d176d0bbed4dea7e54d02c224d4"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/geometry.test.mjs",
+      "size": 3053,
+      "sha256": "f0d72b1b777db5442c5863a05c5af2840f0832af2b54601b0a74f9d667055eba"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/guest-entry.mjs",
+      "size": 6592,
+      "sha256": "960acc654c866797096803810688fa135f4b40554aacbb83fe29db3f0f36c96f"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/guest-update.mjs",
+      "size": 22961,
+      "sha256": "fc978e0fea5d233696648cfbe1cd3c1cc7b4eaf968407422ff8f4f34fddd0fa4"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/host-session.mjs",
+      "size": 11582,
+      "sha256": "cb672f833f8a78916c85149940c82d5dc2508176616966eb702c04607d8778da"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/inspector-failure.test.mjs",
+      "size": 7047,
+      "sha256": "cd9fa084aa09b94539f283def40144a1a1a59844ef281acb6006e68253ae1a39"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/module-access.test.mjs",
+      "size": 4022,
+      "sha256": "0bf70532784c7e1a713b4f21dd2db9c207e1976f1caab47c10e656318797b058"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/observer.cjs",
+      "size": 5656,
+      "sha256": "ad3c0b61b7e35846d7bd14c686b603ae2ffb1334475d10bfb81ff4a922b4751c"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/prepare-input.mjs",
+      "size": 5935,
+      "sha256": "37292e54f888d265310738117aeb58f284d4790f9091bc87b046b6ecceaa911e"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/qa-receipt.mjs",
+      "size": 10390,
+      "sha256": "321b5495d74bcc264b68c70dafd0e06ef5563d44273383492d4649e1e442b956"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/qa-receipt.test.mjs",
+      "size": 3655,
+      "sha256": "e2b9bb52236cae3b51525b54769610e71c6a95a890d19f18fba70c94760657e9"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "changedFiles": [
+    {
+      "path": "scripts/packaging/install-update-qa/qa-receipt.mjs",
+      "size": 10390,
+      "sha256": "321b5495d74bcc264b68c70dafd0e06ef5563d44273383492d4649e1e442b956"
+    },
+    {
+      "path": "scripts/packaging/install-update-qa/qa-receipt.test.mjs",
+      "size": 3655,
+      "sha256": "e2b9bb52236cae3b51525b54769610e71c6a95a890d19f18fba70c94760657e9"
+    }
+  ]
+}

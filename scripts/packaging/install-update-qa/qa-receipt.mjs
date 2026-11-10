@@ -6,6 +6,17 @@ import {digest,requireThat,verifyInventory,selectGuestLaunch,systemExit,selectPa
 function json(file){const raw=fs.readFileSync(file);return {path:file,sha256:digest(raw),value:JSON.parse(raw)};}
 function normal(result){return result?.ok===true&&result.code===0&&result.closed===true&&result.forced===false&&result.timedOut===false&&result.outputComplete===true&&result.native?.complete===true&&result.native.zero===true&&result.native.active===0&&result.native.unsignaled===0;}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+export function validateSandboxClientClosure(host,plan) {
+  const final=host.finalObservation?.clients,client=host.client;
+  requireThat(host.clientSignaled===true&&client?.pid>0&&final&&Array.isArray(final.processes)&&final.currentSid===client.owner,'Retained owned Sandbox UI closure/current-user proof missing');
+  const ui=path.resolve(plan.clientApp.imagePath).toLowerCase(),broker=path.resolve(path.dirname(plan.clientApp.imagePath),'WindowsSandboxServer.exe').toLowerCase();
+  requireThat(path.resolve(client.image).toLowerCase()===ui&&!final.processes.some(process=>process.pid===client.pid),'Retained owned Sandbox UI remains in actual inventory');
+  requireThat(final.processes.length<=1&&final.processes.every(process=>Number.isSafeInteger(process.pid)&&process.pid>0&&process.pid!==client.pid&&
+    process.parent===client.pid&&process.owner===final.currentSid&&typeof process.image==='string'&&path.resolve(process.image).toLowerCase()===broker&&
+    typeof process.command==='string'&&process.command.trim().toLowerCase()==='"'+path.resolve(process.image).toLowerCase()+'"'),
+    'Actual inventory contains active UI, foreign process or unauthenticated Sandbox broker');
+  return {retainedUiPid:client.pid,retainedUiSignaled:host.clientSignaled,observedBrokerRecords:final.processes};
+}
 export function validateGuestPhase({root,mode,plan,manifestSha256}) {
   requireThat(['processing','paused'].includes(mode),'Unknown actual update phase');
   const output=path.join(root,'output-'+mode);
@@ -22,7 +33,8 @@ export function validateGuestPhase({root,mode,plan,manifestSha256}) {
   requireThat(h.client?.pid>0&&h.guestStarted?.nonce===nonce&&h.guestStarted.manifestSha256===manifestSha256&&same(h.guest,w),'Bound client/guest completion missing');
   requireThat(selectGuestLaunch([h.kernelLaunch],{...request.value,sessionSha256:request.sha256,guestPid:h.guestStarted.identity.pid}).systemId.toLowerCase()===h.computeId&&
     systemExit([h.kernelExit],h.computeId,request.value.startedEpochMs)&&h.clientSignaled===true&&
-    same(h.finalObservation?.hcs?.computes,h.baseline)&&h.finalObservation.clients.processes.length===0,'Actual OS-bound launch/system-exit/client closure missing');
+    same(h.finalObservation?.hcs?.computes,h.baseline),'Actual OS-bound launch/system-exit/client closure missing');
+  const hostClientClosure=validateSandboxClientClosure(h,plan);
   requireThat(selectPackagedClient([h.clientActivation],[h.client],{...plan.clientApp,currentSid:h.finalObservation.clients.currentSid,startedEpochMs:request.value.startedEpochMs}).client.pid===h.client.pid,'Actual packaged UI activation missing');
   requireThat(r.priorVersion===plan.priorVersion&&r.nextVersion===plan.version&&r.priorInstallation?.exit?.code===0&&r.priorInstallation.exit.signal===null&&r.priorInstallation.versionFile===plan.priorVersion&&r.priorRegistration?.DisplayVersion===plan.priorVersion&&r.nextRegistration?.DisplayVersion===plan.version,'Real prior/next installation registration not established');
   requireThat(r.priorExit?.code===0&&r.priorExit.signal===null&&r.relaunch?.version===plan.version&&r.relaunch.pid>0&&!r.relaunch.qa&&r.relaunch.user.toLowerCase()==='wdagutilityaccount','Real ordinary installed old-to-new relaunch not established');
@@ -42,7 +54,7 @@ export function validateGuestPhase({root,mode,plan,manifestSha256}) {
   if(paused)requireThat(r.nextShell.control.phase==='paused'&&r.resumeRequested==='actual rendered Resume clicked','Actual paused/resume workflow missing');
   return {mode,priorVersion:plan.priorVersion,nextVersion:plan.version,relaunchVersion:r.relaunch.version,
     actualOldToNew:true,initialUserPaused:paused,computeId:h.computeId,clientPid:h.client.pid,
-    nativeResult:guest.value.native,hostNativeResult:host.value.native,
+    nativeResult:guest.value.native,hostNativeResult:host.value.native,hostClientClosure,
     provenance:[host,session,guest,wrapper,run,request,start].map(({path,sha256})=>({path,sha256}))};
 }
 
