@@ -1,0 +1,226 @@
+{
+  "schema": 1,
+  "version": "0.6.1",
+  "repository": "Gemanoneko/Comics_Meta",
+  "state": "Published and independently verified against GitHub asset sizes and SHA-256 digests",
+  "publishedAt": "2026-11-10T15:45:28Z",
+  "releaseUrl": "https://github.com/Gemanoneko/Comics_Meta/releases/tag/v0.6.1",
+  "acceptedAppSourceHead": "516c812d90b9482f5cd63003d660f178e0c65444",
+  "acceptedRawSourceManifestSha256": "1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a",
+  "mainHeadAtPublication": "4ba975fdafd05798bd2f8aa13df7b51d1ad8ea2d",
+  "tag": {
+    "name": "v0.6.1",
+    "localAndRemoteTarget": "516c812d90b9482f5cd63003d660f178e0c65444"
+  },
+  "bindingEvidence": {
+    "promotion": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\promotion-061-516c812-20261110\\bundle\\promotion.json",
+      "sha256": "1484b280d0f00b04d80e4cee6fde8faef969a9cb47dc16bc279fc685aae71ddf"
+    },
+    "buildReceipt": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\promotion-061-516c812-20261110\\bundle\\build-receipt.json",
+      "sha256": "99631893210793462526866955f5ae1dc537ecd76152a442fdad0e21d5a7ceb6"
+    },
+    "qaReceipt": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\promotion-061-516c812-20261110\\bundle\\qa-receipt.json",
+      "sha256": "3cc8343ef07cd73258580a38e141a1ed7333a6e9f09c6ac9f5157496639560f7"
+    },
+    "qaReport": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\Docs\\ComicsMetaOrganizer_QA_v0.6.1_2026-11-10.md",
+      "sha256": "635233d3d941193d6dbd69134f5bb730c4706eda5f894649a6cdaf89892baa98"
+    },
+    "codeReview": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\Docs\\ComicsMetaOrganizer_CodeReview_v0.6.1_2026-11-10.md",
+      "sha256": "a4abea9c0641ea879c0f1e85a69e4497ef3f505055b2c18f9a4e9b13aa8f9922"
+    },
+    "releaseNotes": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\promotion-061-516c812-20261110\\release-notes.md",
+      "sha256": "05bcf1d6d284f6acbd453545587c54dcce44c3eb867c4ea3508b28d4c9ac4d3e"
+    },
+    "promotionIndex": {
+      "path": "scratch/promotion-061-516c812-20261110/promotion-index.json",
+      "sha256": "8f03da8486bb9038bce64143af61ea40c45720bf963dbb83eaf3413d837df2cd"
+    }
+  },
+  "mechanicalPreconditions": {
+    "passed": 5,
+    "skips": 0,
+    "rootSelectorFixCommit": "88b8658c8df22694373e66f199062505a0668412",
+    "checkedBeforeTagCreation": true
+  },
+  "canonicalExecution": [
+    {
+      "mode": "check",
+      "rawRecord": {
+        "path": "scratch/publisher-061-516c812-20261110/check-owned.json",
+        "sha256": "9648d0d4538e700e2e7b68f14a2bc072190146ab628bed22e5819a107f75e5ba"
+      },
+      "planSha256": "eba580722937b62825880a8323695f354cd991904421beecfb15a49dbb2de9d4",
+      "promotionSha256": "1484b280d0f00b04d80e4cee6fde8faef969a9cb47dc16bc279fc685aae71ddf",
+      "semanticPass": true,
+      "canonicalResult": {
+        "state": "validated; not published",
+        "version": "0.6.1",
+        "artifacts": 3,
+        "rebuild": false
+      },
+      "elapsedMs": 1548.4275,
+      "ownershipResult": {
+        "ok": true,
+        "code": 0,
+        "signal": null,
+        "error": null,
+        "closed": true,
+        "forced": false,
+        "timedOut": false,
+        "overflow": false,
+        "truncated": false,
+        "outputComplete": true,
+        "reason": null,
+        "native": {
+          "active": 0,
+          "assigned": 0,
+          "listed": 0,
+          "retained": 5,
+          "unsignaled": 0,
+          "complete": true,
+          "zero": true,
+          "sampling": {
+            "queries": 41,
+            "incompleteQueries": 0,
+            "firstIncomplete": null,
+            "lastIncomplete": null
+          }
+        }
+      }
+    },
+    {
+      "mode": "publish",
+      "rawRecord": {
+        "path": "scratch/publisher-061-516c812-20261110/publish-owned.json",
+        "sha256": "0d8fc8ff76371638a2fac7c17be8a5261a98949cb77acce7ed8ec08aea146fc6"
+      },
+      "planSha256": "eba580722937b62825880a8323695f354cd991904421beecfb15a49dbb2de9d4",
+      "promotionSha256": "1484b280d0f00b04d80e4cee6fde8faef969a9cb47dc16bc279fc685aae71ddf",
+      "semanticPass": true,
+      "canonicalResult": {
+        "published": "https://github.com/Gemanoneko/Comics_Meta/releases/tag/v0.6.1",
+        "version": "0.6.1",
+        "artifacts": 3,
+        "rebuild": false,
+        "owned_commands": 4
+      },
+      "elapsedMs": 29805.7619,
+      "ownershipResult": {
+        "ok": true,
+        "code": 0,
+        "signal": null,
+        "error": null,
+        "closed": true,
+        "forced": false,
+        "timedOut": false,
+        "overflow": false,
+        "truncated": false,
+        "outputComplete": true,
+        "reason": null,
+        "native": {
+          "active": 0,
+          "assigned": 0,
+          "listed": 0,
+          "retained": 23,
+          "unsignaled": 0,
+          "complete": true,
+          "zero": true,
+          "sampling": {
+            "queries": 1858,
+            "incompleteQueries": 0,
+            "firstIncomplete": null,
+            "lastIncomplete": null
+          }
+        }
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538531,
+      "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca",
+      "sha512Hex": "cb3403c0e0e65da96831e5f7ebe1ed2190b9f2665695c1f8a85c36dbdeee912d2b548fa883321e78a8d05ce182970b635de7891445c5b9a70215107aa03db03b"
+    },
+    {
+      "name": "Comic-Metadata-Setup-0.6.1.exe.blockmap",
+      "size": 156930,
+      "sha256": "3943d19eae2b4a975bc41df82672dd1b04687d833ce0da774c67d77bba94fdcc",
+      "sha512Hex": "2db5940cf3d1e1898a7b016111ffa4fe9f2e21b929088c451826bd382d0b01543dffdac151c069bba3ca98b0f63fb0b5d2d23daff04b4d68762a0c1ca8f64388"
+    },
+    {
+      "name": "latest.yml",
+      "size": 357,
+      "sha256": "2b0ab3a6d44aff22e369718a78c6ad5e07ac55f4150397b43640c6e5f0af88b1",
+      "sha512Hex": "c4ced2caa38aae19ef798eb735d1178aa2bd0ed57de921b9532edd751f478629ffa54fb4a85dab37017581317ff6acac6b78d5d99cedfc1a019c826f631f4a5f"
+    }
+  ],
+  "remoteVerification": {
+    "method": "Independent GitHub release/API metadata: exact membership, sizes and server SHA-256 digests; no independent remote byte download claimed",
+    "publicRelease": true,
+    "artifacts": [
+      {
+        "name": "Comic-Metadata-Setup-0.6.1.exe",
+        "size": 149538531,
+        "digest": "sha256:888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca"
+      },
+      {
+        "name": "Comic-Metadata-Setup-0.6.1.exe.blockmap",
+        "size": 156930,
+        "digest": "sha256:3943d19eae2b4a975bc41df82672dd1b04687d833ce0da774c67d77bba94fdcc"
+      },
+      {
+        "name": "latest.yml",
+        "size": 357,
+        "digest": "sha256:2b0ab3a6d44aff22e369718a78c6ad5e07ac55f4150397b43640c6e5f0af88b1"
+      }
+    ]
+  },
+  "retention": {
+    "kept": [
+      "v0.6.1",
+      "v0.6.0",
+      "v0.5.0",
+      "v0.4.1"
+    ],
+    "canonicalCleanupScriptSha256": "ef81ac30833a794642f1562e009e76af790fa05d7b4f33035c2393c96ecfb7a4",
+    "historicalGitTagsRetained": true,
+    "behavior": "Canonical cleanup deletes old GitHub releases, not their historical Git tags"
+  },
+  "qa": {
+    "python": {
+      "tests": 1075,
+      "failures": 0,
+      "errors": 0,
+      "capabilitySkips": 1
+    },
+    "shell": {
+      "tests": 56,
+      "passed": 54,
+      "failures": 0,
+      "optInSkips": 2,
+      "newWindowRestoreTests": 6
+    },
+    "independentSenderReceiverReceiptMatched": true,
+    "genuineInstalledProcessingUpgradePassed": true,
+    "genuineInstalledPausedUpgradePassed": true,
+    "actualCurrentPackageNativeTrayQuitPassed": true,
+    "packageMembersUnchanged": 621,
+    "exactWindowStatePreserved": true
+  },
+  "cleanup": {
+    "state": "Active current build and pinned evidence preserved; separate owner plans remaining cleanup",
+    "priorPolicyRejectedPathsNotRetried": true,
+    "previouslyRecordedFutabaRetainedFiles": 866,
+    "previouslyRecordedFutabaRetainedLogicalBytes": 63513230,
+    "countsMethod": "Prior QA reports: 819 files / 61,609,739 bytes plus current native tray profile 47 files / 1,903,491 bytes; no fresh remeasurement",
+    "emptyRejectedDeveloperAndContainerPathsRemain": true
+  },
+  "privacy": "Selected semantic/ownership fields only; no raw command stdout, credential values, tokens or auth configuration copied"
+}
