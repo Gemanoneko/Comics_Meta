@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "state": "Actual build and unchanged-runtime rebind; installed update QA pending",
+  "sourceHead": "516c812d90b9482f5cd63003d660f178e0c65444",
+  "sourceIdentity": "1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a",
+  "priorRuntimeManifestSha256": "75e740c2eb289363483ff9e3ee718146d488bcc5ff02536e5c643860fb6b1355",
+  "manifestSha256": "897201ddb10c9eba9e4e50430b4d82726f69b3979a26055329e74e802f7910ff",
+  "files": 2046,
+  "runtime": [
+    {
+      "path": "common.mjs",
+      "size": 20179,
+      "sha256": "d878a4609ef52f2393b91196a67bfb639e764c024c14a238c82a9724fd04d533"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 6592,
+      "sha256": "960acc654c866797096803810688fa135f4b40554aacbb83fe29db3f0f36c96f"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 22961,
+      "sha256": "fc978e0fea5d233696648cfbe1cd3c1cc7b4eaf968407422ff8f4f34fddd0fa4"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 11582,
+      "sha256": "cb672f833f8a78916c85149940c82d5dc2508176616966eb702c04607d8778da"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 5656,
+      "sha256": "ad3c0b61b7e35846d7bd14c686b603ae2ffb1334475d10bfb81ff4a922b4751c"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "artifact": {
+    "version": "0.6.1",
+    "name": "Comic-Metadata-Setup-0.6.1.exe",
+    "size": 149538531,
+    "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca",
+    "sha512": "yzQDwODmXaloMeX36+HtIZC58mZWlcH4qFw2297ukS0rVI+ogzIeeKjQXOGClwtjXeeJFEXFuacCFRB6oD2wOw=="
+  },
+  "packageInventory": {
+    "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\new-package-516c812.json",
+    "sha256": "b55d1608a4a9592538a1a3fe285bd63bb34b99a7d12e5b03eae96898b822efc9",
+    "files": 621
+  },
+  "root": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry08",
+  "input": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry08\\input",
+  "artifacts": [
+    {
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538531,
+      "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca",
+      "sha512Hex": "cb3403c0e0e65da96831e5f7ebe1ed2190b9f2665695c1f8a85c36dbdeee912d2b548fa883321e78a8d05ce182970b635de7891445c5b9a70215107aa03db03b"
+    },
+    {
+      "name": "Comic-Metadata-Setup-0.6.1.exe.blockmap",
+      "size": 156930,
+      "sha256": "3943d19eae2b4a975bc41df82672dd1b04687d833ce0da774c67d77bba94fdcc",
+      "sha512Hex": "2db5940cf3d1e1898a7b016111ffa4fe9f2e21b929088c451826bd382d0b01543dffdac151c069bba3ca98b0f63fb0b5d2d23daff04b4d68762a0c1ca8f64388"
+    },
+    {
+      "name": "latest.yml",
+      "size": 357,
+      "sha256": "2b0ab3a6d44aff22e369718a78c6ad5e07ac55f4150397b43640c6e5f0af88b1",
+      "sha512Hex": "c4ced2caa38aae19ef798eb735d1178aa2bd0ed57de921b9532edd751f478629ffa54fb4a85dab37017581317ff6acac6b78d5d99cedfc1a019c826f631f4a5f"
+    }
+  ],
+  "packageComparison": {
+    "oldSourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "newSourceHead": "516c812d90b9482f5cd63003d660f178e0c65444",
+    "oldCount": 621,
+    "newCount": 621,
+    "changed": [
+      {
+        "path": "ComicMetadata.exe",
+        "prior": {
+          "path": "ComicMetadata.exe",
+          "size": 239070208,
+          "sha256": "4ad4e7605e74018c9501baf439f26ebb84b2c3e84ddc8d2f886f3b4853624b45"
+        },
+        "next": {
+          "path": "ComicMetadata.exe",
+          "size": 239070208,
+          "sha256": "c2a376b1bfe7daa85a923c2ece3abfa1d75af3fe7efb5209de97afd596712f0f"
+        }
+      },
+      {
+        "path": "resources/app.asar",
+        "prior": {
+          "path": "resources/app.asar",
+          "size": 2254830,
+          "sha256": "9679faf26add9b6b7ff19938a54cd0858e6fed19c43e0b927de30ec9880c8c0e"
+        },
+        "next": {
+          "path": "resources/app.asar",
+          "size": 2255249,
+          "sha256": "b2a7c47757450b1f05b0327dd9d6557c9113b279d188b349b3da1cec17ffe494"
+        }
+      }
+    ],
+    "missing": [],
+    "extra": []
+  },
+  "provenance": {
+    "sourceManifest": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110\\source-manifest.json",
+      "sha256": "1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a"
+    },
+    "actualBuild": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110\\build-owned.json",
+      "sha256": "0f50c4a71b1dfc15833fcb9b6a88b2097c6878009ca8b4fad067d0367ff81f88"
+    },
+    "dispatcher": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110\\build-owned.mjs",
+      "sha256": "6d620b5bb0ead4f9cffd6401fc7227311550ff3b5a44a58054c9fd5dfebbe3c2"
+    },
+    "ownedTooling17": {
+      "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry08\\tooling-owned-17.json",
+      "sha256": "8a4f8353be50c3794151020a3c7c9a446f31d3ff88e467bac25cc75e6a249012"
+    }
+  },
+  "handoff": "Senua exact manifest/data review and independent receiver required before explicit Futaba execution. No existing failed8e66/718 attempt is relabeled."
+}

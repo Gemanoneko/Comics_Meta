@@ -6,12 +6,12 @@ import crypto from 'node:crypto';
 import {digest,requireThat,member,verifyInventory} from './common.mjs';
 
 const ACCEPTED = Object.freeze({
-  version:'0.6.1',sourceHead:'8e66ca4d14ec5a052e9967d6af2590ef957142aa',
-  sourceIdentity:'11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3',
-  dispatcher:'49ef1cbb36e31d54d13cb7ec0844debf507dfda81723beabc914207a22c94e0d',
+  version:'0.6.1',sourceHead:'516c812d90b9482f5cd63003d660f178e0c65444',
+  sourceIdentity:'1fcb6ac83fd9218c83387519cfd115c548703bc0c85770b2772031ab7d383a9a',
+  dispatcher:'6d620b5bb0ead4f9cffd6401fc7227311550ff3b5a44a58054c9fd5dfebbe3c2',
   node:'1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed',
-  installer:'718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d',
-  size:149538466,
+  installer:'888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca',
+  size:149538531,
 });
 const samePath=(a,b)=>path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
 function regular(file) {
@@ -29,7 +29,7 @@ export function strictBuildReceipt({version,sourceHead,sourceIdentity,sourceRoot
   const sourceRaw=pinned(sourceManifest);
   requireThat(sourceManifest.sha256===sourceIdentity,'Source manifest identity mismatch');
   const manifest=JSON.parse(sourceRaw),files=manifest.files.map(({path,size,sha256})=>({path,size,sha256})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
-  requireThat(files.length===345,'Accepted source membership mismatch');
+  requireThat(files.length===378,'Accepted source membership mismatch');
   verifyInventory(sourceRoot,files);
   const sourceFiles=new Map(files.map(item=>[item.path,item]));
   const pkg=JSON.parse(regular(member(sourceRoot,'package.json')));
