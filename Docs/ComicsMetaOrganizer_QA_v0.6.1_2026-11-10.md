@@ -2,7 +2,7 @@
 
 **Verdict:** NO-GO
 
-Status: focused source regression and the actual packaged native smoke pass. The declared full entry failed before any checks because the headless Edge fixture did not publish DevTools within 30 seconds; no formal receipt was produced. Release clearance remains blocked pending that route's diagnosis; no inherited failure exception is assumed. This NO-GO does not assert a product failure.
+Status: focused source regression and the actual packaged native smoke pass, but the corrected canonical full entry **failed: 1,074 Python tests, nine failures, six errors and one skip**. The actual receipt reports `check fail (owned check)`; the shell check did not run. Release remains blocked. No old failing-gate exception is inherited, no failure is waived by the focused/native successes, and no release or live installation occurred.
 
 ## Identity and source regression
 
@@ -28,7 +28,31 @@ The exact `candidate/dist/win-unpacked/ComicMetadata.exe` was launched once thro
 
 ## Full declared entry and limits
 
-Ender's single declared full-entry attempt used its own canonical headless lease, but the Edge fixture failed to publish DevTools within 30 seconds before any declared checks. There is no formal receipt and no full-check result to certify. Its context SHA-256 was `211869a1a4a0441d3564ff5c1fda4f0cb541cbe0bd2cd9c13cb7815ac89419c2`, bound to source `f7cc220d2eda160fea5c3ba3a8b6898c55938119`. Ender owns scoped diagnosis; no duplicate full invocation was performed by Futaba. The focused 103 source tests and packaged smoke do not replace the missing entry result; no failed check is called passed or n/a, and no historical exception is inherited automatically.
+The initial Edge lease failed to publish DevTools within 30 seconds, before any checks. A narrowly reviewed Chrome alternative started correctly, but the checker refused unreviewed ancestor npm configuration before checks. Neither produced a formal receipt. The supported working-location correction then reached the **one actual full suite**. No full gate was repeated after tests ran; Futaba performed no additional full invocation.
+
+The final immutable context SHA-256 was `4c92e35761396ec6f9a20757e7e6764db41b5666a27f0c399a7d7dfb8838856c`, bound to the same tested source `f7cc220d2eda160fea5c3ba3a8b6898c55938119` (dirty N). Later documentation HEADs do not change that tested build identity. Its run parent was `C:/Antigravity Projects/Illuminati-QA/CMO-061-20261110`.
+
+Actual full result: **1,074 Python tests in 174.007 seconds; nine failures, six errors, one skip**. The declared `check:shell` did not execute because the Python check failed. The canonical inner check also reported `Final supervisor output differs from streamed bytes`, `outputComplete:false` and forced closure, with a final complete native zero observation. That output proof is failed, not passed.
+
+The outer invocation took **220.279 seconds**, exited 1 and closed normally with complete output and final complete native zero (active 0, unsignaled 0). Two intermediate incomplete membership observations remain in the raw record; they are not earlier zero proofs. Canonical Chrome lease `27e5fba7b7c5` closed with `verified:true`, `remaining:0`, and a clean personal-folder comparison.
+
+The following is the actual developer receipt, retained from the observed full invocation; Futaba did not independently rerun that full gate or manufacture a receiver receipt:
+
+```text
+Entry-check receipt v2: comic-metadata v0.6.1 @ f7cc220d2eda160fea5c3ba3a8b6898c55938119 (dirty: N) [source:985ba6cf7e14de464de4abd509bff49d029d6a9786cc9b0d6ffb1d14ba15c85a; harness:6b193dc7e214f17fc2277715b2c27e9785018b961b2e1e6e24dbf211f3398bb5; runtime:9c4dc46eb53a36a2b99bc517128c2c58c31464bc261890133dd97be30571fc14; checker:4bae2cde4e4cdd2f22fb3060571730ec32fec1dd5403ea070086973b18b695e4] — pre-qa n/a, post-build n/a, check-electron n/a, check fail (owned check), test:smoke n/a; personal-folders clean
+```
+
+Raw final evidence under the release root: `entry-chrome-location-owned.json`, SHA-256 `45c6570b540d41e6b76d1628c0c454a182392cffa742356be4dabf8da12a7c43`; `entry-chrome-location-result.json`, SHA-256 `73972f89da00bd165eda3e681676c0a73eb543338ce85330f9eb7454708d3768`. The developer handoff records the complete exact fifteen-case list and saved-output classification: `Docs/ComicsMetaOrganizer_DevHandoff_v0.6.1_2026-11-10.md`.
+
+Failure disposition from saved output, without new execution:
+
+- **Six exact historical cases:** the three failure-filter DOM cases, two clock-sensitive kept-backup cases and embedded-Python state-root child case. Their historical identity does not grant acceptance for 0.6.1.
+- **Three concrete controller omissions:** folder-help, verification and Yandex DOM rectangle tests lacked required `COMICS_TEST_EVIDENCE`. These are harness errors, not an app diagnosis.
+- **Six other new observations remain unaccepted:** update-stat label-count timeout; library-lock child handshake; QA-runtime child `qa_runtime` import failure; and three daylight-saving chart H-versus-HH formatting failures. A suspected common runtime family is not a proven cause or historical waiver.
+
+No failed case names a new filename-matching test. The focused 103 source controls remain passed, but the full result does not establish release acceptance. Correcting the harness omissions, diagnosing the remaining observations and resolving the failed output proof require a separately scoped follow-up, not automatic reruns or test exclusions.
+
+Publication is also blocked by missing actual isolated installation/update proof. The unpacked private first-run smoke is not an installed-update or ordinary-profile sandbox test.
 
 The native smoke covers safe private first-run startup and actual tray Quit. It does not certify installed-profile processing, real comic writeback, native mouse/keyboard/file-picker behavior, installation/update transitions or every dashboard page. No live settings/catalog/library, installed app, registry cleanup or published release was changed by Futaba.
 
@@ -36,4 +60,4 @@ Pattern alerts: none.
 
 ## Owned output
 
-The active build/artifact and adapter evidence are preserved for release. The private native policy/profile root contains 47 files / 1,903,509 logical bytes (measured by recursive file enumeration and summing lengths). After durable evidence archival, one transparent native PowerShell removal of that exact UUID policy/profile root, with a resolved-path check, was rejected before launch by automatic execution policy with only `blocked by policy` supplied. The root remains; no alternate deletion or retry was attempted. Active build inputs were excluded. Earlier source-QA cleanup rejections remain recorded in the source report and were not retried.
+The actual build/artifact, prepared inputs and failed full-entry evidence are preserved for diagnosis; they are not published or declared verified disposable. The private native policy/profile root contains 47 files / 1,903,509 logical bytes (measured by recursive file enumeration and summing lengths). After durable evidence archival, one transparent native PowerShell removal of that exact UUID policy/profile root, with a resolved-path check, was rejected before launch by automatic execution policy with only `blocked by policy` supplied. The root remains; no alternate deletion or retry was attempted. Active build inputs were excluded. Earlier source-QA cleanup rejections remain recorded in the source report and were not retried. Across all three rejected Futaba QA roots, **819 files / 61,609,739 logical bytes** remain; the separately rejected empty Ender folder also remains. No alternative deletion against those roots or parents was attempted.
