@@ -38,13 +38,15 @@ class StateRootSelectionTests(unittest.TestCase):
     def test_every_process_derives_all_state_paths_from_the_root(self):
         with scratch_directory() as folder:
             state = Path(folder) / 'state'
-            script = ('import json,app,worker,server_host,research,scheduler,metron,open_library,automatic;'
+            # Embedded Python's ._pth intentionally ignores cwd and PYTHONPATH.
+            script = ('import sys;sys.path.insert(0,sys.argv[1]);'
+                      'import json,app,worker,server_host,research,scheduler,metron,open_library,automatic;'
                       'print(json.dumps({"state":str(app.STATE_ROOT),"data":str(app.DATA),"queue":str(worker.QUEUE),'
                       '"host":str(server_host.STATE_ROOT),"research":str(research.CACHE),"folders":str(scheduler.STATE),'
                       '"metron":str(metron.STATE),"index":str(open_library.INDEX),"automatic":str(automatic.STATE),'
                       '"code":str(app.BASE)}))')
             env = dict(os.environ, COMICS_META_STATE_ROOT=str(state), COMICS_META_LOCK_DIR=str(Path(folder) / 'locks'))
-            result = subprocess.run([sys.executable, '-S', '-B', '-c', script], cwd=CODE, env=env, capture_output=True,
+            result = subprocess.run([sys.executable, '-S', '-B', '-c', script, str(CODE)], cwd=CODE, env=env, capture_output=True,
                                     text=True, timeout=120, check=True)
             paths = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertEqual(Path(paths.pop('code')), CODE)

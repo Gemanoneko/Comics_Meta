@@ -436,11 +436,30 @@ class UpdateStatsDOMTests(YandexDOMTests):
         self.assertEqual(self.page.evaluate("[...document.querySelectorAll('#statsChart text')].slice(0,3).map(t=>+t.getAttribute('y'))"), [150, 78, 6])
 
     def test_label_thinning_by_measured_width(self):
-        """Addendum A3 row 2: at 640 the week labels all seven days, Today every third hour."""
+        """Addendum A3 row 2: choose the smallest step that fits the actual locale/font."""
         self.open()
         self.page.set_viewport_size({'width': 640, 'height': 900})
-        self.page.wait_for_function("document.querySelectorAll('#statsChart text').length===11")  # 3 y + hours 0, 3 ... 21.
-        self.assertEqual(self.x_labels()[:2], [self.intl(local(28, 0), {'hour': 'numeric'}), self.intl(local(28, 3), {'hour': 'numeric'})])
+        self.page.wait_for_function("+document.querySelector('#statsChart svg').getAttribute('width')===document.querySelector('#statsChart').clientWidth")
+        expected = self.page.evaluate("""epochs => {
+            const svg = document.querySelector('#statsChart svg');
+            const pitch = (svg.getBoundingClientRect().width - 44 - 8) / 24;
+            const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            probe.setAttribute('visibility', 'hidden'); svg.append(probe);
+            try {
+                const format = new Intl.DateTimeFormat(undefined, {hour:'numeric'});
+                const labels = epochs.map(e => format.format(new Date(e * 1000)));
+                for (const step of [1,2,3,4,6,12,24,48]) {
+                    const selected = labels.filter((_, hour) => hour % step === 0);
+                    const widest = Math.max(...selected.map(text => {probe.textContent=text; return probe.getBBox().width;}));
+                    if (step * pitch >= widest + 16) return selected;
+                }
+                return labels.slice(0, 1);
+            } finally { probe.remove(); }
+        }""", [local(28, hour) for hour in range(24)])
+        self.assertEqual(self.x_labels(), expected)
+        self.assertTrue(self.page.evaluate("""[...document.querySelectorAll('#statsChart text')].slice(3).every(t => {
+            const b=t.getBBox(); return b.x>=-0.5 && b.x+b.width<=t.ownerSVGElement.getBoundingClientRect().width+0.5;
+        })"""))
         self.page.locator('#statsPeriod .chip', has_text='This week').click()
         self.wait_unit('Comics per day')
         self.assertEqual(len(self.x_labels()), 7)
@@ -557,7 +576,17 @@ class UpdateStatsDaylightDOMTests(YandexDOMTests):
         """Addendum A2's 24-hour vectors when the page runs en-GB; the en-US form it names otherwise."""
         locale = self.page.evaluate('Intl.DateTimeFormat().resolvedOptions().locale')
         self.assertIn(locale, VECTORS, 'No vector table for the page locale ' + locale)
-        return VECTORS[locale]
+        vectors = VECTORS[locale]
+        if locale == 'en-GB':
+            # The spec requests hour:'numeric', not '2-digit'. ICU versions may
+            # render 00:00 or 0:00. Keep the fixed DST wall-clock vectors/order,
+            # but obtain their typography from the specified OS-locale format.
+            vectors = self.page.evaluate(r"""vectors => {
+                const clock = new Intl.DateTimeFormat(undefined, {hour:'numeric',minute:'2-digit',timeZone:'UTC'});
+                return JSON.parse(JSON.stringify(vectors).replace(/\b(\d\d):(\d\d)/g,
+                    (_,h,m) => clock.format(new Date(Date.UTC(2000,0,1,+h,+m)))));
+            }""", vectors)
+        return vectors
 
     def assert_clock_aligned(self, missing=()):
         """Hourly labels sit on clock hours divisible by the step, each hour once (A2 rule 4)."""

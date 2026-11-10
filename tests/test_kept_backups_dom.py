@@ -4,6 +4,7 @@ Layout is measured: rects, overflow, target sizes, focus, and what a copy of the
 
 Runs through the canonical headless harness (COMICS_TEST_CDP); skipped without it.
 """
+import datetime
 import json
 import os
 import time
@@ -12,7 +13,7 @@ import urllib.parse
 from pathlib import Path
 from test_yandex_dom import YandexDOMTests
 
-NOW = time.time()
+NOW = int(time.time())  # Exact seconds: browser Date truncates fractional milliseconds.
 LONG = 'Сага о героях [Том 1] ' + 'Exceptionally Long Series Title With Spaces ' * 4 + 'Unbrokensegment' * 5 + '.cbz'
 BACKUP = '\\\\?\\D:\\Comics\\Batman [1940]\\.comic-metadata-backups\\Batman 003 (2019).cbz.1760000000000000000.bak'
 SHOWN = 'D:\\Comics\\Batman [1940]\\.comic-metadata-backups\\Batman 003 (2019).cbz.1760000000000000000.bak'
@@ -61,6 +62,9 @@ class KeptBackupsDOMTests(YandexDOMTests):
         self.confirm_result = {'ok': False, 'verified': False, 'backup': BACKUP, 'backup_id': 'b' * 32, 'message': NOT_VERIFIED}
         self.apply_result = (200, {'ok': True, 'verified': True, 'backup': BACKUP, 'backup_id': 'c' * 32, 'backup_retained': True, 'backup_removed_after_verification': False})
         self.context.add_init_script('window.setInterval=()=>0;')
+        # Fixture creation timestamps and rendered relative ages share one clock,
+        # even when full discovery happened minutes before this test starts.
+        self.page.clock.set_fixed_time(datetime.datetime.fromtimestamp(NOW, datetime.timezone.utc))
         self.page.route('https://comics-fixture.invalid/**', self.route)
         self.page.set_viewport_size({'width': 1280, 'height': 900})
         self.page.goto('https://comics-fixture.invalid/')

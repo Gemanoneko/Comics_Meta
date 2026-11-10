@@ -19,7 +19,9 @@ from test_worker import scratch_directory
 
 CODE = Path(__file__).resolve().parents[1]
 HOLDER = '''
-import sys, library_lock
+import sys
+sys.path.insert(0, sys.argv[2])  # Embedded ._pth does not search cwd.
+import library_lock
 library_lock.acquire(sys.argv[1], "test holder")
 print("held", flush=True)
 sys.stdin.readline()
@@ -99,7 +101,7 @@ class ClaimTests(LockFixture):
 
     def test_leftover_process_of_another_copy_blocks_until_it_ends(self):
         env = dict(os.environ, COMICS_META_STATE_ROOT=str(self.other_state), **{library_lock.LOCK_DIR_ENV: str(self.locks)})
-        holder = subprocess.Popen([sys.executable, '-S', '-B', '-c', HOLDER, str(self.library)], cwd=CODE, env=env,
+        holder = subprocess.Popen([sys.executable, '-S', '-B', '-c', HOLDER, str(self.library), str(CODE)], cwd=CODE, env=env,
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.assertEqual(holder.stdout.readline().strip(), 'held', holder.stderr.read() if holder.poll() else '')

@@ -3,6 +3,7 @@ locally. Strings are compared character for character with the spec; layout is m
 
 Runs through the canonical headless harness (COMICS_TEST_CDP); skipped without it.
 """
+import datetime
 import json
 import os
 import time
@@ -53,6 +54,9 @@ class FailureFilterDOMTests(YandexDOMTests):
         self.providers = {'comicvine': {'status': 'configured', 'requests_last_hour': 0, 'hourly_application_budget': 180, 'retry_at': 0}}
         self.posts, self.queries, self.held_post, self.post_status = [], [], None, 200
         self.context.add_init_script('window.setInterval=()=>0;')
+        self.page.clock.set_fixed_time(datetime.datetime.fromtimestamp(NOW, datetime.timezone.utc))
+        self.page_errors = []
+        self.page.on('pageerror', lambda error: self.page_errors.append(str(error)))
         self.page.route('https://comics-fixture.invalid/**', self.route)
         self.page.goto('https://comics-fixture.invalid/')
         self.page.wait_for_function("document.querySelector('#rows').children.length>0 && "
@@ -65,6 +69,9 @@ class FailureFilterDOMTests(YandexDOMTests):
             return route.fulfill(body=(self.root / 'static/index.html').read_text(encoding='utf-8'), content_type='text/html')
         if path == '/lens-control.js':
             return route.fulfill(body=(self.root / 'static/lens-control.js').read_text(encoding='utf-8'), content_type='text/javascript')
+        if path in ('/comic-recovery.js', '/comic-recovery.css'):
+            kind = 'text/javascript' if path.endswith('.js') else 'text/css'
+            return route.fulfill(body=(self.root / ('static' + path)).read_text(encoding='utf-8'), content_type=kind)
         if path == '/reverse-image.js':
             return route.fulfill(body='', content_type='text/javascript')
         if path == '/api/state':
@@ -80,6 +87,11 @@ class FailureFilterDOMTests(YandexDOMTests):
                 data['problems'] = self.problems
         elif path == '/api/browser-verification':
             data = {'engine': 'google_lens', 'phase': 'idle', 'human_verification': False, 'window': 'closed', 'alive': True, 'updated': 1, 'control': {}}
+        elif path == '/api/recovery/evidence':
+            row = next(r for r in self.rows if r['id'] == int(query['comic'][0]))
+            fields = {'Series': row['series'], 'Number': row['number'], 'Year': row['year']}
+            data = {'comic': row['id'], 'problem': row.get('problem'), 'embedded': fields,
+                    'filename': fields, 'provider': None, 'provider_error': None, 'paused': False}
         elif path == '/api/try-again':
             self.posts.append(json.loads(route.request.post_data))
             if self.held_post is not None:
@@ -154,9 +166,9 @@ class FailureFilterDOMTests(YandexDOMTests):
             ['Retrying', 'Write attempt 3 failed; nothing was written. Next try at the next folder pass.'],
             ['Retrying', 'The write failed; nothing was written. Next try at the next folder pass.'],
             ['Retrying', 'Write attempt 1 failed; nothing was written. Next try around ' + other + '.'],
-            ['Needs a fix', "The file's ComicVine link names issue 123456, which does not exist. Correct the Web link in the file."],
-            ['Needs a check', 'ComicVine issue 123 is Another Series #7; the file says Good #1. Check which is right, then correct the file or its link.'],
-            ['Needs a check', "ComicVine's series or issue number for this link differs from the file's. Check which is right, then correct the file or its link."],
+            ['Needs a fix', 'ComicVine returned Not found for linked issue 123456. Review options to replace or remove this link.'],
+            ['Needs a check', 'ComicVine issue 123 is Another Series #7; the file says Good #1. Review options to choose the correct comic.'],
+            ['Needs a check', "ComicVine's series or issue number for this link differs from the file's. Review options to choose the correct comic."],
         ] + [None] * 7 + [None]  # Held lines are quiet in All files (Sergei 2026-10-13); a plain row has none.
         self.assertEqual(self.reasons(), expected)
         for value in ('write_stopped', 'dead_link', 'conflict', 'write_failed'):
@@ -171,7 +183,7 @@ class FailureFilterDOMTests(YandexDOMTests):
             ['Retrying', 'ComicVine did not accept the request. Writes wait for its answer; next try around ' + soon + '.'],
             ['Retrying', 'ComicVine returned no issue for this link. Writes wait for its answer; next try around ' + self.time_text(NOW + 2 * 86400) + '.'],
             ['Retrying', 'ComicVine could not check this link. Writes wait for its answer; next try around ' + soon + '.'],
-            ['Retrying', 'No ComicVine key is set, so writes wait. Add COMICVINE_API_KEY to the .env file.']])
+            ['Retrying', 'No ComicVine key is set, so writes wait. Open API keys in the Comic Metadata desktop app to add one.']])
         badges = self.page.evaluate("[...document.querySelectorAll('.reason-badge')].map(b=>getComputedStyle(b).backgroundColor)")
         self.assertEqual(set(badges), {'rgb(36, 54, 76)'})
 
@@ -185,7 +197,7 @@ class FailureFilterDOMTests(YandexDOMTests):
         self.providers = {'comicvine': {'status': 'not_configured'}}
         self.progress()
         self.assertEqual(lines(), [['Your help is needed: 1 comic. Filter by status below to see which.', yellow],
-                                   ['No ComicVine key is set, so comics with a ComicVine link wait. Add COMICVINE_API_KEY to the .env file.', yellow],
+                                   ['No ComicVine key is set, so comics with a ComicVine link wait. Open API keys in the Comic Metadata desktop app to add one.', yellow],
                                    ['1 comic is retrying on its own.', grey]])
         self.problems = dict.fromkeys(self.problems, 0) | {'limit': 5}
         for status in ('configured', 'rate_limit_wait', 'hourly_budget_wait'):
@@ -249,15 +261,23 @@ class FailureFilterDOMTests(YandexDOMTests):
         self.page.locator('#rows tr').first.get_by_role('button', name='Details').click()
         detail = self.page.locator('#problemDetail')
         self.assertTrue(detail.is_visible())
-        self.assertIn('Automatic writes stopped after 5 failed attempts.', detail.inner_text())
+        # PerComicRecovery supersedes the original plain-text Details block.
+        detail.get_by_text('Writes stopped', exact=True).wait_for()
+        self.assertIn('Close any program using this comic and check that you can save to its folder.', detail.inner_text())
+        self.assertIn('Attempt 5 of 5', detail.inner_text())
         self.assertIn('Last error: The process cannot access the file because it is being used by another process.', detail.inner_text())
-        self.assertEqual(detail.locator('button').count(), 0)  # Plain text, no control.
+        self.assertEqual(detail.get_by_role('button', name='Try again: Spawn 112', exact=True).count(), 1)
+        self.assertEqual(detail.get_by_role('button', name='Open folder', exact=True).count(), 1)
         self.page.locator('#close').click()
+        self.assertFalse(self.page.locator('#review').is_visible())
         self.page.locator('#rows tr').nth(8).get_by_role('button', name='Details').click()  # A held comic, in All files.
+        detail.get_by_text('ComicVine is cooling down after an error.', exact=True).wait_for()
         self.assertIn('ComicVine is cooling down after an error.', detail.inner_text())
         self.page.locator('#close').click()
+        self.assertFalse(self.page.locator('#review').is_visible())
         self.page.locator('#rows tr').nth(15).get_by_role('button', name='Details').click()
         self.assertFalse(detail.is_visible())
+        self.assertEqual(self.page_errors, [])  # Missing production dependencies must fail this fixture.
 
     def test_layout_at_every_width(self):
         for width in (1450, 1024, 700, 640, 320):

@@ -1,0 +1,514 @@
+{
+  "schema": 1,
+  "scope": "Source-only QA repair evidence; not a formal entry/native/install/update/release acceptance",
+  "baseHead": "3783bb611ea36c701bd169ef1c96e1eadd0312bd",
+  "version": "0.6.1",
+  "finalSources": [
+    {
+      "path": "scripts/check-python.cjs",
+      "sha256": "6f359e57fdb270ac78abeeb61323b26661f4e233646e684ef33a181f2ad2e03d"
+    },
+    {
+      "path": "tests/test_check_python.py",
+      "sha256": "51eadc491fe8f757039425f588b840c6609d39a8c525e365e9a0c20dd26b2c48"
+    },
+    {
+      "path": "tests/test_failure_filters_dom.py",
+      "sha256": "3fca9892b93561f4b6d30ee284a11ead0d0008c0ee48cffa715b5d53b019030c"
+    },
+    {
+      "path": "tests/test_kept_backups_dom.py",
+      "sha256": "5d447db189a8cf675f4965c02bd908ce5b6765260afb6998a465652fd9a35a22"
+    },
+    {
+      "path": "tests/test_library_lock.py",
+      "sha256": "2a648c6199fac993fa001c5429ebf78a2069f5488f67c83c94f10a753d825f2d"
+    },
+    {
+      "path": "tests/test_qa_runtime.py",
+      "sha256": "e7d901cd7d5abc7ade8294036f0777458bab065e06a6f10a6620ee43a281cd03"
+    },
+    {
+      "path": "tests/test_state_root.py",
+      "sha256": "225b12b962f1a7e23100b4eb8231673d9e95bb7c63bd06cbcd748e0ba65d9217"
+    },
+    {
+      "path": "tests/test_update_stats_dom.py",
+      "sha256": "123bcb86689563da4f859187734a79f060e9f0604e17d46a9c4b15e764b2b54c"
+    }
+  ],
+  "initialBrowserStartup": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "",
+    "err": "file:///C:/Antigravity%20Projects/Studio%20Illuminati/scripts/qa/headless-browser.mjs:1017\r\n    throw new Error(`headless launch failed: ${why}${said ? `; holder said: ${said}` : ''}${log ? `; holder log: ${log}` : ''}${verifiedEmpty(stopped) ? '' : `; closure not confirmed: ${remainingText(stopped)} remaining`}`);\r\n          ^\r\n\r\nError: headless launch failed: no DevTools port within 30000 ms; holder said: RELAYED 19892; holder log: 2026-11-10T13:20:46.9992818+02:00 holder pid 19892 lease af47d5e8e77e owner 54912 ttl 570s\r\n    at launchHeadless (file:///C:/Antigravity%20Projects/Studio%20Illuminati/scripts/qa/headless-browser.mjs:1017:11)\r\n    at async file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/qa-repair-061-20261110/run-focused.mjs:54:16\r\n\r\nNode.js v26.12.1\r\n",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 69336,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 60,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 2183,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 34133.867,
+    "outputBytes": 820
+  },
+  "shortBrowserStartup": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "",
+    "err": "file:///C:/Antigravity%20Projects/Studio%20Illuminati/scripts/qa/headless-browser.mjs:1017\r\n    throw new Error(`headless launch failed: ${why}${said ? `; holder said: ${said}` : ''}${log ? `; holder log: ${log}` : ''}${verifiedEmpty(stopped) ? '' : `; closure not confirmed: ${remainingText(stopped)} remaining`}`);\r\n          ^\r\n\r\nError: headless launch failed: no DevTools port within 30000 ms; holder said: RELAYED 42584; holder log: 2026-11-10T13:27:24.3651290+02:00 holder pid 42584 lease 5a0ed929d044 owner 72092 ttl 570s\r\n    at launchHeadless (file:///C:/Antigravity%20Projects/Studio%20Illuminati/scripts/qa/headless-browser.mjs:1017:11)\r\n    at async file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/qa-repair-061-20261110/run-focused.mjs:68:16\r\n\r\nNode.js v26.12.1\r\n",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 53032,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 60,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 2179,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 34012.8392,
+    "outputBytes": 820
+  },
+  "core": {
+    "kind": "result",
+    "code": 0,
+    "signal": null,
+    "error": null,
+    "out": "Comic metadata pilot: http://127.0.0.1:0\r\nKeep this window open. Ctrl+C stops the app.\r\nPlan: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\c3cc57fa-bcc9-4926-8525-af57e4f76a7a\\state\\batches\\1794310258798420100\\plan.json\r\nActions: [('Copy 001.cbz', 'write', 1), ('Reference 001.cbz', 'unchanged', 0)]\r\nFocused QA repairs: 38 tests; skips: 0\r\n",
+    "err": "test_live_state_access_is_refused_before_it_happens (test_0_state_isolation.StateIsolationTests.test_live_state_access_is_refused_before_it_happens) ... ok\r\ntest_state_and_locks_point_at_the_throwaway_folder (test_0_state_isolation.StateIsolationTests.test_state_and_locks_point_at_the_throwaway_folder) ... ok\r\ntest_isolated_launcher_preserves_utf8_and_ignores_environment_control (test_check_python.CheckPythonOutputTests.test_isolated_launcher_preserves_utf8_and_ignores_environment_control) ... ok\r\ntest_configured_library_is_claimed_and_none_without_configuration (test_library_lock.ClaimTests.test_configured_library_is_claimed_and_none_without_configuration) ... ok\r\ntest_leftover_process_of_another_copy_blocks_until_it_ends (test_library_lock.ClaimTests.test_leftover_process_of_another_copy_blocks_until_it_ends) ... ok\r\ntest_other_copy_is_refused_on_same_parent_or_child_folder (test_library_lock.ClaimTests.test_other_copy_is_refused_on_same_parent_or_child_folder) ... ok\r\ntest_processes_of_one_copy_share_a_library (test_library_lock.ClaimTests.test_processes_of_one_copy_share_a_library) ... ok\r\ntest_release_frees_the_library (test_library_lock.ClaimTests.test_release_frees_the_library) ... ok\r\ntest_spellings_of_one_folder_are_one_library (test_library_lock.ClaimTests.test_spellings_of_one_folder_are_one_library) ... ok\r\ntest_unreadable_live_claim_is_treated_as_busy (test_library_lock.ClaimTests.test_unreadable_live_claim_is_treated_as_busy) ... ok\r\ntest_unusable_lock_folder_fails_closed (test_library_lock.ClaimTests.test_unusable_lock_folder_fails_closed) ... ok\r\ntest_write_outside_the_configured_library_claims_the_scanned_root (test_library_lock.ClaimTests.test_write_outside_the_configured_library_claims_the_scanned_root) ... ok\r\ntest_dashboard_claims_the_configured_library_and_wires_quit_to_the_supervisor (test_library_lock.DashboardClaimTests.test_dashboard_claims_the_configured_library_and_wires_quit_to_the_supervisor) ... ok\r\ntest_cover_worker_exits_before_any_work (test_library_lock.StartupTests.test_cover_worker_exits_before_any_work) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\bfed3e6b-cfc6-4990-a190-47904e721276\\other-copy). This copy will not change it.\r\nok\r\ntest_dashboard_exits_with_busy_code_before_serving (test_library_lock.StartupTests.test_dashboard_exits_with_busy_code_before_serving) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\6b7959a8-e089-403b-be24-11905c1c67eb\\other-copy). This copy will not change it.\r\nok\r\ntest_metadata_worker_exits_before_any_work (test_library_lock.StartupTests.test_metadata_worker_exits_before_any_work) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\973fdf23-d0e3-4172-b8af-df3cd999b27b\\other-copy). This copy will not change it.\r\nok\r\ntest_backup_removal_is_refused (test_library_lock.WriteGuardTests.test_backup_removal_is_refused) ... ok\r\ntest_conversion_stops_the_folder_pass_instead_of_recording_a_failure (test_library_lock.WriteGuardTests.test_conversion_stops_the_folder_pass_instead_of_recording_a_failure) ... ok\r\ntest_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own (test_library_lock.WriteGuardTests.test_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own) ... ok\r\ntest_metadata_write_is_refused_before_any_change (test_library_lock.WriteGuardTests.test_metadata_write_is_refused_before_any_change) ... ok\r\ntest_changed_policy_or_state_fails_before_installing_audit (test_qa_runtime.QARuntimeTests.test_changed_policy_or_state_fails_before_installing_audit) ... ok\r\ntest_child_python_must_preserve_exclusions (test_qa_runtime.QARuntimeTests.test_child_python_must_preserve_exclusions) ... ok\r\ntest_production_does_not_install_qa_exclusions (test_qa_runtime.QARuntimeTests.test_production_does_not_install_qa_exclusions) ... ok\r\ntest_provider_gpu_and_browser_are_excluded_without_network_or_launch (test_qa_runtime.QARuntimeTests.test_provider_gpu_and_browser_are_excluded_without_network_or_launch) ... ok\r\ntest_supervisor_spawns_the_worker_in_qa_mode_and_other_children_stay_refused (test_qa_runtime.QARuntimeTests.test_supervisor_spawns_the_worker_in_qa_mode_and_other_children_stay_refused) ... ok\r\ntest_windows_launch_of_anything_else_is_still_refused (test_qa_runtime.QARuntimeTests.test_windows_launch_of_anything_else_is_still_refused) ... ok\r\ntest_windows_worker_launch_is_allowed_by_its_command_line (test_qa_runtime.QARuntimeTests.test_windows_worker_launch_is_allowed_by_its_command_line) ... ok\r\ntest_no_module_reads_state_from_the_code_folder (test_state_root.NoCodeFolderStateTests.test_no_module_reads_state_from_the_code_folder) ... ok\r\ntest_batch_plans_and_progress_are_written_under_the_state_root (test_state_root.StateFilesTests.test_batch_plans_and_progress_are_written_under_the_state_root) ... ok\r\ntest_config_and_secrets_come_from_the_state_root_only (test_state_root.StateFilesTests.test_config_and_secrets_come_from_the_state_root_only) ... ok\r\ntest_env_file_setting_relative_to_state_root_or_absolute (test_state_root.StateFilesTests.test_env_file_setting_relative_to_state_root_or_absolute) ... ok\r\ntest_key_names_match_in_any_case_in_every_source (test_state_root.StateFilesTests.test_key_names_match_in_any_case_in_every_source) ... ok\r\ntest_pipeline_switches_read_selected_state_and_refresh_changes (test_state_root.StateFilesTests.test_pipeline_switches_read_selected_state_and_refresh_changes) ... ok\r\ntest_server_host_logs_to_state_but_runs_code (test_state_root.StateFilesTests.test_server_host_logs_to_state_but_runs_code) ... ok\r\ntest_absolute_root_is_used_and_relative_root_is_refused (test_state_root.StateRootSelectionTests.test_absolute_root_is_used_and_relative_root_is_refused) ... ok\r\ntest_default_is_the_code_folder_so_the_live_checkout_is_unchanged (test_state_root.StateRootSelectionTests.test_default_is_the_code_folder_so_the_live_checkout_is_unchanged) ... ok\r\ntest_every_process_derives_all_state_paths_from_the_root (test_state_root.StateRootSelectionTests.test_every_process_derives_all_state_paths_from_the_root) ... ok\r\ntest_no_test_reached_live_state (test_zz_state_isolation.LiveStateUntouchedTests.test_no_test_reached_live_state) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 38 tests in 2.274s\r\n\r\nOK\r\n",
+    "supervisorErr": "",
+    "ok": true,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 24736,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 15,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 231,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 3646.6213000000007,
+    "outputBytes": 7006
+  },
+  "knownFoldersBefore": {
+    "kind": "result",
+    "code": 0,
+    "signal": null,
+    "error": null,
+    "out": "{\"environment\": {\"USERPROFILE\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\", \"APPDATA\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile/Roaming\", \"LOCALAPPDATA\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile/Local\", \"TEMP\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/temp\"}, \"knownFolders\": [{\"name\": \"LocalAppData\", \"flags\": 0, \"hresult\": \"0x80070002\", \"path\": null, \"exists\": false, \"insidePrivateProfile\": false}, {\"name\": \"LocalAppData\", \"flags\": 16384, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Local\", \"exists\": false, \"insidePrivateProfile\": true}, {\"name\": \"RoamingAppData\", \"flags\": 0, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Roaming\", \"exists\": true, \"insidePrivateProfile\": true}, {\"name\": \"RoamingAppData\", \"flags\": 16384, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Roaming\", \"exists\": true, \"insidePrivateProfile\": true}]}\r\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": true,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 14112,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 5,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 24,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 391.28669999999875,
+    "outputBytes": 1430
+  },
+  "knownFoldersAfter": {
+    "kind": "result",
+    "code": 0,
+    "signal": null,
+    "error": null,
+    "out": "{\"environment\": {\"USERPROFILE\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\", \"APPDATA\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile/AppData/Roaming\", \"LOCALAPPDATA\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile/AppData/Local\", \"TEMP\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile/AppData/Local/Temp\"}, \"knownFolders\": [{\"name\": \"LocalAppData\", \"flags\": 0, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Local\", \"exists\": true, \"insidePrivateProfile\": true}, {\"name\": \"LocalAppData\", \"flags\": 16384, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Local\", \"exists\": true, \"insidePrivateProfile\": true}, {\"name\": \"RoamingAppData\", \"flags\": 0, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Roaming\", \"exists\": true, \"insidePrivateProfile\": true}, {\"name\": \"RoamingAppData\", \"flags\": 16384, \"hresult\": \"0x0\", \"path\": \"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\qa-repair-061-20261110/profile\\\\AppData\\\\Roaming\", \"exists\": true, \"insidePrivateProfile\": true}]}\r\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": true,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 56392,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 5,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 24,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 388.2554,
+    "outputBytes": 1584
+  },
+  "postEnvironment130": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "Comic metadata pilot: http://127.0.0.1:0\r\nKeep this window open. Ctrl+C stops the app.\r\nPlan: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\41f99231-bcf5-4807-937b-3fa2a7686ac7\\state\\batches\\1794310727678614900\\plan.json\r\nActions: [('Copy 001.cbz', 'write', 1), ('Reference 001.cbz', 'unchanged', 0)]\r\nFocused QA repairs: 130 tests; skips: 0\r\n",
+    "err": "test_live_state_access_is_refused_before_it_happens (test_0_state_isolation.StateIsolationTests.test_live_state_access_is_refused_before_it_happens) ... ok\r\ntest_state_and_locks_point_at_the_throwaway_folder (test_0_state_isolation.StateIsolationTests.test_state_and_locks_point_at_the_throwaway_folder) ... ok\r\ntest_isolated_launcher_preserves_utf8_and_ignores_environment_control (test_check_python.CheckPythonOutputTests.test_isolated_launcher_preserves_utf8_and_ignores_environment_control) ... ok\r\ntest_chip_texts_tooltips_groups_and_look (test_failure_filters_dom.FailureFilterDOMTests.test_chip_texts_tooltips_groups_and_look) ... ok\r\ntest_chips_drive_the_filter_and_follow_it (test_failure_filters_dom.FailureFilterDOMTests.test_chips_drive_the_filter_and_follow_it) ... ok\r\ntest_details_dialog_carries_the_reason_and_last_error (test_failure_filters_dom.FailureFilterDOMTests.test_details_dialog_carries_the_reason_and_last_error) ... FAIL\r\ntest_filter_options_and_select_name (test_failure_filters_dom.FailureFilterDOMTests.test_filter_options_and_select_name) ... ok\r\ntest_layout_at_every_width (test_failure_filters_dom.FailureFilterDOMTests.test_layout_at_every_width) ... ok\r\ntest_misleading_lines_are_gone (test_failure_filters_dom.FailureFilterDOMTests.test_misleading_lines_are_gone) ... ok\r\ntest_row_sentences_and_held_visibility (test_failure_filters_dom.FailureFilterDOMTests.test_row_sentences_and_held_visibility) ... FAIL\r\ntest_summary_lines (test_failure_filters_dom.FailureFilterDOMTests.test_summary_lines) ... ok\r\ntest_try_again_failure_shows_the_banner_and_re_enables (test_failure_filters_dom.FailureFilterDOMTests.test_try_again_failure_shows_the_banner_and_re_enables) ... ok\r\ntest_try_again_one_click_then_the_row_leaves_the_list (test_failure_filters_dom.FailureFilterDOMTests.test_try_again_one_click_then_the_row_leaves_the_list) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_failure_filters_dom.FailureFilterDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_failure_filters_dom.FailureFilterDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_card_and_failure_list_survive_polls_and_keep_focus (test_folder_help_dom.FolderHelpDOMTests.test_card_and_failure_list_survive_polls_and_keep_focus) ... ok\r\ntest_close_offer_when_every_finding_changed_after_planning (test_folder_help_dom.FolderHelpDOMTests.test_close_offer_when_every_finding_changed_after_planning) ... ok\r\ntest_delete_backup_offer_confirm_keyboard_and_success (test_folder_help_dom.FolderHelpDOMTests.test_delete_backup_offer_confirm_keyboard_and_success) ... ok\r\ntest_delete_failures_and_mixed_confirm (test_folder_help_dom.FolderHelpDOMTests.test_delete_failures_and_mixed_confirm) ... ok\r\ntest_layout_rects_at_every_width_and_zoom (test_folder_help_dom.FolderHelpDOMTests.test_layout_rects_at_every_width_and_zoom) ... ok\r\ntest_one_check_at_a_time_and_focus_left_alone_elsewhere (test_folder_help_dom.FolderHelpDOMTests.test_one_check_at_a_time_and_focus_left_alone_elsewhere) ... ok\r\ntest_outside_library_no_answer_and_several_backups_of_one_comic (test_folder_help_dom.FolderHelpDOMTests.test_outside_library_no_answer_and_several_backups_of_one_comic) ... ok\r\ntest_paused_blocks_the_check_but_not_open_or_show (test_folder_help_dom.FolderHelpDOMTests.test_paused_blocks_the_check_but_not_open_or_show) ... ok\r\ntest_reason_copy_last_error_tooltips_and_names (test_folder_help_dom.FolderHelpDOMTests.test_reason_copy_last_error_tooltips_and_names) ... ok\r\ntest_temp_offer_failures_and_unproved_backup_rows (test_folder_help_dom.FolderHelpDOMTests.test_temp_offer_failures_and_unproved_backup_rows) ... ok\r\ntest_temp_offer_labels_tooltips_and_confirm (test_folder_help_dom.FolderHelpDOMTests.test_temp_offer_labels_tooltips_and_confirm)\r\nAmendment 2 B3, B4 and B7: every (b, t) shape of the offer with the app's temporary files. ... ok\r\ntest_temp_offer_paused_in_flight_and_success (test_folder_help_dom.FolderHelpDOMTests.test_temp_offer_paused_in_flight_and_success) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_folder_help_dom.FolderHelpDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_unreadable_plan_offers_close_and_recheck (test_folder_help_dom.FolderHelpDOMTests.test_unreadable_plan_offers_close_and_recheck) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_folder_help_dom.FolderHelpDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_keyboard_confirm_and_row_delete_send_ids_only (test_kept_backups_dom.KeptBackupsDOMTests.test_keyboard_confirm_and_row_delete_send_ids_only) ... FAIL\r\ntest_lookup_apply_outcomes (test_kept_backups_dom.KeptBackupsDOMTests.test_lookup_apply_outcomes) ... ok\r\ntest_not_saved_copies_and_row_reveal_errors (test_kept_backups_dom.KeptBackupsDOMTests.test_not_saved_copies_and_row_reveal_errors) ... ok\r\ntest_panel_text_states_and_layout_at_every_width (test_kept_backups_dom.KeptBackupsDOMTests.test_panel_text_states_and_layout_at_every_width) ... ok\r\ntest_recovery_outcome_block_reveal_and_copy (test_kept_backups_dom.KeptBackupsDOMTests.test_recovery_outcome_block_reveal_and_copy) ... ok\r\ntest_retained_on_success_is_a_status_and_no_backup_has_no_block (test_kept_backups_dom.KeptBackupsDOMTests.test_retained_on_success_is_a_status_and_no_backup_has_no_block) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_kept_backups_dom.KeptBackupsDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_kept_backups_dom.KeptBackupsDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_configured_library_is_claimed_and_none_without_configuration (test_library_lock.ClaimTests.test_configured_library_is_claimed_and_none_without_configuration) ... ok\r\ntest_leftover_process_of_another_copy_blocks_until_it_ends (test_library_lock.ClaimTests.test_leftover_process_of_another_copy_blocks_until_it_ends) ... ok\r\ntest_other_copy_is_refused_on_same_parent_or_child_folder (test_library_lock.ClaimTests.test_other_copy_is_refused_on_same_parent_or_child_folder) ... ok\r\ntest_processes_of_one_copy_share_a_library (test_library_lock.ClaimTests.test_processes_of_one_copy_share_a_library) ... ok\r\ntest_release_frees_the_library (test_library_lock.ClaimTests.test_release_frees_the_library) ... ok\r\ntest_spellings_of_one_folder_are_one_library (test_library_lock.ClaimTests.test_spellings_of_one_folder_are_one_library) ... ok\r\ntest_unreadable_live_claim_is_treated_as_busy (test_library_lock.ClaimTests.test_unreadable_live_claim_is_treated_as_busy) ... ok\r\ntest_unusable_lock_folder_fails_closed (test_library_lock.ClaimTests.test_unusable_lock_folder_fails_closed) ... ok\r\ntest_write_outside_the_configured_library_claims_the_scanned_root (test_library_lock.ClaimTests.test_write_outside_the_configured_library_claims_the_scanned_root) ... ok\r\ntest_dashboard_claims_the_configured_library_and_wires_quit_to_the_supervisor (test_library_lock.DashboardClaimTests.test_dashboard_claims_the_configured_library_and_wires_quit_to_the_supervisor) ... ok\r\ntest_cover_worker_exits_before_any_work (test_library_lock.StartupTests.test_cover_worker_exits_before_any_work) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\ca542a3c-f960-451c-8ea3-152f86d97e8a\\other-copy). This copy will not change it.\r\nok\r\ntest_dashboard_exits_with_busy_code_before_serving (test_library_lock.StartupTests.test_dashboard_exits_with_busy_code_before_serving) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\ec21c3bc-067c-4b3f-bfcb-d27a7e4bb014\\other-copy). This copy will not change it.\r\nok\r\ntest_metadata_worker_exits_before_any_work (test_library_lock.StartupTests.test_metadata_worker_exits_before_any_work) ... Another Comics Meta copy is using this library (state folder: C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110\\runs\\7a11d540-b6a7-4703-a101-61a8a01f8131\\other-copy). This copy will not change it.\r\nok\r\ntest_backup_removal_is_refused (test_library_lock.WriteGuardTests.test_backup_removal_is_refused) ... ok\r\ntest_conversion_stops_the_folder_pass_instead_of_recording_a_failure (test_library_lock.WriteGuardTests.test_conversion_stops_the_folder_pass_instead_of_recording_a_failure) ... ok\r\ntest_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own (test_library_lock.WriteGuardTests.test_maintenance_keeps_conversion_staging_in_a_library_it_does_not_own) ... ok\r\ntest_metadata_write_is_refused_before_any_change (test_library_lock.WriteGuardTests.test_metadata_write_is_refused_before_any_change) ... ok\r\ntest_changed_policy_or_state_fails_before_installing_audit (test_qa_runtime.QARuntimeTests.test_changed_policy_or_state_fails_before_installing_audit) ... ok\r\ntest_child_python_must_preserve_exclusions (test_qa_runtime.QARuntimeTests.test_child_python_must_preserve_exclusions) ... ok\r\ntest_production_does_not_install_qa_exclusions (test_qa_runtime.QARuntimeTests.test_production_does_not_install_qa_exclusions) ... ok\r\ntest_provider_gpu_and_browser_are_excluded_without_network_or_launch (test_qa_runtime.QARuntimeTests.test_provider_gpu_and_browser_are_excluded_without_network_or_launch) ... ok\r\ntest_supervisor_spawns_the_worker_in_qa_mode_and_other_children_stay_refused (test_qa_runtime.QARuntimeTests.test_supervisor_spawns_the_worker_in_qa_mode_and_other_children_stay_refused) ... ok\r\ntest_windows_launch_of_anything_else_is_still_refused (test_qa_runtime.QARuntimeTests.test_windows_launch_of_anything_else_is_still_refused) ... ok\r\ntest_windows_worker_launch_is_allowed_by_its_command_line (test_qa_runtime.QARuntimeTests.test_windows_worker_launch_is_allowed_by_its_command_line) ... ok\r\ntest_no_module_reads_state_from_the_code_folder (test_state_root.NoCodeFolderStateTests.test_no_module_reads_state_from_the_code_folder) ... ok\r\ntest_batch_plans_and_progress_are_written_under_the_state_root (test_state_root.StateFilesTests.test_batch_plans_and_progress_are_written_under_the_state_root) ... ok\r\ntest_config_and_secrets_come_from_the_state_root_only (test_state_root.StateFilesTests.test_config_and_secrets_come_from_the_state_root_only) ... ok\r\ntest_env_file_setting_relative_to_state_root_or_absolute (test_state_root.StateFilesTests.test_env_file_setting_relative_to_state_root_or_absolute) ... ok\r\ntest_key_names_match_in_any_case_in_every_source (test_state_root.StateFilesTests.test_key_names_match_in_any_case_in_every_source) ... ok\r\ntest_pipeline_switches_read_selected_state_and_refresh_changes (test_state_root.StateFilesTests.test_pipeline_switches_read_selected_state_and_refresh_changes) ... ok\r\ntest_server_host_logs_to_state_but_runs_code (test_state_root.StateFilesTests.test_server_host_logs_to_state_but_runs_code) ... ok\r\ntest_absolute_root_is_used_and_relative_root_is_refused (test_state_root.StateRootSelectionTests.test_absolute_root_is_used_and_relative_root_is_refused) ... ok\r\ntest_default_is_the_code_folder_so_the_live_checkout_is_unchanged (test_state_root.StateRootSelectionTests.test_default_is_the_code_folder_so_the_live_checkout_is_unchanged) ... ok\r\ntest_every_process_derives_all_state_paths_from_the_root (test_state_root.StateRootSelectionTests.test_every_process_derives_all_state_paths_from_the_root) ... ok\r\ntest_addendum_visual_values (test_update_stats_dom.UpdateStatsDOMTests.test_addendum_visual_values)\r\nAddendum A3 rows 1, 3, 4: tooltip shadow, chart margin, y labels 2 px above their lines. ... ok\r\ntest_chip_tooltips_and_all_time (test_update_stats_dom.UpdateStatsDOMTests.test_chip_tooltips_and_all_time) ... ok\r\ntest_compact_y_labels_from_10000 (test_update_stats_dom.UpdateStatsDOMTests.test_compact_y_labels_from_10000)\r\nAddendum A3 row 5: 0 / 10K / 20K for 12,000; 0 / 5K / 10K for 9,000; full numbers below 10,000. ... ok\r\ntest_custom_range (test_update_stats_dom.UpdateStatsDOMTests.test_custom_range) ... ok\r\ntest_date_floor_and_server_refusal (test_update_stats_dom.UpdateStatsDOMTests.test_date_floor_and_server_refusal)\r\nAddendum A1: min 2000-01-01, the client message with no request, and a 400 invalid_range shown inline. ... ok\r\ntest_default_today_panel (test_update_stats_dom.UpdateStatsDOMTests.test_default_today_panel) ... ok\r\ntest_each_period (test_update_stats_dom.UpdateStatsDOMTests.test_each_period) ... ok\r\ntest_empty_and_no_history (test_update_stats_dom.UpdateStatsDOMTests.test_empty_and_no_history) ... ok\r\ntest_hover_keyboard_and_announce (test_update_stats_dom.UpdateStatsDOMTests.test_hover_keyboard_and_announce) ... ok\r\ntest_label_thinning_by_measured_width (test_update_stats_dom.UpdateStatsDOMTests.test_label_thinning_by_measured_width)\r\nAddendum A3 row 2: choose the smallest step that fits the actual locale/font. ... ok\r\ntest_layout_at_every_width (test_update_stats_dom.UpdateStatsDOMTests.test_layout_at_every_width) ... ok\r\ntest_loading_error_and_height (test_update_stats_dom.UpdateStatsDOMTests.test_loading_error_and_height) ... ok\r\ntest_relabelled_counter_and_rows (test_update_stats_dom.UpdateStatsDOMTests.test_relabelled_counter_and_rows) ... ok\r\ntest_this_month (test_update_stats_dom.UpdateStatsDOMTests.test_this_month)\r\nAddendum 2: the fourth chip; one daily bar per day of the month; future days inert; today says so far. ... ok\r\ntest_tooltip_stays_inside_the_chart_in_long_locales (test_update_stats_dom.UpdateStatsDOMTests.test_tooltip_stays_inside_the_chart_in_long_locales)\r\nQA-1: at 320 CSS px (200% zoom of the 640 window) a long tooltip line wraps inside the chart instead of ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_update_stats_dom.UpdateStatsDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_update_stats_dom.UpdateStatsDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_year_bars_and_counting_began_note (test_update_stats_dom.UpdateStatsDOMTests.test_year_bars_and_counting_began_note)\r\nAddendum A1 year unit and A3 row 6: 1 Jan 2021 - 1 Jan 2026 is 6 yearly bars, before counting began. ... ok\r\ntest_autumn_repeated_hour (test_update_stats_dom.UpdateStatsDaylightDOMTests.test_autumn_repeated_hour) ... ok\r\ntest_last_hour_across_the_clock_change (test_update_stats_dom.UpdateStatsDaylightDOMTests.test_last_hour_across_the_clock_change) ... ok\r\ntest_spring_missing_hour (test_update_stats_dom.UpdateStatsDaylightDOMTests.test_spring_missing_hour) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_update_stats_dom.UpdateStatsDaylightDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_update_stats_dom.UpdateStatsDaylightDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_engine_labels_tooltips_all_states_and_recovery (test_verification_dom.VerificationDOMTests.test_engine_labels_tooltips_all_states_and_recovery) ... ok\r\ntest_failed_disabled_retry_explains_closure_or_owner_wait (test_verification_dom.VerificationDOMTests.test_failed_disabled_retry_explains_closure_or_owner_wait) ... ok\r\ntest_failure_is_sticky_under_general_progress_and_older_status (test_verification_dom.VerificationDOMTests.test_failure_is_sticky_under_general_progress_and_older_status) ... ok\r\ntest_full_history_only_changes_when_new_revision_arrives (test_verification_dom.VerificationDOMTests.test_full_history_only_changes_when_new_revision_arrives) ... ok\r\ntest_independent_status_failure_disables_then_recovers (test_verification_dom.VerificationDOMTests.test_independent_status_failure_disables_then_recovers) ... ok\r\ntest_keyboard_submission_and_success_keep_nearby_focus (test_verification_dom.VerificationDOMTests.test_keyboard_submission_and_success_keep_nearby_focus) ... ok\r\ntest_lens_completion_needs_actually_rendered_google_search_control (test_verification_dom.VerificationDOMTests.test_lens_completion_needs_actually_rendered_google_search_control) ... ok\r\ntest_preclick_lens_status_cannot_reenable_action_after_post (test_verification_dom.VerificationDOMTests.test_preclick_lens_status_cannot_reenable_action_after_post) ... ok\r\ntest_preclick_yandex_status_cannot_reenable_action_after_post (test_verification_dom.VerificationDOMTests.test_preclick_yandex_status_cannot_reenable_action_after_post) ... ok\r\ntest_rectangles_and_copy_at_320_and_desktop (test_verification_dom.VerificationDOMTests.test_rectangles_and_copy_at_320_and_desktop) ... ok\r\ntest_rejected_post_uses_healthy_authoritative_status (test_verification_dom.VerificationDOMTests.test_rejected_post_uses_healthy_authoritative_status) ... ok\r\ntest_slow_progress_requests_do_not_overlap_or_block_lens_click (test_verification_dom.VerificationDOMTests.test_slow_progress_requests_do_not_overlap_or_block_lens_click) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_verification_dom.VerificationDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_verification_dom.VerificationDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_actual_state_loading_missing_failure_and_recovery (test_yandex_dom.DashboardDOMTests.test_actual_state_loading_missing_failure_and_recovery) ... ok\r\ntest_budget_pacing_and_cooldown_are_truthful_even_after_owner_restart (test_yandex_dom.DashboardDOMTests.test_budget_pacing_and_cooldown_are_truthful_even_after_owner_restart) ... ok\r\ntest_exact_states_and_recovery_without_repeated_announcements (test_yandex_dom.DashboardDOMTests.test_exact_states_and_recovery_without_repeated_announcements) ... ok\r\ntest_keyboard_action_deduplication_and_success_focus (test_yandex_dom.DashboardDOMTests.test_keyboard_action_deduplication_and_success_focus) ... ok\r\ntest_rects_states_zoom_and_open_dialog (test_yandex_dom.DashboardDOMTests.test_rects_states_zoom_and_open_dialog) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.DashboardDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_version_loading_valid_invalid_failure_recovery_and_no_reannouncement (test_yandex_dom.DashboardDOMTests.test_version_loading_valid_invalid_failure_recovery_and_no_reannouncement) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.DashboardDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_yandex_dom.YandexDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_yandex_dom.YandexDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_no_test_reached_live_state (test_zz_state_isolation.LiveStateUntouchedTests.test_no_test_reached_live_state) ... ok\r\n\r\n======================================================================\r\nFAIL: test_details_dialog_carries_the_reason_and_last_error (test_failure_filters_dom.FailureFilterDOMTests.test_details_dialog_carries_the_reason_and_last_error)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\tests\\test_failure_filters_dom.py\", line 269, in test_details_dialog_carries_the_reason_and_last_error\r\n    self.assertEqual(detail.get_by_role('button', name='Try again', exact=True).count(), 1)\r\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError: 0 != 1\r\n\r\n======================================================================\r\nFAIL: test_row_sentences_and_held_visibility (test_failure_filters_dom.FailureFilterDOMTests.test_row_sentences_and_held_visibility)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\tests\\test_failure_filters_dom.py\", line 173, in test_row_sentences_and_held_visibility\r\n    self.assertEqual(self.reasons(), expected)\r\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError: Lists differ: [['Ne[697 chars] #1. Review options to choose the correct comi[188 chars]None] != [['Ne[697 chars] #1. Check which is right, then correct the fi[214 chars]None]\r\n\r\nFirst differing element 6:\r\n['Nee[74 chars] #1. Review options to choose the correct comic.']\r\n['Nee[74 chars] #1. Check which is right, then correct the file or its link.']\r\n\r\nDiff is 1420 characters long. Set self.maxDiff to None to see it.\r\n\r\n======================================================================\r\nFAIL: test_keyboard_confirm_and_row_delete_send_ids_only (test_kept_backups_dom.KeptBackupsDOMTests.test_keyboard_confirm_and_row_delete_send_ids_only)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\tests\\test_kept_backups_dom.py\", line 175, in test_keyboard_confirm_and_row_delete_send_ids_only\r\n    self.assertEqual((self.page.evaluate('document.activeElement.getAttribute(\"aria-label\")'), delete.get_attribute('aria-expanded')),\r\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n                     ('Delete: ' + LONG + ', 12 min ago', 'false'))\r\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError: Tuples differ: ('Del[242 chars]egmentUnbrokensegmentUnbrokensegment.cbz, 11 min ago', 'false') != ('Del[242 chars]egmentUnbrokensegmentUnbrokensegment.cbz, 12 min ago', 'false')\r\n\r\nFirst differing element 0:\r\n'Dele[231 chars]tUnbrokensegmentUnbrokensegmentUnbrokensegment.cbz, 11 min ago'\r\n'Dele[231 chars]tUnbrokensegmentUnbrokensegmentUnbrokensegment.cbz, 12 min ago'\r\n\r\n  ('Delete: Сага о героях [Том 1] Exceptionally Long Series Title With Spaces '\r\n   'Exceptionally Long Series Title With Spaces Exceptionally Long Series Title '\r\n   'With Spaces Exceptionally Long Series Title With Spaces '\r\n   'UnbrokensegmentUnbrokensegmentUnbrokensegmentUnbrokensegmentUnbrokensegment.cbz, '\r\n-  '11 min ago',\r\n?    ^\r\n\r\n+  '12 min ago',\r\n?    ^\r\n\r\n   'false')\r\n\r\n----------------------------------------------------------------------\r\nRan 130 tests in 45.672s\r\n\r\nFAILED (failures=3)\r\n",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 60420,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 460,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 3268,
+        "incompleteQueries": 1,
+        "firstIncomplete": {
+          "assigned": 19,
+          "listed": 18,
+          "capacity": 8192,
+          "query_ok": true
+        },
+        "lastIncomplete": {
+          "assigned": 19,
+          "listed": 18,
+          "capacity": 8192,
+          "query_ok": true
+        }
+      }
+    },
+    "elapsedMs": 51460.307799999995,
+    "outputBytes": 25018
+  },
+  "postEnvironmentClosure": {
+    "leaseId": "69a841649f33",
+    "reason": "stop-requested",
+    "verified": true,
+    "remaining": 0,
+    "personal": {
+      "clean": true,
+      "added": [],
+      "changed": [],
+      "removed": [],
+      "errors": [],
+      "allowed": [],
+      "notes": [],
+      "created": {},
+      "window": {
+        "fromMs": 1794310700891,
+        "toMs": 1794310751177
+      },
+      "watched": {
+        "folders": 7,
+        "driveRoots": 10
+      },
+      "verdict": "clean",
+      "lines": []
+    }
+  },
+  "finalAffectedModules": {
+    "kind": "result",
+    "code": 0,
+    "signal": null,
+    "error": null,
+    "out": "Focused QA repairs: 23 tests; skips: 0\r\n",
+    "err": "test_live_state_access_is_refused_before_it_happens (test_0_state_isolation.StateIsolationTests.test_live_state_access_is_refused_before_it_happens) ... ok\r\ntest_state_and_locks_point_at_the_throwaway_folder (test_0_state_isolation.StateIsolationTests.test_state_and_locks_point_at_the_throwaway_folder) ... ok\r\ntest_chip_texts_tooltips_groups_and_look (test_failure_filters_dom.FailureFilterDOMTests.test_chip_texts_tooltips_groups_and_look) ... ok\r\ntest_chips_drive_the_filter_and_follow_it (test_failure_filters_dom.FailureFilterDOMTests.test_chips_drive_the_filter_and_follow_it) ... ok\r\ntest_details_dialog_carries_the_reason_and_last_error (test_failure_filters_dom.FailureFilterDOMTests.test_details_dialog_carries_the_reason_and_last_error) ... ok\r\ntest_filter_options_and_select_name (test_failure_filters_dom.FailureFilterDOMTests.test_filter_options_and_select_name) ... ok\r\ntest_layout_at_every_width (test_failure_filters_dom.FailureFilterDOMTests.test_layout_at_every_width) ... ok\r\ntest_misleading_lines_are_gone (test_failure_filters_dom.FailureFilterDOMTests.test_misleading_lines_are_gone) ... ok\r\ntest_row_sentences_and_held_visibility (test_failure_filters_dom.FailureFilterDOMTests.test_row_sentences_and_held_visibility) ... ok\r\ntest_summary_lines (test_failure_filters_dom.FailureFilterDOMTests.test_summary_lines) ... ok\r\ntest_try_again_failure_shows_the_banner_and_re_enables (test_failure_filters_dom.FailureFilterDOMTests.test_try_again_failure_shows_the_banner_and_re_enables) ... ok\r\ntest_try_again_one_click_then_the_row_leaves_the_list (test_failure_filters_dom.FailureFilterDOMTests.test_try_again_one_click_then_the_row_leaves_the_list) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_failure_filters_dom.FailureFilterDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_failure_filters_dom.FailureFilterDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_keyboard_confirm_and_row_delete_send_ids_only (test_kept_backups_dom.KeptBackupsDOMTests.test_keyboard_confirm_and_row_delete_send_ids_only) ... ok\r\ntest_lookup_apply_outcomes (test_kept_backups_dom.KeptBackupsDOMTests.test_lookup_apply_outcomes) ... ok\r\ntest_not_saved_copies_and_row_reveal_errors (test_kept_backups_dom.KeptBackupsDOMTests.test_not_saved_copies_and_row_reveal_errors) ... ok\r\ntest_panel_text_states_and_layout_at_every_width (test_kept_backups_dom.KeptBackupsDOMTests.test_panel_text_states_and_layout_at_every_width) ... ok\r\ntest_recovery_outcome_block_reveal_and_copy (test_kept_backups_dom.KeptBackupsDOMTests.test_recovery_outcome_block_reveal_and_copy) ... ok\r\ntest_retained_on_success_is_a_status_and_no_backup_has_no_block (test_kept_backups_dom.KeptBackupsDOMTests.test_retained_on_success_is_a_status_and_no_backup_has_no_block) ... ok\r\ntest_unknown_yandex_empty_or_challenge_page_never_fabricates_results (test_kept_backups_dom.KeptBackupsDOMTests.test_unknown_yandex_empty_or_challenge_page_never_fabricates_results) ... ok\r\ntest_yandex_visible_cards_text_query_and_ad_exclusion (test_kept_backups_dom.KeptBackupsDOMTests.test_yandex_visible_cards_text_query_and_ad_exclusion) ... ok\r\ntest_no_test_reached_live_state (test_zz_state_isolation.LiveStateUntouchedTests.test_no_test_reached_live_state) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 23 tests in 7.903s\r\n\r\nOK\r\n",
+    "supervisorErr": "",
+    "ok": true,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 15396,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 123,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 842,
+        "incompleteQueries": 1,
+        "firstIncomplete": {
+          "assigned": 21,
+          "listed": 20,
+          "capacity": 8192,
+          "query_ok": true
+        },
+        "lastIncomplete": {
+          "assigned": 21,
+          "listed": 20,
+          "capacity": 8192,
+          "query_ok": true
+        }
+      }
+    },
+    "elapsedMs": 13140.049,
+    "outputBytes": 3524
+  },
+  "finalClosure": {
+    "leaseId": "38700777d63f",
+    "reason": "stop-requested",
+    "verified": true,
+    "remaining": 0,
+    "personal": {
+      "clean": true,
+      "added": [],
+      "changed": [],
+      "removed": [],
+      "errors": [],
+      "allowed": [],
+      "notes": [],
+      "created": {},
+      "window": {
+        "fromMs": 1794311011104,
+        "toMs": 1794311023266
+      },
+      "watched": {
+        "folders": 7,
+        "driveRoots": 10
+      },
+      "verdict": "clean",
+      "lines": []
+    }
+  },
+  "finalLeafKnownFolders": {
+    "environment": {
+      "USERPROFILE": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile",
+      "APPDATA": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile/AppData/Roaming",
+      "LOCALAPPDATA": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile/AppData/Local",
+      "TEMP": "C:/Antigravity Projects/Illuminati-CMO-QA-061-20261110/temp"
+    },
+    "knownFolders": [
+      {
+        "name": "LocalAppData",
+        "flags": 0,
+        "hresult": "0x0",
+        "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile\\AppData\\Local",
+        "exists": true,
+        "insidePrivateProfile": true
+      },
+      {
+        "name": "LocalAppData",
+        "flags": 16384,
+        "hresult": "0x0",
+        "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile\\AppData\\Local",
+        "exists": true,
+        "insidePrivateProfile": true
+      },
+      {
+        "name": "RoamingAppData",
+        "flags": 0,
+        "hresult": "0x0",
+        "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile\\AppData\\Roaming",
+        "exists": true,
+        "insidePrivateProfile": true
+      },
+      {
+        "name": "RoamingAppData",
+        "flags": 16384,
+        "hresult": "0x0",
+        "path": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/profile\\AppData\\Roaming",
+        "exists": true,
+        "insidePrivateProfile": true
+      }
+    ]
+  },
+  "machineLoad": {
+    "Utc": "2026-11-10T11:25:23.8790456Z",
+    "IntervalSeconds": 3.5409947,
+    "Method": "all accessible processes CPU delta / elapsed seconds, in core equivalents; top15 shown",
+    "Processes": [
+      {
+        "Name": "python",
+        "Pid": 66136,
+        "CpuCores": 1.879610332674199,
+        "WorkingSet": 1099460608
+      },
+      {
+        "Name": "Godot_v4.7.2-stable_win64",
+        "Pid": 32660,
+        "CpuCores": 0.9948082721423875,
+        "WorkingSet": 551919616
+      },
+      {
+        "Name": "python",
+        "Pid": 53656,
+        "CpuCores": 0.7284407220002872,
+        "WorkingSet": 24899584
+      },
+      {
+        "Name": "python",
+        "Pid": 14504,
+        "CpuCores": 0.6877553640761298,
+        "WorkingSet": 24748032
+      },
+      {
+        "Name": "python",
+        "Pid": 29528,
+        "CpuCores": 0.682622420323007,
+        "WorkingSet": 24780800
+      },
+      {
+        "Name": "FURYCTRL",
+        "Pid": 40824,
+        "CpuCores": 0.05611997328705597,
+        "WorkingSet": 139403264
+      },
+      {
+        "Name": "ChatGPT",
+        "Pid": 71516,
+        "CpuCores": 0.04599215302734823,
+        "WorkingSet": 1560039424
+      },
+      {
+        "Name": "ChatGPT",
+        "Pid": 72960,
+        "CpuCores": 0.040881364275881966,
+        "WorkingSet": 853266432
+      },
+      {
+        "Name": "chrome",
+        "Pid": 22356,
+        "CpuCores": 0.04087722659070784,
+        "WorkingSet": 945696768
+      },
+      {
+        "Name": "iSCSIAgent",
+        "Pid": 13796,
+        "CpuCores": 0.030607761423094074,
+        "WorkingSet": 3862528
+      },
+      {
+        "Name": "codex",
+        "Pid": 31412,
+        "CpuCores": 0.025534357708030822,
+        "WorkingSet": 1532293120
+      },
+      {
+        "Name": "Godot_v4.7.2-stable_win64",
+        "Pid": 12068,
+        "CpuCores": 0.0204065820467201,
+        "WorkingSet": 250789888
+      },
+      {
+        "Name": "pwsh",
+        "Pid": 17752,
+        "CpuCores": 0.020378944683033882,
+        "WorkingSet": 100737024
+      },
+      {
+        "Name": "INZONEHub",
+        "Pid": 11284,
+        "CpuCores": 0.015304027608694346,
+        "WorkingSet": 288296960
+      },
+      {
+        "Name": "QNAPRaidMgr",
+        "Pid": 14220,
+        "CpuCores": 0.01528017334676185,
+        "WorkingSet": 11575296
+      }
+    ],
+    "Memory": {
+      "TotalVisibleMemorySize": 133894212,
+      "FreePhysicalMemory": 87221604
+    }
+  }
+}

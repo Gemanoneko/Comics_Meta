@@ -110,7 +110,7 @@ class QARuntimeTests(unittest.TestCase):
         (base/'worker.py').write_text("import os,sys\nfrom pathlib import Path\n"
                                       "Path(sys.argv[0]).with_name('worker-ran.txt').write_text(os.environ.get('COMICS_META_QA',''))\n",encoding='utf-8')
         env=dict(os.environ,**self.env)
-        result=subprocess.run([sys.executable,'-B','-c',CHILD,str(base)],cwd=Path(qa_runtime.__file__).parent,
+        result=subprocess.run([sys.executable,'-B','-c',CHILD,str(base),str(Path(qa_runtime.__file__).parent)],cwd=Path(qa_runtime.__file__).parent,
                               env=env,capture_output=True,text=True,timeout=120)
         self.assertEqual(result.returncode,0,result.stderr)
         outcome=json.loads(result.stdout.strip().splitlines()[-1])
@@ -129,6 +129,7 @@ SPACED_PYTHON='C:\\Program Files\\Comic Metadata\\resources\\runtime\\python\\py
 CHILD=textwrap.dedent('''
     import json, os, subprocess, sys, threading
     from pathlib import Path
+    sys.path.insert(0, sys.argv[2])  # Embedded ._pth does not search cwd.
     import qa_runtime
     qa_runtime.install()
     import supervisor
