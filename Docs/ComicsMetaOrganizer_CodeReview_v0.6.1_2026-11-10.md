@@ -12,7 +12,8 @@ App endpoint tree: 4dca2db9d78f3239893aabf8bee25dec78500ee1
 Committed app-range diff: 74 files, +13615 / -51 (includes documentation)
 Separately reviewed unshipped tooling: exact SHA-256 table below
 Tooling/documentation base HEAD: 516c812d90b9482f5cd63003d660f178e0c65444
-Separate tooling commit: e104907432bfd74932627d2ed34632b96636cebf (pushed; exact SHA-256 inventory below)
+Tooling basis commit: e104907432bfd74932627d2ed34632b96636cebf (historical 19-file inventory)
+Final tooling correction: d7c0e1415d5162887d99edb0b08e019635501c00 (pushed; exact updated inventory below)
 Stand-down dimensions: none
 ```
 
@@ -20,7 +21,7 @@ The baseline is the previous release review's endpoint. v0.6.0 points to later d
 
 ## Summary
 
-Reviewed the four conservative filename-matching fixes, captured-index evidence stamping, cache/catalog refresh, focused-runner refusal controls, isolated Python UTF-8 launcher and eight QA repair files. Extended construction review to the separately pinned Sandbox lifecycle, genuine installed updater observer, fixture, data-only build/QA/promotion adapters and unchanged publisher interface. The final geometry fixture measures settled native and persisted state; it does not tolerate a changed rectangle. No open Critical finding or safety-floor violation remains in these bytes. Two inherited Major advisories and one inherited Minor remain. This construction verdict does not assert that either final Sandbox phase has passed.
+Reviewed the four conservative filename-matching fixes, captured-index evidence stamping, cache/catalog refresh, focused-runner refusal controls, isolated Python UTF-8 launcher and eight QA repair files. Extended construction review to the separately pinned Sandbox lifecycle, genuine installed updater observer, fixture, data-only build/QA/promotion adapters and unchanged publisher interface. The final geometry fixture measures settled native and persisted state; it does not tolerate a changed rectangle. No open Critical finding or safety-floor violation remains in these bytes. Two inherited Major advisories and one inherited Minor remain. Actual final installed processing/paused flows, independent receiver and hidden native tray callback evidence are audited in the supplement below; publication validation remains separate.
 
 Severity follows `Team/Docs/ProcessRules.md` § Severity definitions.
 
@@ -94,7 +95,7 @@ Primary upstream evidence and approved bounds contract are retained in `Docs/Com
 
 The fresh actual build record under `scratch/geometry-fix-061-20261110/build-owned.json` names source516c812 and is normal code0, closed, unforced, untimed-out, output complete, native complete/zero with 14 retained signaled members. Its reviewed wrapper hash is `6d620b5bb0ead4f9cffd6401fc7227311550ff3b5a44a58054c9fd5dfebbe3c2`; immutable archive SHA-256 is `ecd9195cd0f1c6cdffb7b056772501f626b3453a6a9fb5da408c4e5c87fbc844`. All three new artifact sizes and SHA-256 hashes were independently recomputed from actual dist files and matched the actual index and normal lean-build success record. Previous8e66/718 build, gate, native and failed Sandbox records remain historical; none is relabelled as this build's acceptance.
 
-Final QA/build/promotion tooling is now frozen and reviewed against the 19-file inventory `Docs/ComicsMetaOrganizer_InstallUpdateTooling_v0.6.1_2026-11-10.json`, SHA-256 `48b4b7bafef5e1c73b9ed12008e4d0742cf1395f9cf758c765eafca2fb6cd65a`. All 19 source sizes/hashes matched. Tooling commit e104907432bfd74932627d2ed34632b96636cebf is pushed and binds this exact inventory. Actual two-phase QA/promotion acceptance remains pending.
+The historical 19-file basis inventory48b4b7bafef5e1c73b9ed12008e4d0742cf1395f9cf758c765eafca2fb6cd65a belongs to pushed tooling commit e104907. The final explicit 19-file inventory `Docs/ComicsMetaOrganizer_InstallUpdateToolingBrokerFix_v0.6.1_2026-11-10.json`, SHA-256 `59ffa0a19035e7bef9b89b9081cffb9ae1c4e41d1fbe1cc1184f063bead71bae`, binds pushed correction commit `d7c0e1415d5162887d99edb0b08e019635501c00`. All nineteen final source hashes matched. Only qa-receipt.mjs and qa-receipt.test.mjs changed from the basis; both final hashes appear below. This changes a data consumer, not the built app or guest runtime.
 
 ## Exact accepted app and artifact identity
 
@@ -115,7 +116,7 @@ Actual production installer: `Comic-Metadata-Setup-0.6.1.exe`, 149538531 bytes, 
 
 ## Separately pinned unshipped tooling
 
-Paths below are relative to `scripts/packaging/install-update-qa/`. They are not added to the accepted app artifact by this report. The separately reviewed tooling endpoint is pushed commit e104907432bfd74932627d2ed34632b96636cebf; it does not substitute for the tested app source516c812.
+Paths below are relative to `scripts/packaging/install-update-qa/`. They are not added to the accepted app artifact by this report. The separately reviewed final tooling endpoint is pushed commit d7c0e1415d5162887d99edb0b08e019635501c00, extending the historical e104907 basis by the two-file consumer correction. It does not substitute for tested app source516c812.
 
 | File | SHA-256 |
 |---|---|
@@ -135,8 +136,8 @@ Paths below are relative to `scripts/packaging/install-update-qa/`. They are not
 | module-access.test.mjs | 0bf70532784c7e1a713b4f21dd2db9c207e1976f1caab47c10e656318797b058 |
 | observer.cjs | ad3c0b61b7e35846d7bd14c686b603ae2ffb1334475d10bfb81ff4a922b4751c |
 | prepare-input.mjs | 37292e54f888d265310738117aeb58f284d4790f9091bc87b046b6ecceaa911e |
-| qa-receipt.mjs | 3f37a063b541bed2c0219a081f73baa9626389766a9aa679813c32cceb656aef |
-| qa-receipt.test.mjs | 5682a49fdc23ed8219e27c6b07777e3e172ae8fc23d8178d80adde80e8d14e3f |
+| qa-receipt.mjs | 321b5495d74bcc264b68c70dafd0e06ef5563d44273383492d4649e1e442b956 |
+| qa-receipt.test.mjs | e2b9bb52236cae3b51525b54769610e71c6a95a890d19f18fba70c94760657e9 |
 | state-fixture.py | 855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d |
 
 Final reviewed runtime staging: retry08/input, 2046-file manifest SHA-256 `897201ddb10c9eba9e4e50430b4d82726f69b3979a26055329e74e802f7910ff`. All seven runtime files are byte-identical to reviewed geometry staging75e740; only accepted source/build evidence, actual three next artifacts and plan identities/paths/nonces changed. The revised data-only prepare-input verifies the immutable prior runtime, new source/build/dispatcher/package and all three actual artifacts before copying into a fresh owned root; it launches no process. All621 actual new win-unpacked files were independently hashed against the final package inventory, with621 actual/expected and zero mismatches. Only ComicMetadata.exe and resources/app.asar differ from the historical package. The plan requires committed/pushed rebind evidence, independent receiver PASS and explicit Futaba handoff before a new VM flow.
@@ -153,7 +154,7 @@ Canonical owner `bounded-check.mjs` SHA-256 `89ecbd30698cae696ba52d677f31bfaa505
 
 ## Verification and limitations
 
-Senua performed source/diff/hash and producer/consumer contract review, not application, test, build, inspector, installer or VM execution. The earlier app-range check passed; extending through516c reports one historical review-document blank line at EOF, removed in this updated review document. No product whitespace defect was reported. Existing successful focused/full entry and build records were read or attributed; their behavior acceptance belongs to Futaba. New516c sender record SHA-256 `9ffe683d541434041153aecf47d7ba663670b36672ee54a7aec0370960f63787` reported1075 Python tests with one privilege skip and54 shell passes/two opt-in skips under normal complete native-zero ownership; independent receiver was still pending at this preparation.
+Senua performed source/diff/hash and producer/consumer contract review, not application, test, build, inspector, installer or VM execution. The earlier app-range check passed; extending through516c reports one historical review-document blank line at EOF, removed in this updated review document. No product whitespace defect was reported. Existing successful focused/full entry and build records were read or attributed; their behavior acceptance belongs to Futaba. New516c sender record SHA-256 `9ffe683d541434041153aecf47d7ba663670b36672ee54a7aec0370960f63787` reported1075 Python tests with one privilege skip and54 shell passes/two opt-in skips under normal complete native-zero ownership; the independent receiver later passed with an identical single receipt, as recorded below.
 
 The actual native-abort probe was audited at `native-probe.json` SHA-256 `906dfbe4c22770fb05b18e5348620cadb5b4c6047cb3443bfd7cf7f4fa6216ab` and outer-owned SHA-256 `0ce73335b53725fec697cc6fe627d4061cfad7c60cbd405cbf0951be342ed8ec`: inner six live members were terminated through the captured Job, root/leaf signaled and native complete/zero, while the unrelated outer sibling remained alive and then quit normally. The inner forced/output-incomplete result is correctly retained as failed by design; outer owner is normal/complete/zero. This proves that tested API path, not final app QA.
 
@@ -161,7 +162,24 @@ The final516c/888 data-only build translation was audited against its actual sou
 
 Literal producer/consumer contract checks cover: session request/start digest and nonce; host/guest normal native closure; kernelLaunch/kernelExit/clientActivation/finalObservation; prior registration, old-engine helper receipt and old natural exit; next identity/version/registration/one engine; actual four-key decryption and manual/history/recovery state; before/after exact settled geometry; paused no-write then actual rendered Resume/core action; actual packaged Quit and process absence. Some assertions, including 621 installed file hashes, no-write timing and natural next exit, are established by the pinned guest producer before its successful record, rather than independently reconstructed by the adapter.
 
-At this report's preparation, final processing/paused Sandbox acceptance, actual QA receipt translation, final promotion config/pins and the publisher's read-only check are pending. Previous attempts are partial/failed evidence only. No successful QA record was fabricated to exercise the publisher. Final promotion must pin actual versioned GO/review report bytes, exact runtime/helper/cleanup/notes/artifact bytes and tested source; a later tooling commit is not the app tag target. Original source/build receipts referenced by derived evidence must be retained or moved with updated pinned references before scratch cleanup. No Senua scratch was created.
+Final processing/paused acceptance, native tray proof and the actual two-phase mapping audit have now passed; earlier attempts remain partial/failed evidence only. Final strict QA receipt/promotion generation against this frozen review hash, exact promotion config/pins and the publisher's read-only check remain required. No successful QA record was fabricated to exercise the publisher. Final promotion must pin actual versioned GO/review report bytes, exact runtime/helper/cleanup/notes/artifact bytes and tested source; a later tooling commit is not the app tag target. Original source/build receipts referenced by derived evidence must be retained or moved with updated pinned references before scratch cleanup. No Senua scratch was created.
+
+## Final installed-flow and native tray supplement
+
+The final ordinary installed retry08 processing and paused flows both passed on source516c812 / installer888, followed by the separately scoped hidden native tray callback smoke. This is actual evidence audit, not Senua execution or a claim of publication.
+
+- Both installed flows: real 0.6.0 installation/registration, worker and conversion, authenticated download, old engine natural exit before accepted NSIS helper, ordinary Explorer relaunch into0.6.1, all four expected synthetic keys decrypted before/after, preserved config/manual/archive/ledger/recovery/history, and exact settled900x600/native/maximized/raw window.json/hash restoration at scale2.5. Paused relaunch remained paused without new writes until real rendered Resume, then performed new-version core writes. Both invoked production IPC Quit, exited naturally and left zero installed/capsule processes.
+- Both host/guest owners: normal code0, closed/unforced/untimed-out/output complete, complete native zero. Processing SystemId00dee656-b833-43c8-9300-0d8e9e662bff and paused808376b5-5bef-4a53-a027-fd1a8b6f5b93 have actual SystemExited notification1/result0, retained owned UI signal and raw saved-template baseline restoration.
+- The final raw client observations each retain one same-package WindowsSandboxServer broker. They do not show an active owned UI. The original QA adapter wrongly required the whole broker/UI inventory to be empty. The corrected consumer requires exact retained UI signal/absence and permits only zero or one authenticated same-package Server broker with the same SID, retained UI parent and bare quoted image command. It preserves raw observations and rejects active/foreign UI or arbitrary/multiple/wrong-user/path/parent/command broker records. Kernel launch/exit/baseline checks remain mandatory. Five controls include the captured actual broker and refusal cases. This construction issue is resolved in the separately pinned consumer delta; no raw record or VM was changed/rerun.
+- Native tray: the actual enabled captured native menu item's click callback was invoked directly, without renderer IPC. Exact target PID70620 and private policy preceded pre-main guard installation; one packaged0.6.1 setup window was hidden/offscreen/unfocused, enginePID53252 was owned/unconfigured with HTTP200, violations were empty and feed/model requests stayed zero. Semantic execution2.432s ended naturally code0/signalnull. Outer31.980s was normal/closed/unforced/untimed-out/output complete, native complete/zero with12 retained/zero unsignaled,2010 membership queries and no incomplete observations; all621 package files were unchanged.
+- Fresh full receiver1172f88a8e64b884facbde7aadd245b65b48a86d8eb026d7297cccf0b6d775b7 independently matched exactly one case-sensitive sender receipt. Final native zero followed two disclosed transient incomplete receiver membership samples; no failure was hidden.
+
+Native scope was reviewed under pushed plan commitd905ecd1c6efc7b031ecda72669c1bb3c2640cf6. Adapter SHA-256 pins: outerf0325146cc2c60e3cee7f38a540f6604bd34a2a29c6156269db24c2db6e615f7; smoke5607be32eef97a9bc61258fba43d2c29f366e2905b95675a5438fe1c4b21bcf4; guardsbac42d0c230500f173d537352ea1920a67d662f158c55abc6a11f8ba61fafeee; cleanupeceb3f781330e6ccff60062368b210f58385ddddd3827a72bb3723e2975944d3; controls5932de13dc1a788da65a4c686d7f8b41c100b8bdca8de66493a48799277eba68; manifest11b8fc8de81927019b5e72c27c13cd76412a83b9282de7c700b2c61a73ca275e. Cleanup allows only the same verified, guard-installed socket and otherwise relies on the captured private Job; numeric child.kill was removed.
+
+Actual native owner/durable NativeTrayQA SHA-2560f92944a915f6ea3b967b31fbafc5c27b3b8049e1ea0996b21e17249bf2f818b; private semanticf3e78104f2c6384e845203ce24d717395e0f9c8a88eca2449125dd8e356f0520; durable context2abadf20e3c29d43ff8e7fa311d452d79cd3364918d36a70289919b30ee4965d. Final versioned QA GO report SHA-256635233d3d941193d6dbd69134f5bb730c4706eda5f894649a6cdaf89892baa98 names this exact app/artifact. This supplement does not change app516c812, built files or the prior inherited advisory counts.
+
+Actual derived phase mapping was audited after the consumer correction: phase-mapping-audit.json SHA-256 `46e92eac8f31cd50d04fd2922bdec2804d962373a4a5b49f64e7820845e46865`, owned record `873eccf7e8220896befd84765ad695fe6feb41c175c308cdfa401f0ca4541ea1`. Both actual validateGuestPhase calls passed under normal code0/complete/native-zero ownership. All fourteen raw provenance hashes were independently recomputed and matched; actual UI/broker pairs46556/8340 and41728/66624, distinct compute IDs and preserved raw observations match the underlying records. This is a phase-mapping audit, not a substituted final QA/publication receipt.
+
 
 ## Verdict
 
