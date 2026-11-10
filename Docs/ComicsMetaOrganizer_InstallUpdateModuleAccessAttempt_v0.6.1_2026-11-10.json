@@ -1,0 +1,417 @@
+{
+  "schema": 1,
+  "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+  "artifact": {
+    "version": "0.6.1",
+    "name": "Comic-Metadata-Setup-0.6.1.exe",
+    "size": 149538466,
+    "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+    "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+  },
+  "manifestSha256": "d0224e6a8e23ec71d687decd671defb76aa46c578c3ceb1af5f446c9dd3ff297",
+  "originalRuntime": [
+    {
+      "path": "common.mjs",
+      "size": 13294,
+      "sha256": "309a4dce266af6af8b787331af7f2ab48ddac413a6ebbbcb7a17891a1c3e0898"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 6592,
+      "sha256": "960acc654c866797096803810688fa135f4b40554aacbb83fe29db3f0f36c96f"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 22733,
+      "sha256": "811bd0233160c7f74d525667dbb7df7c9d3ed67fedb3e27ea96ba132be41d18a"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 11582,
+      "sha256": "cb672f833f8a78916c85149940c82d5dc2508176616966eb702c04607d8778da"
+    },
+    {
+      "path": "input-manifest.json",
+      "size": 398908,
+      "sha256": "d0224e6a8e23ec71d687decd671defb76aa46c578c3ceb1af5f446c9dd3ff297"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 5656,
+      "sha256": "ad3c0b61b7e35846d7bd14c686b603ae2ffb1334475d10bfb81ff4a922b4751c"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "actualPriorInstall": {
+    "exit": {
+      "code": 0,
+      "signal": null,
+      "out": "",
+      "err": ""
+    },
+    "versionFile": "0.6.0"
+  },
+  "priorRegistration": {
+    "DisplayName": "Comic Metadata 0.6.0",
+    "DisplayVersion": "0.6.0",
+    "UninstallString": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\Uninstall ComicMetadata.exe\" /currentuser",
+    "registeredDirectory": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata"
+  },
+  "stage": "next relaunch service/state",
+  "realProcessing": {
+    "taggedFixtures": 20,
+    "pendingFixtures": 480,
+    "processes": [
+      {
+        "ProcessId": 7956,
+        "ParentProcessId": 8916,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe --inspect-brk=127.0.0.1:18991",
+        "CreatedMs": 1794318062551
+      },
+      {
+        "ProcessId": 5240,
+        "ParentProcessId": 7956,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAOAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAABgAAAAAAAAAGAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --field-trial-handle=1960,i,9110104913763083305,7048823929178949971,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1964,i,1724338119350844944,14640663788532073363,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1956 /prefetch:2",
+        "CreatedMs": 1794318062888
+      },
+      {
+        "ProcessId": 8256,
+        "ParentProcessId": 7956,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=ru --service-sandbox-type=none --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --field-trial-handle=1960,i,9110104913763083305,7048823929178949971,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1964,i,1724338119350844944,14640663788532073363,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2244 /prefetch:11",
+        "CreatedMs": 1794318062900
+      },
+      {
+        "ProcessId": 6936,
+        "ParentProcessId": 7956,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\engine_host.py --parent-pid 7956 --port 8765",
+        "CreatedMs": 1794318062966
+      },
+      {
+        "ProcessId": 8176,
+        "ParentProcessId": 6936,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\app.py --no-browser --port 8765",
+        "CreatedMs": 1794318063077
+      },
+      {
+        "ProcessId": 2720,
+        "ParentProcessId": 8176,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\browser_worker.py",
+        "CreatedMs": 1794318063740
+      },
+      {
+        "ProcessId": 2868,
+        "ParentProcessId": 8176,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe",
+        "CommandLine": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe -B C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\engine\\worker.py",
+        "CreatedMs": 1794318063740
+      },
+      {
+        "ProcessId": 3692,
+        "ParentProcessId": 7956,
+        "ExecutablePath": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe",
+        "CommandLine": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\ComicMetadata.exe\" --type=renderer --user-data-dir=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming\\Comic Metadata\" --app-user-model-id=studio.illuminati.comicmetadata --app-path=\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\" --enable-sandbox --disable-gpu-compositing --video-capture-use-gpu-memory-buffer --lang=ru --device-scale-factor=2.5 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1794317986978479 --launch-time-ticks=76775270 --field-trial-handle=1960,i,9110104913763083305,7048823929178949971,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1964,i,1724338119350844944,14640663788532073363,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3720 /prefetch:1",
+        "CreatedMs": 1794318063758
+      }
+    ]
+  },
+  "priorCredentialPresence": {
+    "COMICVINE_API_KEY": true,
+    "METRON_API_TOKEN": true,
+    "GOOGLE_BOOKS_API_KEY": true,
+    "BRAVE_SEARCH_API_KEY": true
+  },
+  "priorCredentialsMatchExpected": true,
+  "priorExit": {
+    "code": 0,
+    "signal": null,
+    "out": "\r\nChecking for update\nGenerated new staging user ID: 25b8e8ab-b848-5bc0-bc5d-76ac85d42291\nFound version 0.6.1 (url: Comic-Metadata-Setup-0.6.1.exe)\nChecking for update\nFound version 0.6.1 (url: Comic-Metadata-Setup-0.6.1.exe)\nDownloading update from Comic-Metadata-Setup-0.6.1.exe\nupdater cache dir: C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\comic-metadata-updater\nDownload block maps (old: \"http://127.0.0.1:18995/feed/1ca0b5b0eb85303c438c10884d2b36f6/Comic-Metadata-Setup-0.6.0.exe.blockmap\", new: http://127.0.0.1:18995/feed/1ca0b5b0eb85303c438c10884d2b36f6/Comic-Metadata-Setup-0.6.1.exe.blockmap)\nNew version 0.6.1 has been downloaded to C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\comic-metadata-updater\\pending\\Comic-Metadata-Setup-0.6.1.exe\n",
+    "err": "Debugger listening on ws://127.0.0.1:18991/3d3c2ae5-83a6-46f6-b848-4d8cdeef4ebb\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\nDebugger attached.\r\ndisableWebInstaller is set to false, you should set it to true if you do not plan on using a web installer. This will default to true in a future version.\nCannot download differentially, fallback to full download: Error: Cannot download \"http://127.0.0.1/feed/1ca0b5b0eb85303c438c10884d2b36f6/Comic-Metadata-Setup-0.6.0.exe.blockmap\", status 404: Not Found\n    at ClientRequest.<anonymous> (C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\resources\\app.asar\\node_modules\\builder-util-runtime\\out\\httpExecutor.js:245:34)\n    at ClientRequest.emit (node:events:514:28)\n    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:140171)\n    at SimpleURLLoaderWrapper.emit (node:events:514:28)\nDebugger ending on ws://127.0.0.1:18991/3d3c2ae5-83a6-46f6-b848-4d8cdeef4ebb\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+  },
+  "oldObserver": {
+    "pid": 7956,
+    "version": "0.6.0",
+    "events": [
+      {
+        "kind": "window-created",
+        "webContentsId": 1,
+        "time": 1794318062928
+      },
+      {
+        "kind": "engine-start",
+        "pid": 6936,
+        "time": 1794318062966
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/startup.html",
+        "time": 1794318063026
+      },
+      {
+        "kind": "window-ready-to-show",
+        "webContentsId": 1,
+        "time": 1794318063377
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/setup.html",
+        "time": 1794318063570
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 1,
+        "path": "/",
+        "time": 1794318063851
+      },
+      {
+        "kind": "window-created",
+        "webContentsId": 2,
+        "time": 1794318079271
+      },
+      {
+        "kind": "renderer-loaded",
+        "webContentsId": 2,
+        "path": "/C:/Users/WDAGUtilityAccount/AppData/Local/Programs/comic-metadata/resources/app.asar/desktop/stopping.html",
+        "time": 1794318079343
+      },
+      {
+        "kind": "window-ready-to-show",
+        "webContentsId": 2,
+        "time": 1794318079355
+      },
+      {
+        "kind": "engine-exit",
+        "pid": 6936,
+        "code": 0,
+        "signal": null,
+        "time": 1794318080386
+      },
+      {
+        "kind": "before-installer-helper",
+        "engines": [
+          {
+            "pid": 6936,
+            "exit": {
+              "code": 0,
+              "signal": null
+            }
+          }
+        ],
+        "helper": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\ComicsMeta\\work\\update-launch\\launch-K9lCTW\\runtime\\python\\python.exe",
+        "time": 1794318080988
+      },
+      {
+        "kind": "installer-receipt",
+        "helperPid": 4436,
+        "receipt": {
+          "started": true,
+          "accepted": true,
+          "phase": "started",
+          "installer_pid": 7980
+        },
+        "time": 1794318083140
+      }
+    ]
+  },
+  "error": "Error: Inspector evaluation failed: {\"exceptionId\":1,\"text\":\"Uncaught\",\"lineNumber\":0,\"columnNumber\":71,\"scriptId\":\"383\",\"stackTrace\":{\"callFrames\":[{\"functionName\":\"\",\"scriptId\":\"383\",\"url\":\"\",\"lineNumber\":0,\"columnNumber\":71}]},\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"ReferenceError\",\"description\":\"ReferenceError: require is not defined\\n    at <anonymous>:1:72\",\"objectId\":\"8661128145354612417.1.2\"}}\n    at requireThat (file:///C:/CMOInput/common.mjs:6:73)\n    at Inspector.evaluate (file:///C:/CMOInput/common.mjs:185:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///C:/CMOInput/guest-update.mjs:129:16",
+  "inspectorTrace": [
+    {
+      "time": 1794318105390,
+      "kind": "request",
+      "id": 1,
+      "method": "Runtime.enable"
+    },
+    {
+      "time": 1794318105391,
+      "kind": "response",
+      "id": 1,
+      "method": "Runtime.enable",
+      "error": false
+    },
+    {
+      "time": 1794318105391,
+      "kind": "request",
+      "id": 2,
+      "method": "Runtime.evaluate",
+      "expressionSha256": "e17a216dc817cadd1dbaebda38ce77dc90e3dae153e443f3643c20f57489fc86",
+      "awaitPromise": true
+    },
+    {
+      "time": 1794318105395,
+      "kind": "response",
+      "id": 2,
+      "method": "Runtime.evaluate",
+      "error": false
+    }
+  ],
+  "errorCleanup": {
+    "started": 1794318105397,
+    "requested": false,
+    "skipped": "Inspector connection did not pass exact readonly target identity checks",
+    "finished": 1794318105397,
+    "oldExitCode": 0
+  },
+  "host": {
+    "pass": false,
+    "error": "Error: Guest install/update tests failed\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry05/input/common.mjs:6:73)\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry05/input/host-session.mjs:75:3",
+    "kernelLaunch": {
+      "eventId": 2500,
+      "recordId": 27241,
+      "timeMs": 1794318018560,
+      "systemId": "0015e6da-cd2a-4ab3-b601-18d201eca96f",
+      "result": "0x00000000",
+      "processId": 7556,
+      "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce 7829588e3c427ec7e5349a755c2e288d --manifest-sha d0224e6a8e23ec71d687decd671defb76aa46c578c3ceb1af5f446c9dd3ff297 --session-sha 5a214d48e2015e5ab3e7348d360a802ba9e34b62a846a37b647e8b6847209dbb",
+      "user": "WDAGUtilityAccount",
+      "existingLogin": true
+    },
+    "kernelExit": {
+      "eventId": 2008,
+      "recordId": 27249,
+      "timeMs": 1794318113442,
+      "systemId": "0015e6da-cd2a-4ab3-b601-18d201eca96f",
+      "result": "0x00000000",
+      "notification": "1",
+      "exitResult": "0x00000000"
+    },
+    "client": {
+      "pid": 44020,
+      "parent": 55680,
+      "image": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe",
+      "command": "\"C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe\" \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry05\\processing-live.wsb\"",
+      "owner": "S-1-5-21-478701085-1013477356-1211919822-1000"
+    },
+    "clientSignaled": true,
+    "baseline": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ],
+    "after": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ]
+  },
+  "actualOwners": {
+    "host": {
+      "kind": "result",
+      "code": 1,
+      "signal": null,
+      "error": null,
+      "out": "{\"mode\":\"processing\",\"pass\":false,\"computeId\":\"0015e6da-cd2a-4ab3-b601-18d201eca96f\",\"error\":\"Error: Guest install/update tests failed\\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry05/input/common.mjs:6:73)\\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry05/input/host-session.mjs:75:3\"}\n",
+      "err": "",
+      "supervisorErr": "",
+      "ok": false,
+      "closed": true,
+      "forced": false,
+      "timedOut": false,
+      "overflow": false,
+      "truncated": false,
+      "outputComplete": true,
+      "reason": null,
+      "closureError": null,
+      "pid": 57820,
+      "ownership": "private-job",
+      "native": {
+        "active": 0,
+        "assigned": 0,
+        "listed": 0,
+        "retained": 215,
+        "unsignaled": 0,
+        "complete": true,
+        "zero": true,
+        "sampling": {
+          "queries": 7404,
+          "incompleteQueries": 0,
+          "firstIncomplete": null,
+          "lastIncomplete": null
+        }
+      },
+      "elapsedMs": 115863.3818,
+      "outputBytes": 473
+    },
+    "guest": {
+      "kind": "result",
+      "code": 1,
+      "signal": null,
+      "error": null,
+      "out": "",
+      "err": "",
+      "supervisorErr": "",
+      "ok": false,
+      "closed": true,
+      "forced": false,
+      "timedOut": false,
+      "overflow": false,
+      "truncated": false,
+      "outputComplete": true,
+      "reason": null,
+      "closureError": null,
+      "pid": 8828,
+      "ownership": "private-job",
+      "native": {
+        "active": 0,
+        "assigned": 0,
+        "listed": 0,
+        "retained": 95,
+        "unsignaled": 0,
+        "complete": true,
+        "zero": true,
+        "sampling": {
+          "queries": 4076,
+          "incompleteQueries": 1,
+          "firstIncomplete": {
+            "assigned": 7,
+            "listed": 6,
+            "capacity": 8192,
+            "query_ok": true
+          },
+          "lastIncomplete": {
+            "assigned": 7,
+            "listed": 6,
+            "capacity": 8192,
+            "query_ok": true
+          }
+        }
+      },
+      "elapsedMs": 65530.353899999995,
+      "outputBytes": 0,
+      "workflowAbort": {
+        "schema": 1,
+        "mode": "processing",
+        "nonce": "7829588e3c427ec7e5349a755c2e288d",
+        "reason": "Failed guest workflow after bounded graceful cleanup; abort only its own private app Job",
+        "observedEpochMs": 1794318105523,
+        "resultSha256": "b062409a45d3131010a4495dcd521c350d01127df5bbb463d5ad9be7e9e3ee3e"
+      }
+    }
+  },
+  "limitation": "Partial actual prior processing/download/installer proof only. New executable image guard precedes failing next readonly identity expression in reviewed runtime. No new app version/state/credentials/core/Quit verification or phase PASS."
+}
