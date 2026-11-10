@@ -1,8 +1,8 @@
 # Comics Meta Organizer 0.6.1 — QA, November 10, 2026
 
-**Verdict:** NO-GO
+**Verdict:** GO
 
-Current status: source `516c812d90b9482f5cd63003d660f178e0c65444` fixes the independently reproduced window restoration bug. Its new full sender/receiver entry checks passed with identical actual receipts. Retry08 processing **and paused** passed the genuine installed upgrade, exact native geometry and persisted-byte equality, state/credentials/core action and production IPC Quit, with complete normal guest closure. Release remains **NO-GO pending fresh actual native tray Quit proof on this exact new payload**. Older actual tray proof belongs to the earlier payload; it is not silently transferred across the changed executable/asar. All failed attempts below remain historical failures.
+Current status: **QA GO for exact source `516c812d90b9482f5cd63003d660f178e0c65444` and installer SHA-256 `888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca`.** Its new full sender/receiver entry checks passed with identical actual receipts. Retry08 processing **and paused** passed the genuine installed upgrade, exact native geometry and persisted-byte equality, state/credentials/core action and production IPC Quit, with complete normal guest closure. A separate fresh hidden packaged smoke then exercised the actual enabled native tray Quit callback on this exact payload and passed. This verifies the window restoration fix without tolerance. All failed attempts below remain historical failures; no tag, publication or live-user migration was performed by QA.
 
 ## Current 516c build and independent formal receiver
 
@@ -18,7 +18,17 @@ Entry-check receipt v2: comic-metadata v0.6.1 @ 516c812d90b9482f5cd63003d660f178
 
 Durable own raw evidence: `ComicsMetaOrganizer_EntryEvidence_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `1172f88a8e64b884facbde7aadd245b65b48a86d8eb026d7297cccf0b6d775b7`; closure `ComicsMetaOrganizer_EntryClosure_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `f20aa1b1a6ff276ba70095c15afd99fcb7195974e5bcb8673521101ffbb87553`; KnownFolders `ComicsMetaOrganizer_KnownFolders_v0.6.1_GeometryReceiver_2026-11-10.json` SHA-256 `99e2361890a020e55669e9ef17f68ef52f362c808622a525d397367e66795927`.
 
-The recorded tray-resident exception in the Brief moves the process-exit invariant from Windows X (which hides the window) to graceful native tray Quit. Actual dashboard IPC Quit on the new build verifies exit but does not itself exercise the native menu callback. No extra VM or unreviewed native launch was used to fill that gap.
+The recorded tray-resident exception in the Brief moves the process-exit invariant from Windows X (which hides the window) to graceful native tray Quit. Actual dashboard IPC Quit in the upgrade flows verifies exit; the separate reviewed packaged smoke below closes the native-menu coverage gap. No extra VM or unreviewed native launch was used.
+
+## Fresh exact-build native tray Quit — PASS
+
+One reviewed hidden/offscreen unpacked launch exercised actual packaged first-run setup, with a private unconfigured real engine and no library. Pre-main Inspector identity bound the exact PID/executable/private policy before guards were installed and execution resumed. The packaged app reported version0.6.1, packaged=true, PID70620; actual engine PID53252 returned HTTP200, owned=true, configured=false. The setup window was offscreen=true, visible=false, focused=false; guard violations were empty and feed/model request counts both zero.
+
+The observer captured the actual enabled native tray MenuItem and called its production click callback directly, without a renderer round-trip: `actual tray Quit requested`. Semantic execution ran 15:18:34.926–15:18:37.358 UTC and the app exited naturally with code0. The original owned wrapper completed normally in 31.980 seconds, code0, closed, unforced, untimedout and output complete. Native ownership was complete and zero: 12 retained processes, zero unsignaled; 2,010 observations, zero incomplete queries. All **621 package members and hashes remained unchanged**. No error cleanup or Job abort was needed.
+
+Durable raw receipt and complete semantic startup/guard/identity/Quit evidence: `ComicsMetaOrganizer_NativeTrayQA_v0.6.1_516c_2026-11-10.json`, SHA-256 `0f92944a915f6ea3b967b31fbafc5c27b3b8049e1ea0996b21e17249bf2f818b`. Complete package/adapter manifest: `ComicsMetaOrganizer_NativeTrayPackage_v0.6.1_516c_2026-11-10.json`, SHA-256 `11b8fc8de81927019b5e72c27c13cd76412a83b9282de7c700b2c61a73ca275e`. Private policy/runtime context: `ComicsMetaOrganizer_NativeTrayContext_v0.6.1_516c_2026-11-10.json`, SHA-256 `2abadf20e3c29d43ff8e7fa311d452d79cd3364918d36a70289919b30ee4965d`. The adapter produces no separate Inspector trace file; its actual semantic observations are retained in the raw receipt.
+
+After durable evidence was saved, one exact literal-path cleanup attempt for this run's disposable private profile was rejected before execution by automatic policy. Its 47 files / 1,903,491 bytes remain at `scratch/native-tray-516c812-20261110/temp/illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300`. No alternate deletion or retry was attempted, and earlier blocked roots were untouched. This is retained disk output, not a running-process or VM closure failure.
 
 ## Retry08 genuine processing and paused upgrades — both PASS
 

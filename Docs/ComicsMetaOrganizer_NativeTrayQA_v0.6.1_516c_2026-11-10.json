@@ -1,0 +1,101 @@
+{
+  "pass": true,
+  "source": "516c812d90b9482f5cd63003d660f178e0c65444",
+  "qaRoot": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300",
+  "packageUnchanged": true,
+  "packageFiles": 621,
+  "artifact": {
+    "size": 149538531,
+    "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca"
+  },
+  "semantic": {
+    "schema": 1,
+    "pass": true,
+    "source": "516c812d90b9482f5cd63003d660f178e0c65444",
+    "artifact": {
+      "size": 149538531,
+      "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca"
+    },
+    "policySha256": "a2b2a04d8ae93aa9993bba046f4392ebd1abb8c5cd2a988d4fc0d241b030aaa5",
+    "started": "2026-11-10T15:18:34.926Z",
+    "targetIdentity": {
+      "pid": 70620,
+      "exe": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110\\candidate\\dist\\win-unpacked\\ComicMetadata.exe",
+      "qa": "1",
+      "root": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300",
+      "policy": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\policy.json",
+      "policySha256": "a2b2a04d8ae93aa9993bba046f4392ebd1abb8c5cd2a988d4fc0d241b030aaa5",
+      "state": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\state",
+      "locks": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\locks"
+    },
+    "guardInstall": {
+      "installed": true,
+      "version": "0.6.1",
+      "packaged": true
+    },
+    "startup": {
+      "version": "0.6.1",
+      "packaged": true,
+      "pid": 70620,
+      "enginePid": 53252,
+      "violations": [],
+      "windows": [
+        {
+          "url": "file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/geometry-fix-061-20261110/candidate/dist/win-unpacked/resources/app.asar/desktop/setup.html",
+          "visible": false,
+          "focused": false,
+          "offscreen": true
+        }
+      ],
+      "quitEnabled": true,
+      "engine": {
+        "httpStatus": 200,
+        "owned": true,
+        "configured": false
+      }
+    },
+    "quitRequested": "actual tray Quit requested",
+    "exit": {
+      "code": 0,
+      "signal": null
+    },
+    "feedRequests": 0,
+    "modelRequests": 0,
+    "finished": "2026-11-10T15:18:37.358Z"
+  },
+  "kind": "result",
+  "code": 0,
+  "signal": null,
+  "error": null,
+  "out": "{\"pass\":true,\"result\":\"C:\\\\Antigravity Projects\\\\Studio Illuminati\\\\WIP\\\\Comics Meta Organizer\\\\scratch\\\\native-tray-516c812-20261110\\\\temp\\\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\\\native-result.json\",\"error\":null}\n",
+  "err": "",
+  "supervisorErr": "",
+  "ok": true,
+  "closed": true,
+  "forced": false,
+  "timedOut": false,
+  "overflow": false,
+  "truncated": false,
+  "outputComplete": true,
+  "reason": null,
+  "closureError": null,
+  "pid": 70416,
+  "ownership": "private-job",
+  "native": {
+    "active": 0,
+    "assigned": 0,
+    "listed": 0,
+    "retained": 12,
+    "unsignaled": 0,
+    "complete": true,
+    "zero": true,
+    "sampling": {
+      "queries": 2010,
+      "incompleteQueries": 0,
+      "firstIncomplete": null,
+      "lastIncomplete": null
+    }
+  },
+  "elapsedMs": 31979.725599999998,
+  "outputBytes": 235
+}

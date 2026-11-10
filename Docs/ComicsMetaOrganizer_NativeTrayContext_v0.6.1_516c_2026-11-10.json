@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "purpose": "Exact native tray run private policy and runtime plan retained before disposable QA profile cleanup",
+  "policy": {
+    "schema": 1,
+    "root": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300",
+    "priorVersion": "0.6.0",
+    "nextVersion": "0.6.1",
+    "expires": 1794324514325,
+    "enginePort": 50568,
+    "modelPort": 50575,
+    "feedURL": "http://127.0.0.1:50573/feed/c0906ed7280cdfec07fb85eb71c74528/",
+    "feedToken": "97e9635fb66fb75df35a777153bee88d00096273a201a739f6d36283af3ac380",
+    "installDirectory": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\install",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538531,
+      "sha512": "yzQDwODmXaloMeX36+HtIZC58mZWlcH4qFw2297ukS0rVI+ogzIeeKjQXOGClwtjXeeJFEXFuacCFRB6oD2wOw=="
+    }
+  },
+  "plan": {
+    "source": "516c812d90b9482f5cd63003d660f178e0c65444",
+    "exe": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110\\candidate\\dist\\win-unpacked\\ComicMetadata.exe",
+    "inspectorPort": 50576,
+    "result": "C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\native-tray-516c812-20261110\\temp\\illuminati-cmo-qa-061-e73fa5ea-fd25-4d5c-aa9c-58248a67f300\\native-result.json",
+    "artifact": {
+      "size": 149538531,
+      "sha256": "888fb8c71aab605afb5201b534b37c54510c40f85a2396f0917befbe49a17aca"
+    }
+  },
+  "semanticSha256": "f3e78104f2c6384e845203ce24d717395e0f9c8a88eca2449125dd8e356f0520",
+  "adapterPins": [
+    {
+      "path": "native-smoke.mjs",
+      "sha256": "5607be32eef97a9bc61258fba43d2c29f366e2905b95675a5438fe1c4b21bcf4"
+    },
+    {
+      "path": "guards.cjs",
+      "sha256": "bac42d0c230500f173d537352ea1920a67d662f158c55abc6a11f8ba61fafeee"
+    },
+    {
+      "path": "cleanup.mjs",
+      "sha256": "eceb3f781330e6ccff60062368b210f58385ddddd3827a72bb3723e2975944d3"
+    }
+  ]
+}
