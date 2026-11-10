@@ -96,6 +96,10 @@ if(!locked){app.exit(0);}else{
     // and websocket requests; Python and native processes have separate owners.
     if(qa)session.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*','ws://*/*','wss://*/*']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url)}));
     const bounds=initialBounds();window=new BrowserWindow({...bounds,minWidth:640,minHeight:480,title:'Comic Metadata',show:false,backgroundColor:'#12151c',autoHideMenuBar:true,icon:path.join(__dirname,'assets','icon.ico'),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:qa}});
+    // Windows constructor positioning round-trips its rounded native size twice.
+    // Apply the validated saved outer DIP rectangle once, not that enlarged size,
+    // before maximize/show and before registering the persistence handlers.
+    if(process.platform==='win32'&&Number.isInteger(bounds.x)&&Number.isInteger(bounds.y))window.setBounds({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});
     if(bounds.maximized)window.maximize();secure(window,url=>url==='http://127.0.0.1:'+engine?.port+'/'||shellFile(url));
     let timer;for(const name of ['move','resize','maximize','unmaximize'])window.on(name,()=>{clearTimeout(timer);timer=setTimeout(saveBounds,400);});window.on('show',()=>window.webContents.send('shell-refresh'));window.on('focus',()=>window.webContents.send('shell-refresh'));
     window.on('close',event=>{if(finalExit)return;event.preventDefault();if(!tray){quit();return;}window.hide();const marker=path.join(profile,'tray-notice-shown');if(!fs.existsSync(marker))notify('Comic Metadata is still running','Processing continues in the tray. Right-click the icon to pause or quit.',()=>fs.writeFileSync(marker,'shown'));});

@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "scope": "Pure Node startup regression; actual native DPI acceptance remains pending",
+  "rootCauseSources": [
+    "https://github.com/electron/electron/blob/v43.7.9/shell/browser/native_window.cc#L159-L166",
+    "https://github.com/electron/electron/blob/v43.7.9/shell/browser/native_window.cc#L257-L258",
+    "https://github.com/electron/electron/issues/55245",
+    "https://github.com/electron/electron/pull/55429"
+  ],
+  "beforeMainSha256": "a648ba2ddd086bf020a88f15109bfb6b7887a870c65877383a8774ec905a29a0",
+  "afterMainSha256": "266d9699a0581738b191dfc7b63751d98c615ce64af4b5d22b4c8226bec6cfd9",
+  "testSha256": "3f3c2c7133c62df60fda21a18702fbb77b788c3c1f265bef87d6162a04d49d25",
+  "red": {
+    "kind": "result",
+    "code": 1,
+    "signal": null,
+    "error": null,
+    "out": "✖ restores the exact saved outer DIP rectangle after constructor conversion, before showing (5.3714ms)\n✖ normal saved bounds are applied before maximize and survive repeated save/restore (1.5642ms)\n✔ first launch and corrupt, undersized, offscreen or oversized saved state retain defaults (3.9372ms)\n✖ constructor keeps a secondary display position to select its DPI before exact restoration (0.8669ms)\n✔ later user resize persists after the existing 400ms debounce, without resetting to restored bounds (0.9571ms)\n✔ non-Windows restoration keeps its existing constructor behavior (0.6638ms)\nℹ tests 6\nℹ suites 0\nℹ pass 3\nℹ fail 3\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 125.8867\n\n✖ failing tests:\n\ntest at ..\\..\\desktop\\tests\\window-restore.test.cjs:48:1\n✖ restores the exact saved outer DIP rectangle after constructor conversion, before showing (5.3714ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  + actual - expected\n  \n    {\n  +   height: 602,\n  +   width: 902,\n  -   height: 600,\n  -   width: 900,\n      x: 40,\n      y: 40\n    }\n  \n      at TestContext.<anonymous> (C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\desktop\\tests\\window-restore.test.cjs:49:28)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1402:25)\n      at Test.start (node:internal/test_runner/test:1262:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: { x: 40, y: 40, width: 902, height: 602 },\n    expected: { x: 40, y: 40, width: 900, height: 600 },\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n\ntest at ..\\..\\desktop\\tests\\window-restore.test.cjs:53:1\n✖ normal saved bounds are applied before maximize and survive repeated save/restore (1.5642ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  + actual - expected\n  \n    {\n  +   height: 602,\n  +   width: 902,\n  -   height: 600,\n  -   width: 900,\n      x: 40,\n      y: 40\n    }\n  \n      at TestContext.<anonymous> (C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\desktop\\tests\\window-restore.test.cjs:56:35)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1402:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: { x: 40, y: 40, width: 902, height: 602 },\n    expected: { x: 40, y: 40, width: 900, height: 600 },\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n\ntest at ..\\..\\desktop\\tests\\window-restore.test.cjs:67:1\n✖ constructor keeps a secondary display position to select its DPI before exact restoration (0.8669ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  + actual - expected\n  \n    {\n  +   height: 602,\n  +   width: 902,\n  -   height: 600,\n  -   width: 900,\n      x: 2010,\n      y: 40\n    }\n  \n      at TestContext.<anonymous> (C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\desktop\\tests\\window-restore.test.cjs:69:84)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1402:25)\n      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)\n      at Test.postRun (node:internal/test_runner/test:1542:19)\n      at Test.run (node:internal/test_runner/test:1467:12)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: { x: 2010, y: 40, width: 902, height: 602 },\n    expected: { x: 2010, y: 40, width: 900, height: 600 },\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 47884,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 5,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 21,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 347.8047,
+    "outputBytes": 4037
+  },
+  "green": {
+    "kind": "result",
+    "code": 0,
+    "signal": null,
+    "error": null,
+    "out": "✔ restores the exact saved outer DIP rectangle after constructor conversion, before showing (4.7183ms)\n✔ normal saved bounds are applied before maximize and survive repeated save/restore (3.792ms)\n✔ first launch and corrupt, undersized, offscreen or oversized saved state retain defaults (3.5313ms)\n✔ constructor keeps a secondary display position to select its DPI before exact restoration (0.8817ms)\n✔ later user resize persists after the existing 400ms debounce, without resetting to restored bounds (0.5927ms)\n✔ non-Windows restoration keeps its existing constructor behavior (0.5453ms)\nℹ tests 6\nℹ suites 0\nℹ pass 6\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 127.4087\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": true,
+    "closed": true,
+    "forced": false,
+    "timedOut": false,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": true,
+    "reason": null,
+    "closureError": null,
+    "pid": 9968,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 5,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 22,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 355.4399,
+    "outputBytes": 716
+  }
+}
