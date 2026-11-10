@@ -1,0 +1,266 @@
+{
+  "schema": 1,
+  "purpose": "Actual retry02 processing guest installer probe failed at Inspector Runtime.evaluate; authorized exact UI cleanup and post-closure observation, no install-update acceptance",
+  "inputManifestSha256": "221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee",
+  "runtimePins": [
+    {
+      "path": "common.mjs",
+      "size": 10051,
+      "sha256": "f7db81356f0a0cae1d79fc10729def811375179bec487ee6990b60a0d85de843"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 5598,
+      "sha256": "54eaf34a6744a8f79a6844df2a476809002195f7934ccbf601147d072c42dd1b"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 19195,
+      "sha256": "5ce30790da8113a1ee442f8cd7c1eaa922fbd09bbb183273185f04d0fdc171dc"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 11192,
+      "sha256": "129740422f61a0eb24f658f461a936fa884de59adcd652df00c6edc1abf56a34"
+    },
+    {
+      "path": "node/node.exe",
+      "size": 105319752,
+      "sha256": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 4355,
+      "sha256": "3360e0b1f19ef9d8e2b2233fabcd5443123b6c3ae9223554638f602c5a2bab2a"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "hostSession": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "434d2c296034cb85938503fe98042038",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "baseline": [
+      {
+        "id": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "systemType": "VirtualMachine",
+        "runtimeOsType": "Windows",
+        "owner": "CmService",
+        "runtimeId": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71",
+        "state": "SavedAsTemplate"
+      }
+    ],
+    "started": 1794315841971,
+    "pass": false,
+    "kernelLaunch": {
+      "eventId": 2500,
+      "recordId": 27185,
+      "timeMs": 1794315848556,
+      "systemId": "587deee8-043d-42f6-96fd-c5f21c397533",
+      "result": "0x00000000",
+      "processId": 7564,
+      "commandLine": "C:\\CMOInput\\node\\node.exe C:\\CMOInput\\guest-entry.mjs --mode processing --nonce 434d2c296034cb85938503fe98042038 --manifest-sha 221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee --session-sha e6fce190648aa82dc6ef8d9d6ac43c9a4a9812af130c7c8ab2b8ae671de3ff14",
+      "user": "WDAGUtilityAccount",
+      "existingLogin": true
+    },
+    "computeId": "587deee8-043d-42f6-96fd-c5f21c397533",
+    "guestStarted": {
+      "schema": 1,
+      "mode": "processing",
+      "nonce": "434d2c296034cb85938503fe98042038",
+      "manifestSha256": "221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee",
+      "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+      "identity": {
+        "scriptRoot": "C:\\CMOInput",
+        "pid": 7564,
+        "user": "WDAGUtilityAccount",
+        "profile": "C:\\Users\\WDAGUtilityAccount",
+        "computer": "C080ED3D-E72F-4",
+        "model": "Virtual Machine",
+        "manufacturer": "Microsoft Corporation",
+        "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+        "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+      }
+    },
+    "clientActivation": {
+      "eventId": 201,
+      "recordId": 1477044,
+      "timeMs": 1794315842278,
+      "processId": 59012,
+      "packageName": "MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy",
+      "imageName": "WindowsSandboxRemoteSession.exe",
+      "applicationName": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App"
+    },
+    "client": {
+      "pid": 59012,
+      "parent": 42068,
+      "image": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe",
+      "command": "\"C:\\Program Files\\WindowsApps\\MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy\\WindowsSandboxRemoteSession.exe\" \"C:\\Antigravity Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\install-update-061-20261110\\retry02\\processing-live.wsb\"",
+      "owner": "S-1-5-21-478701085-1013477356-1211919822-1000"
+    },
+    "error": "Error: No bound guest completion/shutdown request\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry02/input/common.mjs:6:73)\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry02/input/host-session.mjs:54:3",
+    "closureError": "Error: Read-only host session query failed",
+    "finished": 1794316437332
+  },
+  "hostOwned": {
+    "kind": "result",
+    "code": null,
+    "signal": null,
+    "error": null,
+    "out": "{\"mode\":\"processing\",\"pass\":false,\"computeId\":\"587deee8-043d-42f6-96fd-c5f21c397533\",\"error\":\"Error: No bound guest completion/shutdown request\\n    at requireThat (file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry02/input/common.mjs:6:73)\\n    at file:///C:/Antigravity%20Projects/Studio%20Illuminati/WIP/Comics%20Meta%20Organizer/scratch/install-update-061-20261110/retry02/input/host-session.mjs:54:3\"}\n",
+    "err": "",
+    "supervisorErr": "",
+    "ok": false,
+    "closed": true,
+    "forced": true,
+    "timedOut": true,
+    "overflow": false,
+    "truncated": false,
+    "outputComplete": false,
+    "reason": "Total deadline reserved for owned cleanup",
+    "closureError": null,
+    "pid": 67360,
+    "ownership": "private-job",
+    "native": {
+      "active": 0,
+      "assigned": 0,
+      "listed": 0,
+      "retained": 37,
+      "unsignaled": 0,
+      "complete": true,
+      "zero": true,
+      "sampling": {
+        "queries": 38256,
+        "incompleteQueries": 0,
+        "firstIncomplete": null,
+        "lastIncomplete": null
+      }
+    },
+    "elapsedMs": 596660.4781,
+    "outputBytes": 482
+  },
+  "guestStarted": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "434d2c296034cb85938503fe98042038",
+    "manifestSha256": "221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "identity": {
+      "scriptRoot": "C:\\CMOInput",
+      "pid": 7564,
+      "user": "WDAGUtilityAccount",
+      "profile": "C:\\Users\\WDAGUtilityAccount",
+      "computer": "C080ED3D-E72F-4",
+      "model": "Virtual Machine",
+      "manufacturer": "Microsoft Corporation",
+      "tokenName": "C080ED3D-E72F-4\\WDAGUtilityAccount",
+      "tokenSid": "S-1-5-21-2047949552-857980807-821054962-504"
+    }
+  },
+  "go": {
+    "schema": 1,
+    "nonce": "434d2c296034cb85938503fe98042038",
+    "mode": "processing",
+    "computeId": "587deee8-043d-42f6-96fd-c5f21c397533",
+    "clientPid": 59012,
+    "manifestSha256": "221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee"
+  },
+  "updateResult": {
+    "schema": 1,
+    "mode": "processing",
+    "nonce": "434d2c296034cb85938503fe98042038",
+    "sourceHead": "8e66ca4d14ec5a052e9967d6af2590ef957142aa",
+    "sourceIdentity": "11b971aef5739c9e2e8e3b46094509728b87e2bee98e685237e29116c05e6ad3",
+    "artifact": {
+      "version": "0.6.1",
+      "name": "Comic-Metadata-Setup-0.6.1.exe",
+      "size": 149538466,
+      "sha256": "718590fb3524cf2ba9b7544c92ca94a2698a47fd26e64185cf3aae18af7f736d",
+      "sha512": "XgXy2BK1bK3Sn71nA2EqNJpjGiQrBvoZCCcRMT3apnRuqEq3OWMuh/UYOHlz1fCdUNRz0BqGAUki68Kyo+9S+w=="
+    },
+    "priorVersion": "0.6.0",
+    "nextVersion": "0.6.1",
+    "started": 1794315869473,
+    "pass": false,
+    "priorInstallation": {
+      "exit": {
+        "code": 0,
+        "signal": null,
+        "out": "",
+        "err": ""
+      },
+      "versionFile": "0.6.0"
+    },
+    "priorRegistration": {
+      "DisplayName": "Comic Metadata 0.6.0",
+      "DisplayVersion": "0.6.0",
+      "UninstallString": "\"C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata\\Uninstall ComicMetadata.exe\" /currentuser",
+      "registeredDirectory": "C:\\Users\\WDAGUtilityAccount\\AppData\\Local\\Programs\\comic-metadata"
+    },
+    "fixture": {
+      "prepared": true,
+      "library": "C:\\Q\\illuminati-cmo-qa-processing\\library",
+      "fixtures": 500,
+      "gcdSourceSha256": "15dfb0a8074a2294c25afd673936a4ca892fde11b94904c6ee96a2fc20b8db96",
+      "manualSha256": "1b418d69d79409bf52dce4fd992bdba42b653a5a9b8ad5c2d1731e5e3642d3f4",
+      "conversionCover": "C:\\Q\\illuminati-cmo-qa-processing\\fixture-cover.png",
+      "conversionArchive": "C:\\Q\\illuminati-cmo-qa-processing\\library\\Bundled Conversion 001.cb7"
+    },
+    "error": "Error: Inspector call timed out: Runtime.evaluate\n    at Timeout._onTimeout (file:///C:/CMOInput/common.mjs:147:85)\n    at listOnTimeout (node:internal/timers:685:17)\n    at process.processTimers (node:internal/timers:618:7)",
+    "finished": 1794315906347
+  },
+  "oldObserver": {
+    "pid": 9196,
+    "version": "0.6.0",
+    "events": [
+      {
+        "kind": "engine-start",
+        "pid": 6388,
+        "time": 1794315895591
+      }
+    ]
+  },
+  "uiCleanup": {
+    "authorization": "Scoped Jane instruction to close only failed exactly verified Sandbox UI under existing user opening/closing focus permission",
+    "clientPid": 59012,
+    "clientImage": "C:/Program Files/WindowsApps/MicrosoftWindows.WindowsSandbox_0.8.107.0_x64__cw5n1h2txyewy/WindowsSandboxRemoteSession.exe",
+    "clientCreated": "2026-11-10T15:04:02.202718+02:00",
+    "systemId": "587deee8-043d-42f6-96fd-c5f21c397533",
+    "selectedApp": "MicrosoftWindows.WindowsSandbox_cw5n1h2txyewy!App",
+    "returnedWindowId": 12719040,
+    "visibleGuest": "Desktop with Comic Metadata shortcut; no setup/dashboard/spinner/error dialog visible",
+    "actions": [
+      "Activated exact returned Sandbox window after occluded capture; no input into underlying app",
+      "Clicked own outer Sandbox close control",
+      "Confirmed native Sandbox warning to discard only ephemeral guest",
+      "Reobserved no Sandbox app/window and independent raw HCS/client absence"
+    ],
+    "result": "Failed-session cleanup only, not actual app Quit pass; no guest commands, host shutdown or generic process kill",
+    "screenshotsRetained": false
+  },
+  "postClosureObservation": {
+    "observedAtUtc": "2026-11-10T13:16:31.3257417Z",
+    "computeCommand": "C:/Windows/System32/hcsdiag.exe list",
+    "computeOutput": "a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\r\n    VM,                       \tSavedAsTemplate, A90A3CA5-CF2C-4AA3-8DA2-E81E62EB3A71, CmService\r\n\r\n",
+    "clientQuery": "Get-CimInstance Win32_Process filtered to actual Sandbox UI/server and classic clients",
+    "clients": [],
+    "guestOwnedExists": false,
+    "guestWrapperExists": false
+  }
+}

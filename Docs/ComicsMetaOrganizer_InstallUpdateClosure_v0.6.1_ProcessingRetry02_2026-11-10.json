@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "observedEpochMs": 1794316444190,
+  "originalRuntime": [
+    {
+      "path": "common.mjs",
+      "size": 10051,
+      "sha256": "f7db81356f0a0cae1d79fc10729def811375179bec487ee6990b60a0d85de843"
+    },
+    {
+      "path": "guest-entry.mjs",
+      "size": 5598,
+      "sha256": "54eaf34a6744a8f79a6844df2a476809002195f7934ccbf601147d072c42dd1b"
+    },
+    {
+      "path": "guest-update.mjs",
+      "size": 19195,
+      "sha256": "5ce30790da8113a1ee442f8cd7c1eaa922fbd09bbb183273185f04d0fdc171dc"
+    },
+    {
+      "path": "host-run.mjs",
+      "size": 3423,
+      "sha256": "279a6075a55445d87566304bf52e14ecad9297e75e52b82517ccf267d6ff1f65"
+    },
+    {
+      "path": "host-session.mjs",
+      "size": 11192,
+      "sha256": "129740422f61a0eb24f658f461a936fa884de59adcd652df00c6edc1abf56a34"
+    },
+    {
+      "path": "input-manifest.json",
+      "size": 398908,
+      "sha256": "221f5e61759f007d862179fcec44b419ce293ab39b91bac018e68879cae858ee"
+    },
+    {
+      "path": "observer.cjs",
+      "size": 4355,
+      "sha256": "3360e0b1f19ef9d8e2b2233fabcd5443123b6c3ae9223554638f602c5a2bab2a"
+    },
+    {
+      "path": "state-fixture.py",
+      "size": 7499,
+      "sha256": "855ab20b11da8ce2fe307b25497d27a2864fe0897ee842522f97abf5d4e81e6d"
+    }
+  ],
+  "observed": {
+    "events": [
+      {
+        "eventId": 2008,
+        "recordId": 27191,
+        "timeMs": 1794316323898,
+        "systemId": "587DEEE8-043D-42F6-96FD-C5F21C397533",
+        "result": "0x00000000",
+        "notification": "2",
+        "exitResult": "0x00000000"
+      },
+      {
+        "eventId": 2008,
+        "recordId": 27190,
+        "timeMs": 1794316323898,
+        "systemId": "587deee8-043d-42f6-96fd-c5f21c397533",
+        "result": "0x00000000",
+        "notification": "2",
+        "exitResult": "0x00000000"
+      },
+      {
+        "eventId": 2009,
+        "recordId": 27189,
+        "timeMs": 1794316323898,
+        "systemId": "587deee8-043d-42f6-96fd-c5f21c397533",
+        "result": "",
+        "notification": "2",
+        "exitResult": "0x00000000"
+      }
+    ],
+    "clients": []
+  },
+  "hcsRaw": "[{\"Id\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"SystemType\":\"VirtualMachine\",\"RuntimeOsType\":\"Windows\",\"Owner\":\"CmService\",\"RuntimeId\":\"a90a3ca5-cf2c-4aa3-8da2-e81e62eb3a71\",\"State\":\"SavedAsTemplate\"}]\r\n",
+  "resultSha256": "413b70ee035ab414a9ce2815bcbff923e79dda84d958f0eb544c05321ea5b21b",
+  "limitation": "Authorized own UI discard after failed inspector call. Notification2 is crash initiated; no notification1 observed. Raw VM absence and empty UI/server observed. This is failed cleanup, never normal shutdown or QA acceptance."
+}
