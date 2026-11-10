@@ -4,7 +4,17 @@
 
 Scope: focused source regression and a bounded read-only collection-identity sample only. This does not certify a packaged release, native app, automatic write results, population-wide match precision or exact physical/digital edition identifiers.
 
-## Pinned source and checks
+## Final corrected-runner source check
+
+Final source commit: `f64441e95a1381daa9a0448901d46f85cd2951b7`, still version `0.6.1`; product matching bytes are unchanged from the initial source candidate. A separate owned `git archive` copy was tested. Archive SHA-256: `ac866fc286fc670b37bdc7abd9bcfabda72bcc2009736f5e5aab7aa98d6f5bbd`. All **333** archived files matched their archive bytes after the run; zero extra files remained.
+
+Final command: `C:/Python314/python.exe -B tests/run_naming_checks.py --scratch <final-archived-source>/scratch/qa-checks`, from the final archived source root. **103 tests passed, zero failures/errors/skips, exit 0**; unittest 2.983 s, runner 3.794 s including discovery. Live-state isolation/sentinel, descendant refusal and the 600000 ms deadline remained active. This was one justified repeat after a newly found runner defect, not a repeat of a claimed formal entry check.
+
+The old filter could omit requested-module import failures. The corrected runner retains those failures and fails closed on absent/empty requested modules. Three independent negative/positive controls passed: normal discovery succeeds; a deliberately broken requested module fails beside a good control; an absent requested module fails. Final archived runner SHA-256: `41a60e9a2e6e20c8af8fcf68a183cba60e8d657b5f3a90cdf063d93aa497c858`.
+
+The initial 100-test result below remains historical evidence for `500df00`; it does not certify the corrected runner. The final 103-test result is the current focused source clearance. Neither result certifies a package/native release.
+
+## Initial pinned source and checks (historical)
 
 - Source commit: `500df00b4e2f19f036d28ed059cc2c4ffa09a6a4`, version `0.6.1`. Tested an independent `git archive` copy, never the shared working tree.
 - Source archive SHA-256: `936da80049f7c606195e4eeede82e756cbc0a1525e6ab4f70a4accead7048719`. All 331 archived source files matched their archive bytes after testing; zero added files remained.
@@ -68,3 +78,4 @@ Reproduction: use the exact catalog/GCD ID pairs and the member ordering above (
 - The 601 developer candidate-stage opportunities are not 601 guaranteed or approved writes. This small sample cannot certify broad precision or resolve missing dates/ambiguous editions.
 - Pattern alerts: none.
 - Cleanup inventory: 435 owned files, 50,656,765 logical bytes, measured by recursively enumerating files in the exact owned `scratch/futaba-naming-20261110` root and summing file lengths. The transparent native PowerShell removal, with an exact resolved-path check, was rejected before launch by automatic execution policy with only `blocked by policy` supplied. The entire root remains; no alternate deletion was attempted. The separate empty Ender folder rejected by execution policy was not touched.
+- Final-run cleanup inventory: 337 owned files, 9,049,465 logical bytes, measured the same way in the separate exact `scratch/futaba-naming-final-20261110` root. Its one transparent native PowerShell removal was likewise rejected before launch with only `blocked by policy` supplied. That root also remains; no rejected target or parent was retried and no alternate deletion was attempted. Total retained Futaba scratch across these two roots: 772 files, 59,706,230 logical bytes.
