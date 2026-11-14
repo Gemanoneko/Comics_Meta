@@ -50,8 +50,8 @@ with HeldPaths() as held:
             lock=json.load(tar.extractfile('scripts/packaging/toolchain-lock.json'))
         executable=held.hold(extraction['command']['file']);args=extraction['command']['args']
         if extraction['toolSha256']!=lock['archiverSha256'] or sha(executable.read_bytes())!=lock['archiverSha256'] or str(Path(c['artifactRoot'])/('Comic-Metadata-Setup-'+version+'.exe')) not in args or 'ComicMetadata.exe' not in args or 'resources\\app.asar' not in args:raise RuntimeError('Owned static extraction source differs')
-        specs=evidence['spec'];startup=evidence['startup'];close=evidence['close'];marks=evidence['markResources']
-        if not normal(owner) or not normal(extraction['result']) or evidence.get('pass') is not True or startup.get('version')!=version or startup.get('packaged') is not True or startup.get('violations')!=[] or startup.get('engine',{}).get('owned') is not True or startup.get('engine',{}).get('httpStatus')!=200 or close.get('code')!=0 or close.get('signal') is not None or close.get('remaining')!=[] or evidence.get('quitRequested')!='actual tray Quit requested':raise RuntimeError('Packaged smoke/closure proof missing')
+        specs=evidence['spec'];startup=evidence['startup'];smoke_close=evidence['close'];marks=evidence['markResources']
+        if not normal(owner) or not normal(extraction['result']) or evidence.get('pass') is not True or startup.get('version')!=version or startup.get('packaged') is not True or startup.get('violations')!=[] or startup.get('engine',{}).get('owned') is not True or startup.get('engine',{}).get('httpStatus')!=200 or smoke_close.get('code')!=0 or smoke_close.get('signal') is not None or smoke_close.get('remaining')!=[] or evidence.get('quitRequested')!='actual tray Quit requested':raise RuntimeError('Packaged smoke/closure proof missing')
         installer='Comic-Metadata-Setup-'+version+'.exe';items={x['name']:x for x in c['artifacts']}
         actual=[]
         for line in build_owned.get('out','').splitlines():
