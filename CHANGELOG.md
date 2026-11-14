@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.6.3] - 2026-11-14
+
+### Fixed
+
+- Use the new Comic Metadata artwork in the Windows notification area while keeping the existing status colors.
+
 ## [v0.6.2] - 2026-11-14
 
 ### Changed
