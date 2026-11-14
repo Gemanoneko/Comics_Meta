@@ -5,3 +5,10 @@ test('force sends the private broker command and waits for acknowledged whole-jo
 test('unexpected dead broker exit cannot claim engine closure',async()=>{const {engine}=fixture(1);await assert.rejects(engine.forceStop(),/closure/);});
 test('missing owner stream refuses force rather than killing only the broker',async()=>{const {engine,child}=fixture();child.stdin.writable=false;await assert.rejects(engine.forceStop(),/control unavailable/);assert.equal(child.exitCode,null);});
 test('normal stop rejects a nonzero broker return',async()=>{const {engine,child}=fixture();engine.call=async()=>{queueMicrotask(()=>{child.exitCode=1;child.emit('exit',1);});return {ok:true};};await assert.rejects(engine.stop(),/not confirmed/);});
+test('concurrent force requests share one broker closure',async()=>{const {engine,child}=fixture();await Promise.all([engine.forceStop(),engine.forceStop()]);assert.deepEqual(child.commands,['force\n']);});
+test('signal exit never claims confirmed broker closure',async()=>{const {engine,child}=fixture();child.signalCode='SIGTERM';await assert.rejects(engine.forceStop(),/closure/);assert.deepEqual(child.commands,[]);});
+test('quit during port probe prevents a late broker spawn',async()=>{
+  const net=require('node:net'),original=net.createServer;let listening;
+  net.createServer=()=>({once(){},listen(_port,_host,callback){listening=callback;},close(callback){callback();}});
+  try{const engine=new Engine({resources:'never-used',state:'never-used',locks:'never-used',port:18980,log:'never-used'});const pending=engine.start();await engine.forceStop();listening();await assert.rejects(pending,error=>error.code==='START_CANCELLED');assert.equal(engine.child,null);}finally{net.createServer=original;}
+});

@@ -69,6 +69,9 @@ def tickets():
 
 def run_one():
     if pause_control.requested():return False
+    # A batch writes progress before touching an archive. Do not mark a queued
+    # plan as needing attention merely because that preserved record is corrupt.
+    if not batch.progress_available():return False
     QUEUE.mkdir(parents=True, exist_ok=True)
     for ticket, item in tickets():
         if item['state'] != 'pending':
@@ -169,6 +172,7 @@ def main():
             automatic = app.load_config().get('automatic', {})
             if automatic.get('enabled') and time.time() >= next_discovery:
                 next_discovery = time.time() + 600
+                folder = None
                 try:
                     import automatic as discovery
                     import scheduler
@@ -203,10 +207,10 @@ def main():
                 except Exception as exc:
                     if 'folder' in locals() and folder:
                         try:scheduler.finish(folder,error=str(exc))
-                        except OSError:pass
+                        except (OSError,ValueError,UnicodeError):pass
                         next_discovery = 0
                     try:batch.progress(phase='Automatic lookup waiting', detail=str(exc))
-                    except OSError:pass
+                    except (OSError,ValueError,UnicodeError):pass
             pause_control.sleep(2)
 
 

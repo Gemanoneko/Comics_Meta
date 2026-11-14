@@ -37,6 +37,10 @@ window.LensControl = (() => {
     if (!state || state.engine !== 'google_lens' || !phases.has(state.phase)) { unavailable(); return; }
     if (last && Number(state.updated) < Number(last.updated)) return;
     last = state;
+    if (state.failure === 'status_unavailable') {
+      paint('Saved cover search status could not be read. Automatic cover searches are paused. Check the app logs for details.');
+      button.title = ''; set(help, ''); return;
+    }
     if (state.paused || state.phase === 'paused') { paint('Paused; cover queue retained.'); return; }
     if (submitting || state.phase === 'queued') {
       paint('Google Lens verification queued. No further clicks needed.', 'Google Lens verification queued', true); return;

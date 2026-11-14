@@ -55,6 +55,10 @@ How it works:
 Install/QA note: the installed tree goes 142 characters deep below the install folder. Keep any private install folder at or under about 100 characters.
 - Release: Sully synchronizes `VERSION`, `package.json` and `package-lock.json`, commits and pushes immediately. `npm run release` promotes the exact QA-certified artifact bytes from its pinned release contract, verifies the named tag and retains the last four heavy GitHub releases; it never rebuilds the approved installer. No public installer release until actual native installation/update QA and independent review pass.
 
+## 0.6.2 release scope
+
+- **App icon** (Sergei, 2026-11-14). A distinctive comics-themed Windows app icon.
+
 ## Decision Log
 
 | Decision | Chosen | Alternatives | Revisit trigger |

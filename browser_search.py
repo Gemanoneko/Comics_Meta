@@ -43,13 +43,25 @@ def settings():
 
 def legacy_status(**changes):
     path=app.DATA/'browser-search.json'
-    previous=json.loads(storage.read_text(path)) if path.exists() else {}
+    try:
+        previous=json.loads(storage.read_text(path))
+        if not isinstance(previous,dict):raise ValueError('Invalid browser status')
+    except FileNotFoundError:
+        previous={}
+    except (ValueError,UnicodeError):
+        # Never replace unknown challenge/cooldown data with guessed defaults.
+        # A partial worker update cannot repair a record whose prior fields are lost.
+        if changes:raise ValueError('Browser search status is unreadable') from None
+        previous={'status_unavailable':True}
     if changes:
         previous.update(changes,timestamp=time.time());storage.save(path,previous)
     heartbeat=app.DATA/'browser-heartbeat'
     # The worker's heartbeat thread replaces this file every 2 s; a plain read
     # meeting that replace crashed the worker at start (installed 0.2.1 QA, M3).
-    previous['alive']=heartbeat.exists() and time.time()-json.loads(storage.read_text(heartbeat))['timestamp']<15
+    try:
+        timestamp=json.loads(storage.read_text(heartbeat))['timestamp']
+        previous['alive']=isinstance(timestamp,(int,float)) and 0<=time.time()-timestamp<15
+    except (OSError,ValueError,UnicodeError,KeyError,TypeError):previous['alive']=False
     previous['verification_pending']=(app.DATA/'browser-resume').exists() or (previous['alive'] and previous.get('human_verification') and previous.get('verification_state') in ('opening','open'))
     return previous
 

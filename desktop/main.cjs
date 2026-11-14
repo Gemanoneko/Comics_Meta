@@ -12,7 +12,7 @@ if(qa){for(const folder of [qaPolicy.profile,qaPolicy.cache,path.join(qaPolicy.p
 const locked=app.requestSingleInstanceLock();
 if(!locked){app.exit(0);}else{
   nativeTheme.themeSource='dark';app.setAppUserModelId('studio.illuminati.comicmetadata');
-  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,restarts=[];
+  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,firstMiss=null,restarts=[],starting=null,quitting=false;
   let state={loadedShellVersion:app.getVersion(),service:'starting',control:null,update:{phase:'idle',check:'idle'},stopping:null};let trayPause=false;
   const profile=app.getPath('userData');const boundsFile=path.join(profile,'window.json');
   const local=process.env.LOCALAPPDATA;if(!qa && !local)throw Error('Local app state is unavailable');
@@ -78,18 +78,25 @@ if(!locked){app.exit(0);}else{
     const actions={setupOpenDashboard:async()=>{if(state.service!=='setup')throw Error('Setup unavailable');const fresh=await engine.call('/api/shell/status');if(!fresh.setup?.configured)throw Error('Setup incomplete');state.service='ready';state.control=fresh.control;await window.loadURL('http://127.0.0.1:'+engine.port);broadcast();beginUpdateCadence();},quit:()=>quit(),retryService:()=>start(),openLogs:()=>shell.openPath(logFolder),check:()=>updates?.check(true),download:()=>updates?.download(),dismiss:()=>updates?.dismiss(),confirm:()=>updates?.confirm(),cancelConfirm:()=>updates?.cancelConfirm(),install:()=>updates?.install(),retryUpdate:()=>updates?.retry(),cancelStop:()=>stopper?.cancel(),forceQuit:()=>stopper?.force()};
     if(!Object.hasOwn(actions,name))throw Error('Unsupported shell action');return actions[name]();});
   function secure(target,allowed){target.webContents.setWindowOpenHandler(({url})=>{if((providerPage(url)||gcdInfoPage(url))&&!qa)shell.openExternal(url).catch(log);return {action:'deny'};});target.webContents.on('will-navigate',(event,url)=>{if(!allowed(url))event.preventDefault();});target.webContents.on('page-title-updated',event=>event.preventDefault());target.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&input.control&&!input.alt&&input.key.toLowerCase()==='q'&&!stopper?.busy&&target.isVisible()){event.preventDefault();quit();}});}
-  async function quit(){if(stopper?.busy)return;trayPause=false;try{if(!stopper){exit();return;}state.stopping={mode:'quit'};broadcast();if(await stopper.run('quit'))exit();}catch(error){log(error);await engine?.forceStop();exit();}finally{state.stopping=null;broadcast();}}
+  async function quit(){if(stopper?.busy)return;quitting=true;if(starting)window?.webContents.stop?.();trayPause=false;try{if(!stopper){exit();return;}state.stopping={mode:'quit'};broadcast();if(await stopper.run('quit'))exit();}catch(error){log(error);try{await engine?.forceStop();exit();}catch(closure){log(closure);state.service='failed';state.failure='CLOSURE_UNCONFIRMED';}}finally{if(!finalExit)quitting=false;state.stopping=null;broadcast();}}
   function stoppingDialog(value){state.stopping=value;if(!dialog){
     if(!qa)window.showInactive();dialog=new BrowserWindow({parent:window,modal:true,width:440,resizable:false,minimizable:false,maximizable:false,show:false,backgroundColor:'#1b202b',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:qa}});
     dialog.setMenu(null);secure(dialog,shellFile);dialog.loadFile(path.join(__dirname,'stopping.html'));dialog.once('ready-to-show',()=>{if(!qa)dialog.show();broadcast();});dialog.on('close',event=>{if(stopper.busy){event.preventDefault();stopper.cancel();}});
   }broadcast();}
-  async function poll(){if(polling||!engine?.ready)return;polling=true;try{const fresh=await engine.call('/api/shell/status');misses=0;state.service=fresh.setup?.configured?'ready':'setup';state.control=fresh.control;state.verification=fresh.verification;state.verification_engines=fresh.verification_engines;
+  async function poll(){if(polling||!engine?.ready)return;polling=true;try{const fresh=await engine.call('/api/shell/status');misses=0;firstMiss=null;state.service=fresh.setup?.configured?'ready':'setup';state.control=fresh.control;state.verification=fresh.verification;state.verification_engines=fresh.verification_engines;
     if(trayPause&&!fresh.control.requested)trayPause=false;
     if(trayPause&&fresh.control.phase==='paused'&&(fresh.control.gpu_released||fresh.control.error)){trayPause=false;if(!stopper.busy&&!(window.isVisible()&&window.isFocused()))notify('Comic Metadata',fresh.control.error?'Paused. GPU release not confirmed.':'Paused. Gemma released from GPU.');}
-  }catch(error){log(error);if(++misses>=3)state.service='failed';}finally{polling=false;broadcast();}}
+  }catch(error){log(error);if(firstMiss===null)firstMiss=performance.now();if(++misses>=3&&performance.now()-firstMiss>=60000)state.service='failed';}finally{polling=false;broadcast();}}
   let updateTimer=null;
   function beginUpdateCadence(){if(updateTimer||!app.isPackaged||state.service!=='ready')return;setTimeout(()=>updates.check(false),5000);updateTimer=setInterval(()=>updates.check(false),86400000);}
-  async function start(){if(stopper?.busy||updates?.state.phase==='installer-uncertain')return;state.service='starting';state.failure=null;broadcast();try{const initial=await engine.start();state.service=initial.setup?.configured?'ready':'setup';if(state.service==='setup')window.loadFile(path.join(__dirname,'setup.html'));else window.loadURL('http://127.0.0.1:'+engine.port);await poll();}catch(error){log(error);state.service='failed';state.failure=error.code||'ENGINE_EXIT';await engine.forceStop();window.loadFile(path.join(__dirname,'startup.html'));broadcast();}}
+  async function start(){
+    if(starting)return starting;
+    if(quitting||stopper?.busy||updates?.state.phase==='installer-uncertain'||state.failure==='CLOSURE_UNCONFIRMED')return;
+    starting=(async()=>{state.service='starting';state.failure=null;state.startupPhase='starting';state.startupAttempt=Date.now();broadcast();
+      try{const initial=await engine.start();if(quitting||finalExit||stopper?.busy)return;state.service=initial.setup?.configured?'ready':'setup';state.startupPhase=state.service==='setup'?'opening-setup':'opening-dashboard';broadcast();if(state.service==='setup')await window.loadFile(path.join(__dirname,'setup.html'));else await window.loadURL('http://127.0.0.1:'+engine.port);if(!quitting&&!finalExit)await poll();}
+      catch(error){if(quitting||finalExit)return;log(error);state.service='failed';state.failure=error.code||'ENGINE_EXIT';state.startupBudgetMs=error.budgetMs;await window.loadFile(path.join(__dirname,'startup.html'));broadcast();}
+    })();try{return await starting;}finally{starting=null;}
+  }
   app.on('second-instance',show);app.on('before-quit',event=>{if(!finalExit){event.preventDefault();quit();}});app.on('window-all-closed',()=>{});
   app.whenReady().then(()=>{
     // Install before creating either QA renderer. This filters Electron HTTP
@@ -113,7 +120,8 @@ if(!locked){app.exit(0);}else{
     if(qa){Object.defineProperty(autoUpdater.app,'baseCachePath',{value:qaPolicy.cache});autoUpdater.logger=null;if(autoUpdater.netSession!==session.defaultSession)autoUpdater.netSession.webRequest.onBeforeRequest({urls:['<all_urls>']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url,{feedOnly:true})}));autoUpdater.setFeedURL({provider:'generic',url:qaPolicy.feedURL,requestHeaders:{Authorization:'Bearer '+qaPolicy.feedToken}});autoUpdater.requestHeaders={Authorization:'Bearer '+qaPolicy.feedToken};}
     fs.mkdirSync(path.join(stateRoot,'work'),{recursive:true});
     updates=new Updates({updater:autoUpdater,stopper,engine,log,exit,workRoot:path.join(stateRoot,'work','update-launch'),qaInstallDirectory:qaPolicy?.installDirectory,qaArtifact:qaPolicy?.artifact,record:value=>{fs.writeFileSync(path.join(logFolder,'update-attempt-'+crypto.randomUUID()+'.json'),JSON.stringify({...value,loadedShellVersion:app.getVersion(),installedVersionVerified:false},null,2),{flag:'wx'});}});updates.on('state',value=>{const entering=value.phase==='installer-uncertain'&&state.update.phase!=='installer-uncertain';state.update={...value};if(entering){state.service='held';state.failure=null;window.loadFile(path.join(__dirname,'startup.html'));}broadcast();});
-    engine.on('exit',()=>{if(stopper.busy||finalExit)return;restarts=restarts.filter(time=>Date.now()-time<60000);if(restarts.length<3){restarts.push(Date.now());setTimeout(start,500);}else{state.service='failed';state.failure='RESTART_EXHAUSTED';broadcast();}});engine.on('engine-error',log);
+    engine.on('startup-phase',phase=>{if(state.service==='starting'&&!quitting){state.startupPhase=phase;broadcast();}});
+    engine.on('exit',(_code,wasReady)=>{if(!wasReady||stopper.busy||quitting||finalExit)return;restarts=restarts.filter(time=>Date.now()-time<60000);if(restarts.length<3){restarts.push(Date.now());setTimeout(()=>{const previous=starting;if(previous)previous.then(()=>{if(!quitting&&!finalExit)start();});else start();},500);}else{state.service='failed';state.failure='RESTART_EXHAUSTED';broadcast();}});engine.on('engine-error',log);
     start().then(beginUpdateCadence);setInterval(poll,3000);
   }).catch(error=>{console.error(error);app.exit(1);});
 }

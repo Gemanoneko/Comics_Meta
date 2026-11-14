@@ -7,6 +7,7 @@ removed queue files are evicted. No history, queue, plan or archive is rewritten
 import copy
 import hashlib
 import json
+import sys
 import threading
 import time
 import app
@@ -18,7 +19,12 @@ PAYLOAD_BATCHES = 100
 class Files:
     def __init__(self):
         import problems
-        self.values={};self.problem_counts=problems.CountsCache()
+        self.values={};self.problem_counts=problems.CountsCache();self.reported_unreadable=set()
+
+    def unreadable(self,name):
+        if name not in self.reported_unreadable:
+            self.reported_unreadable.add(name)
+            print('Saved '+name+' cannot be read; the file was preserved.',file=sys.stderr,flush=True)
 
     def close(self):
         self.problem_counts.close()
@@ -63,7 +69,13 @@ def cover_research():
 
 def collect(files):
     import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime
-    result=dict(files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]}))
+    try:
+        saved=files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]})
+        if not isinstance(saved,dict) or not isinstance(saved.get('completed',[]),list):raise ValueError('Invalid progress')
+        result=dict(saved)
+    except (ValueError,UnicodeError):
+        files.unreadable('progress.json')
+        result={'phase':'Status unavailable','current_folder':'','completed':[],'progress_unavailable':True}
     completed=result.get('completed',[])
     # The dashboard lists recent batches; older summaries stay on disk, not in every poll.
     result['completed_total']=len(completed)
@@ -85,7 +97,12 @@ def collect(files):
     try:result['problems']=files.problem_counts.get(result['live_root'])  # Failure-filter spec 9.1.
     except Exception:pass  # Absent, never zero: the page then shows no problem lines.
     result['performance']=research_runtime.metrics()
-    folder_state=files.read(app.DATA/'folders.json',None)
+    try:
+        folder_state=files.read(app.DATA/'folders.json',None)
+        if folder_state is not None and (not isinstance(folder_state,dict) or not isinstance(folder_state.get('folders',{}),dict)):raise ValueError('Invalid folder schedule')
+    except (ValueError,UnicodeError):
+        files.unreadable('folders.json')
+        folder_state=None;result['folders_unavailable']=True
     if folder_state is not None:
         scheduled=folder_state.get('folders',{})
         result['folders']={'total':len(scheduled),'scanned':sum(bool(v.get('last_pass')) and not v.get('error') for v in scheduled.values()),

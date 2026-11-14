@@ -106,6 +106,9 @@ def status():
     if not current_alive and window in {'open','minimized'}:window='unknown'
     if paused:phase='paused'
     human=bool(legacy.get('human_verification'))
+    if legacy.get('status_unavailable'):
+        # Unknown prior challenge state must never be interpreted as verified.
+        phase='failed';failure='status_unavailable';window='unknown'
     if not lens_on():
         # Enrichment E: Lens is off, so nothing asks for a check, waits for a window or reports one as failed.
         # The stored state is left as it was, for the day Lens is switched back on.
@@ -124,7 +127,9 @@ def request():
         if paused:raise ValueError('Processing is paused.')
         if not alive(state):raise ValueError('The Google Lens worker is unavailable.')
         if state.get('window')=='unknown':raise ValueError('Google Lens window closure is not confirmed.')
-        if not browser_search.legacy_status().get('human_verification'):raise ValueError('No Google Lens verification is pending.')
+        legacy=browser_search.legacy_status()
+        if legacy.get('status_unavailable'):raise ValueError('Google Lens status is unavailable.')
+        if not legacy.get('human_verification'):raise ValueError('No Google Lens verification is pending.')
         if state.get('phase') in PENDING:
             return {'ok':True,'state':'already_requested','engine':'google_lens','request_id':state.get('request_id')}
         state.update(phase='queued',request_id=uuid.uuid4().hex,generation=generation,window=state.get('window','closed'),

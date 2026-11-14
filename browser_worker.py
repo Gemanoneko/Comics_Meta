@@ -201,6 +201,16 @@ def main(once=False):
     browser=None
     next_search_at=0
     state=search.status()
+    # Preserve an unreadable legacy challenge record. Wait without claiming
+    # cover tasks or replacing it with guessed values; Quit remains responsive.
+    if state.get('status_unavailable'):
+        print('Saved browser-search.json cannot be read; the file was preserved and cover search is waiting.',file=sys.stderr,flush=True)
+    while state.get('status_unavailable'):
+        if pause_control.stop_requested() or once:
+            stop.set();handle.close();return
+        pause_control.checkpoint('browser')
+        stop.wait(2)
+        state=search.status()
     search.status(verification_state='required' if state.get('human_verification') else 'verified',verification_window='closed')
     try:
         while True:

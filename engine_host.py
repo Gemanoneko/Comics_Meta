@@ -169,7 +169,7 @@ def main():
             if active_engine(job):raise RuntimeError('Owned engine descendants remain')
             return 125
         exit_value=W.DWORD();require(exit_code(proc.process,C.byref(exit_value)),'Owned engine exit')
-        return exit_value.value
+        return exit_value.value if exit_value.value in (0,75) else 126
     finally:
         closed=True
         if job:
@@ -177,6 +177,9 @@ def main():
             until=time.monotonic()+5
             while active_engine(job) and time.monotonic()<until:time.sleep(.01)
             closed=active_engine(job)==0
+            if closed:
+                import library_lock
+                library_lock.retire_engine_claims(os.environ.get('COMICS_META_CLAIM_OWNER',''))
             close(job)
         if proc.thread:close(proc.thread)
         if proc.process:close(proc.process)

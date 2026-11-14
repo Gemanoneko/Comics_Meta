@@ -71,6 +71,15 @@ class QueueTests(unittest.TestCase):
                 self.assertEqual(first['state'],'needs_attention')
                 self.assertFalse(worker.run_one()); self.assertEqual(apply.call_count,2)
 
+    def test_corrupt_progress_keeps_pending_plan_untouched(self):
+        with scratch_directory() as directory:
+            root=Path(directory);app.DATA.mkdir(parents=True);bad=app.DATA/'progress.json';bad.write_bytes(b'\0'*30283)
+            with patch.object(worker,'QUEUE',root/'queue'),patch.object(worker.batch,'apply') as apply:
+                plan=root/'001'/'plan.json';plan.parent.mkdir();plan.write_text(json.dumps({'folder':'001','entries':[{'action':'write'}]}))
+                ticket=worker.enqueue(plan);before=ticket.read_bytes()
+                self.assertFalse(worker.run_one());self.assertEqual(ticket.read_bytes(),before)
+                self.assertEqual(bad.read_bytes(),b'\0'*30283);apply.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

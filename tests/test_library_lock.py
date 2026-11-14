@@ -68,6 +68,27 @@ class LockFixture(unittest.TestCase):
 
 
 class ClaimTests(LockFixture):
+    def test_broker_retires_only_its_unlocked_and_partial_claims(self):
+        owner='a'*64;other='b'*64
+        with patch.dict(os.environ,{'COMICS_META_CLAIM_OWNER':owner}):
+            mine=library_lock.acquire(self.library,'dashboard')
+            mine_lock=mine._lock_path;mine_record=mine._record_path
+            os.close(mine._fd);mine._fd=None  # Simulate job termination, not Claim.release().
+            orphan=mine_lock.parent/('engine-'+owner+'-99-abcdefabcdef.lock');orphan.write_bytes(b'')
+            with patch.dict(os.environ,{'COMICS_META_CLAIM_OWNER':other}):
+                theirs=library_lock.acquire(self.library,'other')
+            self.addCleanup(theirs.release)
+            library_lock.retire_engine_claims(owner)
+            self.assertFalse(mine_lock.exists());self.assertFalse(mine_record.exists());self.assertFalse(orphan.exists())
+            self.assertTrue(theirs._lock_path.exists());self.assertTrue(theirs._record_path.exists())
+
+    def test_broker_refuses_to_retire_a_live_claim(self):
+        owner='c'*64
+        with patch.dict(os.environ,{'COMICS_META_CLAIM_OWNER':owner}):
+            claim=library_lock.acquire(self.library,'dashboard');self.addCleanup(claim.release)
+            with self.assertRaises(RuntimeError):library_lock.retire_engine_claims(owner)
+            self.assertTrue(claim._lock_path.exists());self.assertTrue(claim._record_path.exists())
+
     def test_processes_of_one_copy_share_a_library(self):
         dashboard = library_lock.acquire(self.library, 'dashboard')
         metadata = library_lock.acquire(self.library, 'metadata worker')

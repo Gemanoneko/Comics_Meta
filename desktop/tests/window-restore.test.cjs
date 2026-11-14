@@ -4,8 +4,8 @@ const fs=require('node:fs');const path=require('node:path');const vm=require('no
 const source=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8');
 const rectangle={x:40,y:40,width:900,height:600};
 
-function fixture(saved={...rectangle,maximized:false},{platform='win32',displays=[{workArea:{x:0,y:0,width:1626,height:835}}]}={}){
-  const files=new Map(),windows=[],order=[],timers=new Map();let ready,clock=0,nextTimer=1;
+function fixture(saved={...rectangle,maximized:false},{platform='win32',displays=[{workArea:{x:0,y:0,width:1626,height:835}}],engineCall=null}={}){
+  const files=new Map(),windows=[],order=[],timers=new Map(),intervals=[],handlers={};let ready,clock=0,nextTimer=1;
   const profile=path.resolve('fixture-profile'),stateFile=path.join(profile,'window.json');
   if(saved!==null)files.set(stateFile,typeof saved==='string'?saved:JSON.stringify(saved));
   const fakeFs={readFileSync(file){if(!files.has(file))throw Error('ENOENT');return files.get(file);},
@@ -25,7 +25,7 @@ function fixture(saved={...rectangle,maximized:false},{platform='win32',displays
     show(){order.push('show');this.shown.push(this.getNormalBounds());this.emit('show');}
     loadFile(){this.emit('ready-to-show');return Promise.resolve();}loadURL(){return Promise.resolve();}
   }
-  class Engine extends EventEmitter{start(){return new Promise(()=>{});}}
+  class Engine extends EventEmitter{constructor(){super();this.ready=Boolean(engineCall);}start(){return new Promise(()=>{});}call(...args){return engineCall(...args);}}
   class Stop extends EventEmitter{}
   class Updates extends EventEmitter{constructor(){super();this.state={phase:'idle'};}}
   class Tray extends EventEmitter{setImage(){}setToolTip(){}setContextMenu(){}}
@@ -33,17 +33,23 @@ function fixture(saved={...rectangle,maximized:false},{platform='win32',displays
     setAppUserModelId(){},isPackaged:false,whenReady:()=>({then(callback){ready=callback;return {catch(){}};}})});
   const electron={app,BrowserWindow:Window,Tray,Menu:{buildFromTemplate:value=>value,setApplicationMenu(){}},Notification:{isSupported:()=>false},
     nativeTheme:{},nativeImage:{createFromPath:()=>({isEmpty:()=>false})},screen:{getPrimaryDisplay:()=>displays[0],getAllDisplays:()=>displays},
-    shell:{},ipcMain:{handle(){}},session:{},dialog:{}};
+    shell:{},ipcMain:{handle(name,fn){handlers[name]=fn;}},session:{},dialog:{}};
   const modules={electron,'node:fs':fakeFs,'node:path':path,'node:url':require('node:url'),'node:crypto':require('node:crypto'),
     './engine.cjs':{Engine},'./graceful-stop.cjs':{GracefulStop:Stop},'./updates.cjs':{Updates},
     './qa-policy.cjs':{loadPolicy:()=>null},'electron-updater':{autoUpdater:{}}};
   vm.runInNewContext(source,{require(name){assert.ok(Object.hasOwn(modules,name),'Unexpected startup dependency '+name);return modules[name];},
     __dirname:path.join(__dirname,'..'),process:{platform,env:{LOCALAPPDATA:path.resolve('fixture-local')},resourcesPath:''},console,
-    setTimeout(fn,ms){const id=nextTimer++;timers.set(id,{fn,at:clock+ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>0});
+    performance:{now:()=>clock},setTimeout(fn,ms){const id=nextTimer++;timers.set(id,{fn,at:clock+ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{intervals.push(fn);return 0;}});
   ready();
   return {window:windows[0],order,files,stateFile,tick(ms){clock+=ms;for(const[id,t]of [...timers])if(t.at<=clock){timers.delete(id);t.fn();}},
-    persisted(){return JSON.parse(files.get(stateFile));}};
+    persisted(){return JSON.parse(files.get(stateFile));},poll:()=>intervals.at(-1)(),snapshot:()=>handlers['shell-snapshot']({sender:windows[0].webContents,senderFrame:windows[0].webContents.mainFrame})};
 }
+
+test('a 35 second status interruption does not mark the service failed; persistent failure does and success recovers',async()=>{
+  let failing=true;const f=fixture(undefined,{engineCall:async()=>{if(failing)throw Error('fixture blocked');return {setup:{configured:true},control:{requested:false},verification:false,verification_engines:[]};}});
+  await f.poll();f.tick(20000);await f.poll();f.tick(15000);await f.poll();assert.notEqual(f.snapshot().service,'failed');
+  f.tick(25000);await f.poll();assert.equal(f.snapshot().service,'failed');failing=false;await f.poll();assert.equal(f.snapshot().service,'ready');
+});
 
 test('restores the exact saved outer DIP rectangle after constructor conversion, before showing',()=>{
   const f=fixture();assert.deepEqual(f.window.getNormalBounds(),rectangle);

@@ -12,6 +12,15 @@ import storage
 import pause_control
 
 
+def progress_available():
+    """An unreadable prior progress record must not be silently replaced."""
+    target=app.DATA/'progress.json'
+    try:value=json.loads(storage.read_text(target))
+    except FileNotFoundError:return True
+    except (OSError,ValueError,UnicodeError):return False
+    return isinstance(value,dict)
+
+
 def progress(**updates):
     target=app.DATA/'progress.json'
     target.parent.mkdir(parents=True,exist_ok=True)

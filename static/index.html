@@ -100,7 +100,7 @@ window.YandexControl = (() => {
   return {render, unavailable, connect};
 })();
 
-let offset=0,total=0,selected=null,issue=null,lastRows=null;
+let offset=0,total=0,selected=null,issue=null,lastRows=null,conversionCheck=0,conversionBusy=false,conversionUncertain=0,conversionCountVersion=0;
 const $=id=>document.getElementById(id);
 function error(e){$('error').textContent=e.message||String(e);$('error').style.display='block'}
 async function request(path,body,timeout=body===undefined?12000:0){
@@ -110,7 +110,7 @@ function singleFlight(run){let current=null;return (...args)=>{if(current)return
 
 function node(tag,text){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e}
 function renderVersion(value){const badge=$('appVersion');const valid=typeof value==='string'&&/^v?[0-9]+[.][0-9]+[.][0-9]+$/.test(value);const version=valid?value.replace(/^v/,''):'';const text=valid?'v'+version:'Version unavailable';if(badge.textContent!==text)badge.textContent=text;badge.setAttribute('aria-label',valid?'App version '+version:text)}
-async function state(){try{const s=await request('state');renderVersion(s.version);$('roots').textContent=s.roots.length?s.roots.join(' · '):'No live folder configured.';$('progress').textContent='Manual scanner: '+s.job.message+' · '+s.job.visited+' checked · '+s.job.changed+' new or changed';$('scan').disabled=$('rescan').disabled=s.job.running;tip($('scan'),s.job.running?'A scan is already running.':'Scan the folder in the box and add its comics to the inventory.');tip($('rescan'),s.job.running?'A scan is already running.':'Check all live library folders again for new or changed comics.');$('provider').textContent=s.online?'ComicVine configured. Lookups are cached and paced.':'ComicVine is not configured.';const totals=s.totals||{};$('comicCounter').textContent=(totals.updated||0).toLocaleString();$('presentCounter').textContent=(totals.metadata_and_synopsis||0).toLocaleString()+' / '+(totals.total||0).toLocaleString();$('missingCounter').textContent=(totals.needs_information||0).toLocaleString();for(const [id,key,label,status] of [['corruptedCount','corrupted','Corrupted','corrupted'],['conversionCount','conversion','Needs conversion','unsupported']]){const b=$(id),n=totals[key]||0;b.hidden=n===0;b.textContent=label+' · '+n.toLocaleString();b.onclick=()=>{$('status').value=status;offset=0;load()}}
+async function state(){const badgeVersion=conversionCountVersion;try{const s=await request('state');renderVersion(s.version);$('roots').textContent=s.roots.length?s.roots.join(' · '):'No live folder configured.';$('progress').textContent='Manual scanner: '+s.job.message+' · '+s.job.visited+' checked · '+s.job.changed+' new or changed';$('scan').disabled=$('rescan').disabled=s.job.running;tip($('scan'),s.job.running?'A scan is already running.':'Scan the folder in the box and add its comics to the inventory.');tip($('rescan'),s.job.running?'A scan is already running.':'Check all live library folders again for new or changed comics.');$('provider').textContent=s.online?'ComicVine configured. Lookups are cached and paced.':'ComicVine is not configured.';const totals=s.totals||{};$('comicCounter').textContent=(totals.updated||0).toLocaleString();$('presentCounter').textContent=(totals.metadata_and_synopsis||0).toLocaleString()+' / '+(totals.total||0).toLocaleString();$('missingCounter').textContent=(totals.needs_information||0).toLocaleString();for(const [id,key,label,status] of [['corruptedCount','corrupted','Corrupted','corrupted'],['conversionCount','conversion','Needs conversion','unsupported']]){const b=$(id),n=totals[key]||0;if(key!=='conversion'||(!conversionBusy&&badgeVersion===conversionCountVersion)){b.hidden=n===0;b.textContent=label+' · '+n.toLocaleString();}b.onclick=()=>{$('status').value=status;offset=0;if(status==='unsupported')checkConversions();else{cancelConversionCheck();load()}}}
 const count=Object.entries(s.counts).filter(([k])=>k!=='absent').reduce((n,[k,v])=>n+v,0);$('counts').replaceChildren(node('span',count+' live comics in the inventory'));if(wasRunning&&!s.job.running)await load();wasRunning=s.job.running}catch(e){renderVersion(null);error(e)}}
 let wasRunning=false,lastMetadataRevision=null,completedRevision=null;
 function showProviders(providers){
@@ -130,7 +130,7 @@ $('timingRows').replaceChildren(...stages.filter(s=>!['Verified evidence reused'
 // aggregate cannot overwrite a newer pause or manual request outcome.
 if(lastMetadataRevision!==p.timestamp){lastMetadataRevision=p.timestamp;load()}
 const f=p.folders||{},r=p.research||{},q=p.queue||{};
-$('folderCounter').textContent=(f.scanned||0).toLocaleString()+' / '+(f.total||0).toLocaleString()+(f.inventory_pending?' · checking for new folders':'');
+$('folderCounter').textContent=p.folders_unavailable?'Unavailable':(f.scanned||0).toLocaleString()+' / '+(f.total||0).toLocaleString()+(f.inventory_pending?' · checking for new folders':'');
 const waiting=p.phase==='Waiting for delta scan'||p.phase==='Automatic lookup waiting';
 const next=f.next_scan_at?new Date(f.next_scan_at*1000).toLocaleTimeString():null;
 $('queueStatus').textContent=!q.alive?'Stopped — automatic restart is being attempted':q.running?'Working — writing and verifying metadata':q.pending?'Working — preparing queued updates':waiting?'Waiting — '+(f.retry_wait?'some folders will be retried':'scheduled folder checks finished'):'Working — looking up comic information';
@@ -139,10 +139,12 @@ if(window.FolderHelp)FolderHelp.render(q.attention||[],processingControl);  // K
 renderProblems(p);
 $('liveProgress').textContent=waiting?(next?'Next folder check: '+next:'Watching for new or changed comics'):(p.current_folder||'Selecting next folder');
 $('liveDetail').textContent=waiting?'Folder checks can finish while metadata research is still unresolved.':p.detail||'Checking the live library.';
-if(processingControl.requested)$('liveDetail').textContent=processingControl.phase==='pausing'?'Finishing the current operation before stopping.':'Last folder shown above. No new lookups or comic writes will start until you resume.';
+if(p.progress_unavailable||p.folders_unavailable){$('queueStatus').textContent=p.progress_unavailable&&p.folders_unavailable?'Saved processing status unavailable':p.progress_unavailable?'Saved progress unavailable':'Folder schedule unavailable';$('liveProgress').textContent='Unavailable';$('liveDetail').textContent=(p.progress_unavailable&&p.folders_unavailable?'Saved progress and the folder schedule could not be read. Automatic folder checks may pause.':p.progress_unavailable?'Saved progress could not be read.':'The saved folder schedule could not be read. Automatic folder checks may pause.')+' Check the app logs for details.';}
+if(processingControl.requested){$('queueStatus').textContent=processingControl.phase==='pausing'?'Pausing safely…':'Paused — queue and progress retained';if(!p.progress_unavailable&&!p.folders_unavailable)$('liveDetail').textContent=processingControl.phase==='pausing'?'Finishing the current operation before stopping.':'Last folder shown above. No new lookups or comic writes will start until you resume.';}
 const unresolved=(r.wiki_candidates_found||0)+(r.needs_identity_lookup||0);  // A conflict needs Sergei, not research (summary line A).
 $('researchStatus').textContent=(f.passes_complete||0)+' of '+(f.total||0)+' folders checked this pass'+(f.inventory_pending?' · discovering folders ('+(f.directories_visited||0)+' directories visited)':'')+' · '+unresolved+' comics still need research'+((p.cover_research?.pending||0)>0?' · '+p.cover_research.pending+' browser cover searches queued':'')+'. A checked folder is not a completeness guarantee.';
-if(Array.isArray(p.completed)&&p.completed_revision!==completedRevision){$('completedBatches').replaceChildren(...p.completed.map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));completedRevision=p.completed_revision||null}
+if(p.folders_unavailable)$('researchStatus').textContent='Folder schedule unavailable.';
+if(!p.progress_unavailable&&Array.isArray(p.completed)&&p.completed_revision!==completedRevision){$('completedBatches').replaceChildren(...p.completed.map(b=>node('p',b.folder+' — '+b.updated+' verified writes in this batch')));completedRevision=p.completed_revision||null}
 $('updatedAt').textContent=p.timestamp?'Last activity: '+new Date(p.timestamp).toLocaleString():'';
 }catch(e){$('queueStatus').textContent='Processing progress unavailable. Retrying.';$('liveProgress').textContent='Status unavailable';}}
 let processingControl={},verificationEpoch=0;
@@ -161,14 +163,17 @@ LensControl.connect(request,refreshVerification,()=>{verificationEpoch++});
 YandexControl.connect(request,refreshVerification,()=>{verificationEpoch++});
 $('pauseControl').onclick=async()=>{const button=$('pauseControl');if(button.dataset.shellLock)return;button.disabled=true;try{verificationEpoch++;await request(processingControl.requested?'resume':'pause',{});await refreshVerification();await progress()}catch(e){error(e)}finally{if(!button.dataset.shellLock)button.disabled=false}};
 async function load(){try{
-syncChips();const wanted=inventoryURL();const d=await request(wanted);if(wanted!==inventoryURL())return;total=d.total;
-$('total').textContent=total+' live files · Showing '+(total?offset+1:0)+'–'+Math.min(offset+PAGE_SIZE,total);
+syncChips();const loadVersion=conversionCountVersion;let wanted=inventoryURL();let d=await request(wanted);if(wanted!==inventoryURL()||conversionBusy||loadVersion!==conversionCountVersion)return;total=d.total;
+if(total&&offset>=total){offset=Math.floor((total-1)/PAGE_SIZE)*PAGE_SIZE;wanted=inventoryURL();d=await request(wanted);if(wanted!==inventoryURL()||conversionBusy||loadVersion!==conversionCountVersion)return;total=d.total;}
+if($('status').value==='unsupported'&&Number.isInteger(d.conversion_total)){const chip=$('conversionCount'),hadFocus=document.activeElement===chip;chip.hidden=d.conversion_total===0;chip.textContent='Needs conversion · '+d.conversion_total.toLocaleString();if(hadFocus&&chip.hidden)$('total').focus({preventScroll:true});}
+$('total').textContent=$('status').value==='unsupported'&&!total?($('query').value?'No files match this search.':'No files need conversion.'):total+' live files · Showing '+(total?offset+1:0)+'–'+Math.min(offset+PAGE_SIZE,total);
+if($('status').value==='unsupported'&&conversionUncertain)$('total').textContent+=' Some files could not be checked. They remain in the list.';
 $('previous').disabled=offset===0;$('next').disabled=offset+PAGE_SIZE>=total;
 const snapshot=JSON.stringify(d.rows);if(snapshot===lastRows)return;lastRows=snapshot;
 const opened=new Set([...$('rows').querySelectorAll('details[open]')].map(e=>e.dataset.comic));
 const labels={missing:'No archive metadata',embedded:'Metadata present',tagged:'Tagged by this app',error:'Needs attention',corrupted:'Corrupted · Needs reacquiring',unsupported:'Archive format not supported',absent:'No longer found'};
 $('rows').replaceChildren(...d.rows.map(r=>{const tr=node('tr'),name=node('td');name.className='file';name.append(node('div',r.series||'Unknown series'));if(r.problem&&(r.problem.code!=='held'||$('status').value==='held'))name.append(reasonBlock(r,true));const path=node('details');path.dataset.comic=String(r.id);path.open=opened.has(String(r.id));const location=node('summary','File location');location.title='Show where this comic is on disk.';path.append(location,node('small',r.path));name.append(path);tr.append(name,node('td',(r.number||'—')+' / '+(r.year||'—')),node('td',(r.has_synopsis&&!r.has_metadata?'Synopsis present · Other metadata missing':(labels[r.status]||r.status)+' · '+(r.has_synopsis?'Synopsis present':'Synopsis missing'))));const action=node('td'),b=node('button','Details');b.title="Show this comic's metadata and look up a match.";b.onclick=()=>review(r);const folder=node('button','Folder');folder.title='Open the folder that contains this comic.';action.className='file-actions';folder.onclick=async()=>{folder.disabled=true;try{await request('open-folder',{comic:r.id})}catch(e){error(e)}finally{folder.disabled=false}};action.append(b,folder);tr.append(action);return tr}));
-}catch(e){error(e)}}
+}catch(e){if($('status').value==='unsupported'){$('total').textContent='Could not check which files need conversion. Select Search to try again.';$('previous').disabled=$('next').disabled=true;}else error(e)}}
 function review(r){const recoveryTrigger=document.activeElement;selected=r;issue=null;showProblemDetail(r);$('localPath').textContent=r.path;$('localCover').src='/api/cover?id='+r.id;$('localCover').onerror=()=>{$('localCover').removeAttribute('src')};$('existing').textContent=r.error||Object.entries(JSON.parse(r.metadata)).map(([k,v])=>k+': '+v).join('\n')||'No embedded metadata';$('series').value=r.series;$('number').value=r.number;$('candidates').replaceChildren();$('fields').hidden=$('apply').hidden=$('applyHint').hidden=true;$('lookupMessage').textContent='';$('review').showModal();ComicRecovery.open(r,recoveryTrigger)}
 function card(item,description,action,tooltip){const c=node('div');c.className='card';const url=item.image?.small_url;if(url&&/^https:\/\//.test(url)){const img=node('img');img.src=url;img.referrerPolicy='no-referrer';img.alt='Candidate cover';c.append(img)}c.append(node('p',description));const b=node('button','Select');b.title=tooltip;b.onclick=action;c.append(b);return c}
 async function search(){ $('lookup').disabled=true;tip($('lookup'),'Searching. New requests may take 20 seconds or more.');$('lookupMessage').textContent='Searching; new requests may take 20 seconds or more.';try{const volumes=await request('search',{query:$('series').value});$('candidates').replaceChildren(...volumes.map(v=>card(v,v.name+' ('+(v.start_year||'?')+') · '+(v.publisher?.name||'Unknown publisher')+' · '+v.count_of_issues+' issues',()=>issues(v),'Choose this series and list its issues.')));$('lookupMessage').textContent=volumes.length?'Select the correct series/edition.':'No series found. Try a simpler title.'}catch(e){$('lookupMessage').textContent=e.message}finally{$('lookup').disabled=false;tip($('lookup'),'Search ComicVine for this series.');}}
@@ -183,7 +188,13 @@ $('apply').onclick=async()=>{$('apply').disabled=true;tip($('apply'),'Writing. L
 $('close').onclick=()=>{if(ComicRecovery.close())$('review').close()};$('lookup').onclick=search;
 $('scan').onclick=async()=>{try{await request('scan',{roots:[$('root').value.trim()]});await state()}catch(e){error(e)}};
 $('rescan').onclick=async()=>{try{await request('scan',{});await state()}catch(e){error(e)}};
-$('filter').onclick=()=>{offset=0;load()};$('query').onkeydown=e=>{if(e.key==='Enter'){offset=0;load()}};$('status').onchange=()=>{syncChips();offset=0;load()};$('previous').onclick=()=>{offset=Math.max(0,offset-PAGE_SIZE);load()};$('next').onclick=()=>{offset+=PAGE_SIZE;load()};
+function cancelConversionCheck(){conversionCheck++;conversionBusy=false;conversionCountVersion++;conversionUncertain=0;}
+async function checkConversions(){const attempt=++conversionCheck;conversionCountVersion++;conversionBusy=true;conversionUncertain=0;offset=0;const wanted=inventoryURL();$('total').textContent='Checking files that need conversion…';$('total').setAttribute('aria-live','polite');$('rows').replaceChildren();lastRows=null;$('previous').disabled=$('next').disabled=true;
+try{const result=await request('conversion/recheck',{});if(attempt!==conversionCheck||wanted!==inventoryURL())return;conversionUncertain=result.uncertain||0;conversionBusy=false;conversionCountVersion++;await load();if(attempt===conversionCheck&&wanted===inventoryURL())await load();}
+catch(e){if(attempt===conversionCheck&&wanted===inventoryURL())$('total').textContent='Could not check which files need conversion. Select Search to try again.';}
+finally{if(attempt===conversionCheck)conversionBusy=false;}}
+function applyInventoryFilter(){offset=0;if($('status').value==='unsupported')checkConversions();else{cancelConversionCheck();load()}}
+$('filter').onclick=applyInventoryFilter;$('query').onkeydown=e=>{if(e.key==='Enter')applyInventoryFilter()};$('status').onchange=()=>{syncChips();applyInventoryFilter()};$('previous').onclick=()=>{offset=Math.max(0,offset-PAGE_SIZE);load()};$('next').onclick=()=>{offset+=PAGE_SIZE;load()};
 /* Failure filters and reasons (Judy's spec 2026-10-13). The page reads only structured fields. */
 const HELP_CODES=new Set(['write_stopped','dead_link','conflict']),RETRY_CODES=['write_failed','held'];
 const CHIP_LABELS={write_stopped:'Writes stopped',dead_link:'Dead ComicVine link',conflict:'ComicVine conflict',write_failed:'Write failed',held:'Held for ComicVine'};
@@ -193,7 +204,7 @@ const retryRequested=new Set();
 function setText(e,t){if(e.textContent!==t)e.textContent=t}
 function chips(){return [...document.querySelectorAll('#problemChips .chip')]}
 function syncChips(){for(const b of chips()){const on=String($('status').value===b.dataset.status);if(b.getAttribute('aria-pressed')!==on)b.setAttribute('aria-pressed',on)}}
-for(const b of chips())b.onclick=()=>{$('status').value=$('status').value===b.dataset.status?'':b.dataset.status;syncChips();offset=0;load()};
+for(const b of chips())b.onclick=()=>{cancelConversionCheck();$('status').value=$('status').value===b.dataset.status?'':b.dataset.status;syncChips();offset=0;load()};
 function renderProblems(p){
 const pr=p&&p.problems&&typeof p.problems==='object'?p.problems:null,help=$('problemHelp'),retry=$('problemRetrying'),key=$('problemKey');
 if(pr){for(const b of chips()){const n=Number(pr[b.dataset.status])||0;setText(b,CHIP_LABELS[b.dataset.status]+' · '+n.toLocaleString());b.classList.toggle('warning-filter',HELP_CODES.has(b.dataset.status)&&n>0)}
@@ -221,6 +232,6 @@ function showProblemDetail(r){const box=$('problemDetail');if(!r.problem){box.re
 function inventoryURL(){return 'comics?q='+encodeURIComponent($('query').value)+'&status='+encodeURIComponent($('status').value)+'&offset='+offset}
 state=singleFlight(state);progress=singleFlight(progress);
 const loadOnce=singleFlight(load);
-load=async()=>{const wanted=inventoryURL();await loadOnce();if(wanted!==inventoryURL())await loadOnce()};
+load=async()=>{if(conversionBusy)return;const wanted=inventoryURL();await loadOnce();if(wanted!==inventoryURL()&&!conversionBusy)await loadOnce()};
 state();load();progress();verification();setInterval(()=>{state();progress();verification()},2000);
 </script><script src="/update-stats.js"></script><script src="/reverse-image.js"></script><script src="/shell-ui.js"></script></html>

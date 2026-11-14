@@ -21,6 +21,7 @@ COMICS_META_LOCK_DIR moves the folder (tests only).
 import atexit
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -196,7 +197,9 @@ def acquire(library, role=None):
                 raise LibraryBusy('Another Comics Meta copy is using this library (state folder: '
                                   + str(owner.get('state_root') or 'unknown')
                                   + '). This copy will not change it.', library, owner)
-            name = '%d-%s' % (os.getpid(), uuid.uuid4().hex[:12])
+            owner=os.environ.get('COMICS_META_CLAIM_OWNER','')
+            prefix=('engine-'+owner+'-') if re.fullmatch('[0-9a-f]{64}',owner) else ''
+            name = '%s%d-%s' % (prefix,os.getpid(), uuid.uuid4().hex[:12])
             lock_path, record_path = claims / (name + '.lock'), claims / (name + '.json')
             fd = file_lock.open_lock(lock_path)
             try:
@@ -206,7 +209,8 @@ def acquire(library, role=None):
                     'state_root': state_root, 'state_identity': state_id,
                     'library': library, 'library_identity': library_id,
                     'code_root': os.fspath(app.BASE), 'role': role or _default_role(),
-                    'pid': os.getpid(), 'claimed_at': time.time()})
+                    'pid': os.getpid(), 'claimed_at': time.time(),
+                    'engine_owner': os.environ.get('COMICS_META_CLAIM_OWNER', '')})
             except BaseException:
                 os.close(fd)
                 _remove(lock_path, record_path)
@@ -270,6 +274,28 @@ def release_all():
     with _mutex:
         while _held:
             _held.pop().release()
+
+
+def retire_engine_claims(owner):
+    """After the broker proved its whole Job empty, retire only its unlocked claims."""
+    if not re.fullmatch('[0-9a-f]{64}',owner or '') or owner != os.environ.get('COMICS_META_CLAIM_OWNER'):
+        raise ValueError('Engine claim identity unavailable')
+    with _gate(GATE_TIMEOUT) as claims:
+        prefix='engine-'+owner+'-'
+        names={p.stem for p in claims.glob(prefix+'*') if p.suffix in {'.lock','.json'} and re.fullmatch(re.escape(prefix)+r'\d+-[0-9a-f]{12}',p.stem)}
+        for name in names:
+            record=claims/(name+'.json');lock=claims/(name+'.lock')
+            try:
+                fd = file_lock.open_lock(lock, create=False)
+            except FileNotFoundError:fd=None
+            if fd is not None:
+                try:
+                    if not file_lock.try_lock(fd):raise RuntimeError('Engine claim remains locked')
+                    file_lock.unlock(fd)
+                finally:os.close(fd)
+                # Gate ownership prevents a new claimant from creating/replacing these paths.
+                lock.unlink()
+            record.unlink(missing_ok=True)
 
 
 atexit.register(release_all)

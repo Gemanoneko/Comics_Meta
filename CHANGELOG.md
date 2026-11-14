@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.6.2] - 2026-11-14
+
+### Changed
+
+- Use a new Comic Metadata app icon.
+
+### Fixed
+
+- Recover from stale startup state and show a recovery screen when the local engine cannot start.
+- Recheck which archives still exist when opening Needs conversion, and remove confirmed missing entries from the live count.
+
 ## [v0.6.1] - 2026-11-10
 
 ### Fixed

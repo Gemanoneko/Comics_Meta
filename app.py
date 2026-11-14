@@ -193,6 +193,35 @@ def read_metadata(path):
         return {n.tag: n.text or '' for n in xml if n.tag != 'Pages'}, 'embedded', ''
 
 
+def reconcile_missing(con, candidates, allowed_folders=None):
+    """Retire only unchanged rows whose readable parent and file stat prove absence."""
+    by_folder={};uncertain=0;proven=[]
+    for candidate in candidates:
+        folder=Path(candidate['path']).parent
+        key=os.path.normcase(os.path.normpath(str(folder)))
+        if allowed_folders is not None and key not in allowed_folders:continue
+        by_folder.setdefault(key,(folder,[]))[1].append(candidate)
+    for folder,rows in by_folder.values():
+        try:
+            with os.scandir(filesystem_path(folder)) as entries:
+                present={os.path.normcase(entry.name) for entry in entries}
+        except OSError:
+            uncertain+=len(rows);continue
+        for row in rows:
+            candidate=Path(row['path'])
+            if os.path.normcase(candidate.name) in present:continue
+            try:filesystem_path(candidate).stat()
+            except FileNotFoundError:
+                proven.append(row)
+            except OSError:uncertain+=1
+    # Do not hold a SQLite write lock while inspecting unrelated folders/shares.
+    for row in proven:
+        result=con.execute("UPDATE comics SET status='absent' WHERE id=? AND path IS ? AND status IS ? AND size IS ? AND mtime IS ? AND seen IS ?",
+                           (row['id'],row['path'],row['status'],row['size'],row['mtime'],row['seen']))
+        if not result.rowcount:uncertain+=1
+    return uncertain
+
+
 def scan(roots, recursive=True):
     try:
         for root_text in roots:
@@ -202,15 +231,17 @@ def scan(roots, recursive=True):
             generation = time.time_ns()
             with db() as con:
                 con.execute('INSERT OR IGNORE INTO roots VALUES (?)', (str(root),))
+                traversed = {}
                 for folder, dirs, files in os.walk(filesystem_path(root), onerror=lambda e: (_ for _ in ()).throw(e)):
                     dirs[:] = [d for d in dirs if d not in {'.yacreaderlibrary', '.comic-metadata-backups'} and not d.startswith('.comic-metadata-convert-')]
                     if not recursive:dirs[:] = []
+                    native_folder = folder
+                    if native_folder.startswith('\\\\?\\UNC\\'):
+                        native_folder = '\\\\' + native_folder[8:]
+                    elif native_folder.startswith('\\\\?\\'):
+                        native_folder = native_folder[4:]
+                    traversed[os.path.normcase(os.path.normpath(native_folder))] = Path(native_folder)
                     for name in files:
-                        native_folder = folder
-                        if native_folder.startswith('\\\\?\\UNC\\'):
-                            native_folder = '\\\\' + native_folder[8:]
-                        elif native_folder.startswith('\\\\?\\'):
-                            native_folder = native_folder[4:]
                         path = Path(native_folder) / name
                         if path.suffix.lower() not in {'.cbz', '.cbr', '.cb7'}:
                             continue
@@ -250,17 +281,13 @@ def scan(roots, recursive=True):
                         JOB['changed'] += 1
                         if JOB['visited'] % 100 == 0:
                             con.commit()
-                # Only a completed traversal may mark files absent. No files are deleted.
-                for candidate in con.execute('SELECT id,path FROM comics WHERE root=? AND seen<>?',(str(root),generation)).fetchall():
-                    candidate_path=Path(candidate['path'])
-                    if not recursive and candidate_path.parent!=root:
-                        continue  # Subfolders were deliberately outside this scan.
-                    try:
-                        filesystem_path(candidate_path).stat()
-                    except FileNotFoundError:
-                        con.execute("UPDATE comics SET status='absent' WHERE id=?",(candidate['id'],))
-                    except OSError:
-                        pass  # An inaccessible file is not confirmed missing.
+                # A row may have been indexed by a different scan root. Select by
+                # indexed literal path range, then restrict to folders actually
+                # traversed. Excluded, missing and inaccessible folders are not proof.
+                prefix=str(root).rstrip('\\/')+os.sep
+                upper=prefix[:-1]+chr(ord(prefix[-1])+1)
+                candidates=con.execute("SELECT id,path,seen,size,mtime,status FROM comics WHERE path>=? AND path<? AND (seen IS NULL OR seen<>?) AND status<>'absent'",(prefix,upper,generation)).fetchall()
+                reconcile_missing(con,candidates,traversed)
         JOB['message'] = 'Scan complete'
     except Exception as exc:
         JOB['message'] = str(exc)
@@ -691,6 +718,14 @@ class Handler(BaseHTTPRequestHandler):
         try:
             url = urllib.parse.urlparse(self.path)
             args = urllib.parse.parse_qs(url.query)
+            if url.path == '/api/shell/startup':
+                token = os.environ.get('COMICS_META_SHELL_TOKEN', '')
+                if not token or not secrets.compare_digest(self.headers.get('X-ComicsMeta-Shell', ''), token):
+                    return self.respond({'error': 'Untrusted shell'}, 403)
+                return self.respond({'owned': True, 'phase': self.server.startup_phase, 'error': self.server.startup_error,
+                                     'setup': {'configured': not self.server.setup_required} if self.server.startup_phase == 'ready' else None})
+            if getattr(self.server,'startup_phase','ready') != 'ready':
+                return self.respond({'error': 'Service starting'}, 503)
             if url.path == '/':
                 return self.respond((BASE / 'static/index.html').read_bytes(), mime='text/html; charset=utf-8')
             if url.path == '/api/gcd-offline':
@@ -811,6 +846,7 @@ class Handler(BaseHTTPRequestHandler):
                         params = (*scope_args, '%' + search + '%', status, status)
                     rows = con.execute('SELECT * FROM comics ' + where + ' ORDER BY path LIMIT 100 OFFSET ?', (*params, offset)).fetchall()
                     total = con.execute('SELECT COUNT(*) FROM comics ' + where, params).fetchone()[0]
+                    conversion_total = con.execute("SELECT COUNT(*) FROM comics WHERE "+scope+" AND status='unsupported'",scope_args).fetchone()[0] if status=='unsupported' else None
                     found = problems.for_rows(con, rows)
                 result_rows = []
                 for r in rows:
@@ -821,7 +857,7 @@ class Handler(BaseHTTPRequestHandler):
                     metadata=json.loads(item['metadata'])
                     item['has_metadata']=any(str(metadata.get(key,'')).strip() for key in BIBLIOGRAPHIC_FIELDS)
                     result_rows.append(item)
-                return self.respond({'rows': result_rows, 'total': total})
+                return self.respond({'rows': result_rows, 'total': total, **({'conversion_total':conversion_total} if conversion_total is not None else {})})
             if url.path == '/api/cover':
                 import reverse_image
                 # A malformed id is a clean 400, never Python's int() text (Futaba 0.2.3 m6).
@@ -853,11 +889,22 @@ class Handler(BaseHTTPRequestHandler):
         expected = f'http://127.0.0.1:{self.server.server_port}'
         if self.headers.get('Origin') != expected or self.headers.get('Host') != f'127.0.0.1:{self.server.server_port}':
             return self.respond({'error': 'Untrusted origin'}, 403)
+        if getattr(self.server,'startup_phase','ready') != 'ready':
+            return self.respond({'error': 'Service starting'}, 503)
         try:
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length < 100_000:
                 raise ValueError('Invalid request size.')
             body = json.loads(self.rfile.read(length))
+            if self.path == '/api/conversion/recheck':
+                if body != {}:raise ValueError('Invalid conversion check.')
+                root=live_root()
+                if not root:raise ValueError('A configured library is required.')
+                with db() as con:
+                    scope,params=scope_filter(root)
+                    rows=con.execute("SELECT id,path,status,size,mtime,seen FROM comics WHERE "+scope+" AND status='unsupported'",params).fetchall()
+                    uncertain=reconcile_missing(con,rows)
+                return self.respond({'uncertain':uncertain})
             if self.path in ('/api/gcd-offline/inspect','/api/gcd-offline/build','/api/gcd-offline/cancel'):
                 import gcd_offline
                 try:
@@ -1090,7 +1137,7 @@ class Handler(BaseHTTPRequestHandler):
 class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,*args,defer_startup=False,**kwargs):
         # Capture once for this running server; a disk update cannot relabel it.
         try:
             value=(BASE/'VERSION').read_text(encoding='utf-8').strip()
@@ -1098,14 +1145,19 @@ class LocalServer(ThreadingHTTPServer):
         except (OSError,UnicodeError):self.loaded_version=''
         self.setup_required=False
         self._setup_mutex=threading.Lock()
-        if os.environ.get('COMICS_META_SHELL_TOKEN'):
-            import setup_state
-            self.setup_required = not setup_state.status()['configured']
+        self.startup_phase='starting' if defer_startup else 'ready'
+        self.startup_error=None
         self.supervisor_stop=None
         self.worker_leases={}
         self._quit_mutex=threading.Lock()
         self._quitting=False
         super().__init__(*args,**kwargs)
+        if not defer_startup:self.initialize()
+
+    def initialize(self):
+        if os.environ.get('COMICS_META_SHELL_TOKEN'):
+            import setup_state
+            self.setup_required = not setup_state.status()['configured']
         import yandex_verification,lens_verification,progress_snapshot
         yandex_verification.server_started()
         lens_verification.server_started()
@@ -1170,22 +1222,63 @@ def main(argv=None):
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--no-browser', action='store_true')
     options = parser.parse_args(argv)
-    with db():
-        pass
-    import library_lock, pause_control, supervisor
-    pause_control.begin_run()
-    if os.environ.get('COMICS_META_SHELL_TOKEN'):pause_control.shell_pause(False)
-    try:
-        library_lock.claim_configured('dashboard')
-    except library_lock.LibraryBusy as exc:
-        print(str(exc), file=sys.stderr, flush=True)
-        return library_lock.EXIT_LIBRARY_BUSY
-    server = LocalServer(('127.0.0.1', options.port), Handler)
-    supervisor_stop = server.supervisor_stop = threading.Event() if server.setup_required else supervisor.start(BASE)
+    if not os.environ.get('COMICS_META_SHELL_TOKEN'):
+        # Keep the original direct/terminal contract; the shell has its own
+        # authenticated early-start protocol below.
+        with db():pass
+        import library_lock, pause_control, supervisor
+        pause_control.begin_run()
+        try:library_lock.claim_configured('dashboard')
+        except library_lock.LibraryBusy as exc:
+            print(str(exc),file=sys.stderr,flush=True);return library_lock.EXIT_LIBRARY_BUSY
+        server=LocalServer(('127.0.0.1',options.port),Handler)
+        server.supervisor_stop=threading.Event() if server.setup_required else supervisor.start(BASE)
+        address=f'http://127.0.0.1:{options.port}'
+        print(f'Comic metadata pilot: {address}\nKeep this window open. Ctrl+C stops the app.')
+        if not options.no_browser:webbrowser.open(address)
+        try:server.serve_forever()
+        except KeyboardInterrupt:pass
+        finally:
+            if server.supervisor_stop is not None:server.supervisor_stop.set()
+            server.server_close()
+        return 0
+    server = LocalServer(('127.0.0.1', options.port), Handler, defer_startup=True)
+    result = [0]
+    def catalog_step(operation):
+        # SQLite's 30 s busy timeout is per attempt, not the startup deadline.
+        # Each operation here is transactional/idempotent; no worker has launched.
+        while True:
+            try:return operation()
+            except sqlite3.OperationalError as exc:
+                if getattr(exc,'sqlite_errorcode',0) & 255 not in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED):raise
+                print('Startup catalog busy; waiting to retry.',file=sys.stderr,flush=True)
+                time.sleep(.25)
+    def initialize():
+        import library_lock, pause_control, supervisor
+        try:
+            server.startup_phase='catalog'
+            def open_catalog():
+                with db():pass
+            catalog_step(open_catalog)
+            server.startup_phase='control'
+            catalog_step(pause_control.begin_run)
+            if os.environ.get('COMICS_META_SHELL_TOKEN'):catalog_step(lambda:pause_control.shell_pause(False))
+            server.startup_phase='library'
+            library_lock.claim_configured('dashboard')
+            server.startup_phase='service'
+            catalog_step(server.initialize)
+            server.supervisor_stop = threading.Event() if server.setup_required else supervisor.start(BASE)
+            server.startup_phase='ready'
+            if not options.no_browser:webbrowser.open(f'http://127.0.0.1:{options.port}')
+        except Exception as exc:
+            result[0]=library_lock.EXIT_LIBRARY_BUSY if isinstance(exc,library_lock.LibraryBusy) else 1
+            print('Startup failed:',type(exc).__name__,str(exc),file=sys.stderr,flush=True)
+            server.startup_error='LIBRARY_BUSY' if result[0]==library_lock.EXIT_LIBRARY_BUSY else 'STARTUP_FAILED'
+            server.startup_phase='failed'
+            server.shutdown()
+    threading.Thread(target=initialize,name='service-startup',daemon=True).start()
     address = f'http://127.0.0.1:{options.port}'
     print(f'Comic metadata pilot: {address}\nKeep this window open. Ctrl+C stops the app.')
-    if not options.no_browser:
-        webbrowser.open(address)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1193,7 +1286,7 @@ def main(argv=None):
     finally:
         if server.supervisor_stop is not None:server.supervisor_stop.set()
         server.server_close()
-    return 0
+    return result[0]
 
 
 if __name__ == '__main__':

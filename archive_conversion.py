@@ -158,6 +158,9 @@ def one(folder):
         rows=[dict(row) for row in con.execute("SELECT * FROM comics WHERE status='unsupported'") if Path(row['path']).parent==Path(folder)]
     for row in rows:
         if Path(row['path']).suffix.lower() not in ('.cbz','.cbr','.cb7'):continue
+        try:current=app.filesystem_path(row['path']).stat()
+        except OSError:continue  # Missing or inaccessible is not a conversion failure.
+        if [current.st_size,current.st_mtime_ns]!=[row['size'],row['mtime']]:continue
         with app.db() as con:previous=con.execute('SELECT * FROM conversions WHERE path=?',(row['path'],)).fetchone()
         sig=json.dumps([row['size'],row['mtime']])
         if previous and previous['signature']==sig and previous['retry_at']>time.time():continue
@@ -168,14 +171,21 @@ def one(folder):
             if result is None:continue
             retry=0
         except (pause_control.PauseRequested,library_lock.LibraryBusy):raise
+        except FileNotFoundError:continue  # A removed source is left to scan reconciliation.
         except Exception as exc:
+            try:current=app.filesystem_path(row['path']).stat()
+            except OSError:continue
+            if [current.st_size,current.st_mtime_ns]!=[row['size'],row['mtime']]:continue
             result={'error':str(exc),'original_removed':False};retry=time.time()+86400
         with app.db() as con:
+            con.execute('BEGIN IMMEDIATE')
+            current=con.execute("SELECT 1 FROM comics WHERE id=? AND path=? AND status='unsupported' AND size=? AND mtime=?",(row['id'],row['path'],row['size'],row['mtime'])).fetchone()
+            if not current:continue
             con.execute('INSERT OR REPLACE INTO conversions VALUES(?,?,?,?)',(row['path'],sig,json.dumps(result),retry))
             if retry:
                 status='corrupted' if result['error']=='Original archive integrity check failed; needs reacquiring.' else 'unsupported'
-                con.execute('UPDATE comics SET status=?,error=? WHERE id=?',(status,result['error'],row['id']))
-            elif result['cbz']!=row['path']:con.execute('DELETE FROM comics WHERE id=?',(row['id'],))
+                con.execute("UPDATE comics SET status=?,error=? WHERE id=? AND status='unsupported' AND size=? AND mtime=?",(status,result['error'],row['id'],row['size'],row['mtime']))
+            elif result['cbz']!=row['path']:con.execute("DELETE FROM comics WHERE id=? AND status='unsupported' AND size=? AND mtime=?",(row['id'],row['size'],row['mtime']))
         app.scan([str(folder)],recursive=False)
         return not retry
     return False

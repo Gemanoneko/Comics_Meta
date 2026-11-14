@@ -5,7 +5,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
 const childProcess=require('node:child_process');const {EventEmitter}=require('node:events');
 const calls=[];
-childProcess.spawn=(file,args,options)=>{calls.push({file,args,options});const child=new EventEmitter();child.exitCode=1;child.stdin={on(){},write(){}};return child;};
+childProcess.spawn=(file,args,options)=>{calls.push({file,args,options});const child=new EventEmitter();child.pid=123;child.exitCode=126;child.stdin={on(){},write(){}};return child;};
 const {Engine}=require('../engine.cjs');
 test('engine and all its descendants run with bytecode writing off',async()=>{
   const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-spawn-'));
