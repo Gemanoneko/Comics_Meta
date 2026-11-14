@@ -1,0 +1,12 @@
+# Comic Metadata 0.6.3 tray QA · 2026-11-14
+
+**Tray-smoke verdict: GO** for the private packaged launch and tray-icon change at source `61a3507a605afa4cb6e96320d7b42c4a2f137cd0`.
+
+The installer SHA-256 `16ebde67294f756cd9ef8d2501686b0c8980f712210e9bc937b514a390832d1d`, unpacked executable SHA-256 `5ca0e0ef956b21d06179e11e9b9efbf5b590c79f28677cc61669125a966a896e`, app.asar SHA-256 `20756f222da35ff7e530c874f9dc24bb03a00fe732ab510c7a16bed88540748e`, and feed SHA-256 `e82d60177ada27a5917bf3cb3a6b28933e549853692d822b30e51fbcd0beb13c` matched Sully's frozen package identity. The read-back source candidate manifest SHA-256 was `4d1bfdacadd17e5b707eaa1b8ac98c7b5205a063ba27d85d78c73e3a0b92bd26`.
+
+- The actual packaged app showed 0.6.3 and opened its dashboard in one invisible and unfocused offscreen window. Private authenticated engine status was HTTP 200 and owned for broker PID 79296. All visibility and spawn guards remained clear.
+- The preview observer called through to the real Electron Tray.setImage and compared SHA-256 of its decoded pixel buffers against the exact PNGs loaded from the app archive. The actual Processing → Pause → Resume tray menu callbacks selected the correct bitmaps at scale factors 1 and 0.5, corresponding to the 32 px and 16 px assets. The pause attempt used a private model stub and reported that GPU release was unconfirmed, as expected for that fixture. All 8 packaged PNG byte hashes matched and all four decoded icon states were distinct at both sizes. The error and verification branches were inspected as resources.
+- The enabled native tray Quit callback exited normally with code 0 using the same broker generation. The private port refused subsequent connections and no claims remained. The bounded Windows Job returned complete zero active processes, zero unsignaled handles and 18 retained handles after 30.868 seconds. The test used two private model requests and one private feed request, with the stubs returning HTTP 503.
+- Coverage is limited to the tray update and packaged defect smoke. Windows Explorer’s displayed raster, physical UI input, installer execution, actual old-to-new update and GPU release were outside this pass. The canonical full entry receipt and isolated update proofs were unavailable for this assignment, so this is a scoped QA verdict rather than formal release clearance.
+
+Raw packaged observations are in `tray-evidence.json`. Native Job close proof is in `new-tray-owned.json`.

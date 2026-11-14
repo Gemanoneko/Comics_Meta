@@ -1,7 +1,7 @@
 """Promote exact QA-cleared production artifacts; never rebuild or mutate tags."""
 import ctypes as C
 from ctypes import wintypes as W
-import hashlib,json,os,re,sys,time
+import base64,hashlib,io,json,os,re,sys,tarfile,time
 from pathlib import Path
 STARTED=time.monotonic()
 if os.name!='nt' or len(sys.argv)!=4 or sys.argv[1] not in ('--check','--publish'):raise RuntimeError('Reviewed Windows promotion receipt required')
@@ -28,14 +28,53 @@ with HeldPaths() as held:
     build=read_receipt(c['buildReceipt']);qa=read_receipt(c['qaReceipt'])
     if build['version']!=version or build['sourceIdentity']!=c['sourceIdentity'] or build['sourceHead']!=c['sourceHead'] or build['profile']!='production':raise RuntimeError('Not the exact production build source')
     if build['nativeResult']['root_exit']!=0 or build['nativeResult']['active_after']!=0 or build['nativeResult']['reason']!='completed':raise RuntimeError('Build closure was not proven')
-    if qa['schema']!=1 or qa['verdict']!='GO' or qa['version']!=version or qa['sourceIdentity']!=c['sourceIdentity'] or qa['sourceHead']!=c['sourceHead']:raise RuntimeError('QA identity/verdict mismatch')
-    required=('packagedInstall','packagedClose','statePreserved','noOwnedEngineBeforeReplacement')
-    if not all(qa.get(x) is True for x in required):raise RuntimeError('Required packaged/state/closure QA missing')
-    update=qa['updateFlow']
-    if update['actualOldToNew'] is not True or update['nextVersion']!=version or update['relaunchVersion']!=version or update['priorVersion']==version:raise RuntimeError('Actual version update/relaunch proof missing')
-    for key,verdict in (('qaReport','**Verdict:** GO'),('codeReview','**Verdict:** RELEASE CLEAR')):
+    if qa['verdict']!='GO' or qa['version']!=version or qa['sourceIdentity']!=c['sourceIdentity'] or qa['sourceHead']!=c['sourceHead']:raise RuntimeError('QA identity/verdict mismatch')
+    if qa['schema']==1:
+        required=('packagedInstall','packagedClose','statePreserved','noOwnedEngineBeforeReplacement')
+        if not all(qa.get(x) is True for x in required):raise RuntimeError('Required packaged/state/closure QA missing')
+        update=qa['updateFlow']
+        if update['actualOldToNew'] is not True or update['nextVersion']!=version or update['relaunchVersion']!=version or update['priorVersion']==version:raise RuntimeError('Actual version update/relaunch proof missing')
+        qa_verdict='**Verdict:** GO'
+    elif qa['schema']==2 and qa.get('profile')=='packaged-smoke-manual-update' and qa.get('installedUpdate')=='deferred-to-user' and qa.get('smokeClosureLink')=='independent-qa-report-attestation':
+        def normal(r):
+            native=r.get('native') or {}
+            return r.get('ok') is True and r.get('code')==0 and r.get('closed') is True and r.get('forced') is False and r.get('timedOut') is False and r.get('outputComplete') is True and native.get('complete') is True and native.get('zero') is True and all(native.get(k)==0 for k in ('active','assigned','listed','unsignaled'))
+        evidence=read_receipt(qa['provenance']['smokeEvidence']);owner=read_receipt(qa['provenance']['smokeOwned']);binding=read_receipt(qa['provenance']['packageBinding']);extraction=read_receipt(binding['owner'])
+        source=read_receipt(build['provenance']['sourceManifest']);build_owned=read_receipt(build['provenance']['owned'])
+        archive=held.hold(build['provenance']['sourceArchive']['path']);archive_bytes=archive.read_bytes()
+        if build['provenance']['sourceManifest']['sha256']!=c['sourceIdentity'] or sha(archive_bytes)!=build['provenance']['sourceArchive']['sha256'] or source['archiveSha']!=build['provenance']['sourceArchive']['sha256'] or source['head']!=c['sourceHead'] or build_owned['sourceHead']!=c['sourceHead'] or build_owned['archiveSha']!=source['archiveSha'] or not normal(build_owned) or build_owned.get('kind')!='result' or build_owned.get('signal') is not None or build_owned.get('error') is not None or build_owned.get('overflow') is not False or build_owned.get('truncated') is not False or build_owned.get('err')!='' or build_owned.get('supervisorErr')!='':raise RuntimeError('Raw source/build proof missing')
+        with tarfile.open(fileobj=io.BytesIO(archive_bytes),mode='r:') as tar:
+            archived={member.name:sha(tar.extractfile(member).read()) for member in tar.getmembers() if member.isfile()}
+            manifest_files=source['files']
+            if len(archived)!=len(manifest_files) or len({f['path'] for f in manifest_files})!=len(manifest_files) or any(archived.get(f['path'])!=f['sha256'] for f in manifest_files):raise RuntimeError('Source archive membership differs')
+            lock=json.load(tar.extractfile('scripts/packaging/toolchain-lock.json'))
+        executable=held.hold(extraction['command']['file']);args=extraction['command']['args']
+        if extraction['toolSha256']!=lock['archiverSha256'] or sha(executable.read_bytes())!=lock['archiverSha256'] or str(Path(c['artifactRoot'])/('Comic-Metadata-Setup-'+version+'.exe')) not in args or 'ComicMetadata.exe' not in args or 'resources\\app.asar' not in args:raise RuntimeError('Owned static extraction source differs')
+        specs=evidence['spec'];startup=evidence['startup'];close=evidence['close'];marks=evidence['markResources']
+        if not normal(owner) or not normal(extraction['result']) or evidence.get('pass') is not True or startup.get('version')!=version or startup.get('packaged') is not True or startup.get('violations')!=[] or startup.get('engine',{}).get('owned') is not True or startup.get('engine',{}).get('httpStatus')!=200 or close.get('code')!=0 or close.get('signal') is not None or close.get('remaining')!=[] or evidence.get('quitRequested')!='actual tray Quit requested':raise RuntimeError('Packaged smoke/closure proof missing')
+        installer='Comic-Metadata-Setup-'+version+'.exe';items={x['name']:x for x in c['artifacts']}
+        actual=[]
+        for line in build_owned.get('out','').splitlines():
+            try:record=json.loads(line)
+            except ValueError:continue
+            if 'leanBuild' in record:actual.append(record['leanBuild'])
+        if len(actual)!=1 or actual[0].get('version')!=version or actual[0].get('sha256')!=items[installer]['sha256'] or actual[0].get('size')!=items[installer]['size'] or actual[0].get('bootstrapExecuted') is not False or actual[0].get('referenceEqual') is not True or actual[0].get('signCalls')!=1 or Path(actual[0]['installer'])!=Path(c['artifactRoot'])/installer or ('BUILD OK '+actual[0]['installer']+' '+str(actual[0]['size'])+' bytes sha256 '+actual[0]['sha256']) not in build_owned['out']:raise RuntimeError('Actual production build artifact proof missing')
+        if specs.get('sourceHead')!=c['sourceHead'] or specs.get('manifest')!=c['sourceIdentity'] or specs.get('installer')!=items[installer]['sha256'] or specs.get('feed')!=items['latest.yml']['sha256'] or binding.get('method')!='static-installer-extraction' or binding.get('closed') is not True or binding.get('installerSha256')!=specs['installer'] or binding.get('exeSha256')!=specs.get('exe') or binding.get('asarSha256')!=specs.get('asar'):raise RuntimeError('Installer/smoke binding mismatch')
+        if marks.get('matches')!=8 or marks.get('distinctNormal')!=4 or marks.get('distinctSmall')!=4 or any(evidence.get(k,{}).get('exact') is not True for k in ('processing','paused','resumed')):raise RuntimeError('Tray smoke evidence incomplete')
+        asar_file=held.hold(qa['provenance']['asarEvidence']['path']);asar_bytes=asar_file.read_bytes()
+        if sha(asar_bytes)!=qa['provenance']['asarEvidence']['sha256']:raise RuntimeError('Packaged source proof changed')
+        source_files={x['path']:x['sha256'] for x in source['files']};text_log=asar_bytes.decode('utf-8')
+        for state in ('processing','paused','verification','error'):
+            for field,suffix in (('normal',''),('small','-16')):
+                name='desktop/assets/tray-'+state+suffix+'.png';expected=source_files.get(name)
+                if not expected or evidence['trayBytes'][state][field]!=expected or name+' '+expected not in text_log:raise RuntimeError('Packaged tray mapping differs')
+        qa_verdict='**Tray-smoke verdict: GO**'
+    else:raise RuntimeError('Unknown QA proof profile')
+    for key,verdict in (('qaReport',qa_verdict),('codeReview','**Verdict:** RELEASE CLEAR')):
         entry=c[key];report=held.hold(entry['path']);raw_report=report.read_bytes()
-        if sha(raw_report)!=entry['sha256'] or ('v'+version) not in report.name or verdict not in raw_report.decode('utf-8'):raise RuntimeError('Named exact version review/report missing')
+        text_report=raw_report.decode('utf-8')
+        if sha(raw_report)!=entry['sha256'] or ('v'+version) not in report.name or verdict not in text_report or (qa['schema']==2 and c['sourceHead'] not in text_report):raise RuntimeError('Named exact version review/report missing')
+        if qa['schema']==2 and key=='qaReport' and any(x not in text_report for x in (specs['installer'],specs['exe'],specs['asar'],specs['feed'],c['sourceIdentity'],Path(qa['provenance']['smokeEvidence']['path']).name,Path(qa['provenance']['smokeOwned']['path']).name)):raise RuntimeError('Scoped QA attestation does not bind evidence')
     artifact_root=Path(c['artifactRoot']);held.hold(artifact_root,True)
     installer='Comic-Metadata-Setup-'+version+'.exe'
     names={installer,installer+'.blockmap','latest.yml'}
@@ -50,6 +89,10 @@ with HeldPaths() as held:
     latest=(artifact_root/'latest.yml').read_text('utf-8')
     versions=re.findall(r'^version:\s*["\']?([0-9]+\.[0-9]+\.[0-9]+)["\']?\s*$',latest,re.M)
     if versions!=[version] or installer not in latest:raise RuntimeError('Update feed version/artifact mismatch')
+    if qa['schema']==2:
+        item=next(x for x in c['artifacts'] if x['name']==installer);expected=base64.b64encode(bytes.fromhex(item['sha512Hex'])).decode('ascii')
+        hashes=re.findall(r'^\s*sha512:\s*(\S+)\s*$',latest,re.M)
+        if hashes!=[expected,expected] or 'url: '+installer not in latest or 'path: '+installer not in latest or 'size: '+str(item['size']) not in latest:raise RuntimeError('Update feed digest or size mismatch')
     if sys.argv[1]=='--check':
         print(json.dumps({'state':'validated; not published','version':version,'artifacts':3,'rebuild':False}));raise SystemExit(0)
     logroot=Path(c['evidenceRoot'])
