@@ -435,7 +435,8 @@ class FreeResearchTests(unittest.TestCase):
 
     def test_both_engine_misses_use_ordinary_backoff_not_provider_recovery_loop(self):
         with patch.object(web,'search',return_value=[]):self.assertIsNone(research.general_lookup(self.row,self.old))
-        attempt=scheduling.record({},None,None,self.old,self.now)
+        # The ordinary one-day miss wait; option 5 (2026-11-17) stretches it by a random 0-50%, held at 0 here.
+        with patch.object(scheduling,'SPREAD',return_value=0.0):attempt=scheduling.record({},None,None,self.old,self.now)
         self.assertEqual(attempt['next_at'],self.now+86400)
         states={'free_web':{'status':'available','retry_at':0,'engines':{e:{'status':'available','retry_at':0} for e in web.FREE_ENGINES}}}
         self.assertFalse(scheduling.due(self.previous({'General free web':attempt}),[10,1],9,states,now=self.now+120))
