@@ -1,4 +1,5 @@
 """Scheduling only: source results still pass their ordinary identity verifiers."""
+import random
 import time
 import research
 import providers
@@ -46,8 +47,21 @@ def available_free_alternative(name,attempt,statuses,now):
                     and not blocked(state['engines'][engine],now) for engine in ('ddg','bing')))
 
 
-def can_search(name,row,old):
-    """Whether a source's lookup could ask anything for this comic: its own early gate, credentials aside."""
+FINAL_RESULTS=('no_verified_match','verified_no_new_data')
+
+
+def gcd_offline_settled(attempt):
+    """Option 5 (Sergei 2026-11-17): GCD offline already answered this comic under the active index and matching
+    rules, and found nothing to write. The index is a fixed local file, so asking again gives the same answer
+    until a new dump or new rules change gcd_offline.rules_stamp()."""
+    import gcd_offline,pipeline_config
+    return (pipeline_config.scheduling('gcd_offline_miss_final') and (attempt or {}).get('result') in FINAL_RESULTS
+            and gcd_offline.current() is not None and attempt.get('rules')==gcd_offline.rules_stamp())
+
+
+def can_search(name,row,old,schedule=None):
+    """Whether a source's lookup could ask anything for this comic: its own early gate, credentials aside.
+    schedule (the comic's source_schedule) lets a settled GCD offline miss count as nothing left to ask."""
     import re
     series,number=research.query_identity(row,old)
     query=old.get('Title') or series
@@ -57,6 +71,7 @@ def can_search(name,row,old):
         return metron.identity(row,old) is not None
     if name=='GCD offline':
         import gcd_offline
+        if gcd_offline_settled((schedule or {}).get('GCD offline')):return False
         return bool(series and not gcd_offline.legends_path(row.get('path','')) and gcd_offline.current())
     if name=='GCD':return bool(series and number and (old.get('Year') or row.get('year')))
     if name=='Google Books':return providers.is_book(row,old) and bool(old.get('Title') or old.get('Series') or row.get('series') or old.get('ISBN'))
@@ -66,11 +81,14 @@ def can_search(name,row,old):
     return True  # Title searches (PREVIEWSworld, GetComics, free web, wiki) can always ask.
 
 
-def nothing_can_search(row,old):
+def nothing_can_search(row,old,schedule=None):
     """Enrichment A: no switched-on source can ask anything for this comic, nor can the Coffin Comics shop route
-    (research.publisher_lookup). Its research cannot change until its file, the sources or the matching rules do."""
+    (research.publisher_lookup). Its research cannot change until its file, the sources or the matching rules do.
+    Since 0.6.0 GCD offline can take any comic with a series, so the marker reached almost no comic (2026-11-17:
+    1,348 markers, 9,721 unresolved comics Metron cannot search); option 5 counts a settled GCD offline miss
+    (gcd_offline_settled, from schedule) as nothing left to ask."""
     import pipeline_config
-    if any(can_search(name,row,old) for name in KEYS if pipeline_config.source_enabled(name)):return False
+    if any(can_search(name,row,old,schedule) for name in KEYS if pipeline_config.source_enabled(name)):return False
     series,number=research.query_identity(row,old)
     return not (research.normalize(old.get('Publisher'))=='coffincomics' and series and number)
 
@@ -89,6 +107,10 @@ def search_fingerprint():
     if _fingerprint[0]==key:return dict(_fingerprint[1])
     value={'rules':metron.rules_stamp(),'gcd_rules':gcd_offline.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name)),
            'lens':bool(browser_search.settings().get('enabled'))}
+    if not pipeline_config.scheduling('gcd_offline_miss_final'):
+        # Option 5 switched off: markers set while it was on (a settled GCD miss counted as nothing left to ask)
+        # no longer match, so those comics are asked again. Markers from before option 5 keep their fingerprint.
+        value['gcd_offline_miss_final']=False
     _fingerprint=(key,value)
     return dict(value)
 
@@ -144,7 +166,25 @@ def ready(name,attempt,statuses,now):
     return attempt.get('next_at',0)<=now
 
 
-def record(previous,result,error,old,now,replaceable=None):
+SPREAD=random.random  # Option 5's random stretch; tests replace it.
+
+
+def miss_delay(failures):
+    """Seconds until a comic whose source answered nothing new is asked again (option 5, Sergei 2026-11-17).
+
+    1, 2, 4, then 7 days as before; after scheduling.long_miss_after misses in a row, scheduling.long_miss_days.
+    Each wait is stretched by a random 0 to scheduling.retry_spread of itself: after the 0.6.1 re-ask, about 33,000
+    comics all came due within three days, a week later and every week after (diagnosis 2026-11-17 §2.5)."""
+    import pipeline_config
+    delay=min(86400*2**min(failures-1,3),7*86400)
+    after=pipeline_config.scheduling('long_miss_after')
+    if after and failures>=after:delay=max(delay,pipeline_config.scheduling('long_miss_days')*86400)
+    return delay*(1+pipeline_config.scheduling('retry_spread')*SPREAD())
+
+
+def record(previous,result,error,old,now,replaceable=None,rules=None):
+    """rules: the source's matching-rules stamp (Metron, GCD offline). Misses are counted under the rules in force:
+    a miss under other rules starts the count again, so new rules get the short waits first."""
     if isinstance(error,ProviderDeferred):
         value={'result':'unavailable','failures':0,'next_at':error.retry_at if error.retry_at>now else now+3600}
         if getattr(error,'engine',None) in ('ddg','bing','yandex'):value['engine']=error.engine
@@ -152,8 +192,9 @@ def record(previous,result,error,old,now,replaceable=None):
     failures=previous.get('failures',0)+1
     if error:return {'result':'error','failures':failures,'next_at':now+min(3600*2**min(failures-1,3),6*3600)}
     if useful(result,old,replaceable):return {'result':'verified','failures':0,'next_at':now+86400}
+    if rules is not None and previous.get('rules') not in (None,rules):failures=1
     return {'result':'verified_no_new_data' if result else 'no_verified_match','failures':failures,
-            'next_at':now+min(86400*2**min(failures-1,3),7*86400)}
+            'next_at':now+miss_delay(failures)}
 
 
 def order(sources,row,old):

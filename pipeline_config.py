@@ -1,4 +1,5 @@
 """Reversible pipeline switches from config.json. Switching something off keeps its code."""
+import math
 import app
 
 # Sources with no verified write in the 2026-10-12 throughput review. They are off
@@ -41,12 +42,38 @@ MATCHING_DEFAULTS = {
     'yearless': False,               # B: no year at all; measured too loose (several volumes share a name and number).
     'unnumbered_as_one': True,       # C: a book with no number and no volume or part marker is issue 1.
     'cover_rule_v2': True,           # D: the revised cover comparison.
+    # Sergei 2026-11-17 (Docs/ComicsMetaOrganizer_EnrichmentDiagnosis_2026-11-17.md options 2 and 3). Off until a
+    # read-only "would write" listing (tools/metron_would_write.py) has been sampled. A switch that is off leaves
+    # metron.rules_stamp unchanged, so shipping them wakes nothing.
+    'metron_spellings': False,       # Option 2: a leading "The", "&"/"and" and a trailing "(YYYY)" in the Series.
+    'collection_label': False,       # Option 3: "Vol N"/"vNN"/"Book N" plus a year is issue N of a collection series.
 }
 
 
 def matching(name):
     value = section('matching').get(name)
     return value if isinstance(value, bool) else MATCHING_DEFAULTS[name]
+
+
+# Option 5 (Sergei 2026-11-17, Docs/ComicsMetaOrganizer_EnrichmentDiagnosis_2026-11-17.md §2.5): research re-asks.
+# "scheduling": {"<name>": value} in config.json overrides one; 0 or false switches a part off.
+SCHEDULING_DEFAULTS = {
+    'retry_spread': 0.5,            # A miss's wait is stretched by a random 0-50%, so comics asked together drift apart.
+    'long_miss_after': 6,           # After this many misses in a row under the same rules (0: never)...
+    'long_miss_days': 30,           # ...the next ask waits this many days instead of at most 7.
+    'gcd_offline_miss_final': True, # A GCD offline miss under the same index and rules is final (Enrichment A works again).
+}
+
+
+def scheduling(name):
+    """One option 5 setting; a missing or wrongly typed value falls back to its default."""
+    default = SCHEDULING_DEFAULTS[name]
+    value = section('scheduling').get(name)
+    if isinstance(default, bool):
+        return value if isinstance(value, bool) else default
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        return default
+    return value
 
 
 def config_key():
@@ -57,7 +84,7 @@ def config_key():
         found = (stat.st_mtime_ns, stat.st_size)
     except OSError:
         found = None
-    return (str(path), found, id(matching), id(disabled_sources), id(source_enabled), id(lens_enabled))
+    return (str(path), found, id(matching), id(disabled_sources), id(source_enabled), id(lens_enabled), id(scheduling))
 
 
 def lens_enabled():

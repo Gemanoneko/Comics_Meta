@@ -29,9 +29,11 @@ class SchedulingTests(unittest.TestCase):
 
     def test_source_misses_back_off_with_a_seven_day_cap(self):
         previous={}
-        for expected in (86400,172800,345600,604800,604800):
-            previous=scheduling.record(previous,None,None,{},100)
-            self.assertEqual(previous['next_at'],100+expected)
+        # Option 5 (2026-11-17) stretches each wait by a random 0-50% (test_enrichment_options_20261117); without it:
+        with patch.object(scheduling,'SPREAD',return_value=0.0):
+            for expected in (86400,172800,345600,604800,604800):
+                previous=scheduling.record(previous,None,None,{},100)
+                self.assertEqual(previous['next_at'],100+expected)
         import metron
         self.assertTrue(scheduling.ready('Metron',previous,{},101))  # Enrichment B/C/D: a miss from older rules is asked once more.
         previous['rules']=metron.rules_stamp()  # As automatic.discover stamps every Metron attempt.

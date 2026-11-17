@@ -186,11 +186,72 @@ def name_variants(series):
     return names
 
 
-def same_series(item, key, volume):
+LEADING_THE = re.compile(r'^the\s+', re.I)
+AMPERSAND = re.compile(r'\s+&\s+')
+AND_WORD = re.compile(r'\s+and\s+', re.I)
+SERIES_YEAR_TAIL = re.compile(r'\s*\(((?:19|20)\d{2})\)\s*$')
+
+
+def spelling_variants(series):
+    """Option 2 (Sergei 2026-11-17, matching.metron_spellings): other spellings of the name as filed, as
+    (search name, expected series key, required series volume, required series start year, spelling), tried only
+    after every name_variants spelling found no series of that name.
+
+    - 'series_year': a trailing "(YYYY)" in the Series ("Batman (2016)") left out; Metron's series must have begun
+      that year;
+    - 'add_the' / 'drop_the': a leading "The" added or left out ("Walking Dead" / "The Walking Dead");
+    - 'and_ampersand': "&" and "and" swapped ("Batman & Robin" / "Batman and Robin").
+    Metron's name search matches every word of the name in any series name, so "Walking Dead" also lists "The
+    Walking Dead" (no new request) and "Batman Robin" lists both spellings of that pair. Only the expected series
+    key changes: the identity checks stay as they are (one candidate with the same number and year, and an
+    agreeing cover)."""
+    import research
+    found = []
+    tail = SERIES_YEAR_TAIL.search(series)
+    began = tail[1] if tail else None
+    base = series[:tail.start()].strip(' -:,') if tail else series
+    if not base or base.strip().lower() == 'the':
+        return []
+    if tail:
+        found.append((base, research.series_key(base), None, began, 'series_year'))
+    if LEADING_THE.search(base):
+        other = LEADING_THE.sub('', base).strip()
+        if other:
+            found.append((other, research.series_key(other), None, began, 'drop_the'))
+    else:
+        found.append((base, research.series_key('The ' + base), None, began, 'add_the'))
+    swapped = AMPERSAND.sub(' and ', base) if AMPERSAND.search(base) else AND_WORD.sub(' & ', base) if AND_WORD.search(base) else ''
+    if swapped:
+        words = re.sub(r'\s+', ' ', AMPERSAND.sub(' ', AND_WORD.sub(' ', base))).strip()
+        found.append((words, research.series_key(swapped), None, began, 'and_ampersand'))
+    seen = {(research.series_key(series), None)}
+    unique = []
+    for entry in found:
+        marker = (entry[1], entry[3])
+        if entry[1] and marker not in seen:
+            seen.add(marker)
+            unique.append(entry)
+    return unique
+
+
+def search_names(series):
+    """Every (search name, series key, volume, start year, spelling) lookup tries, in order: name_variants
+    (spelling None), then the option 2 spellings when matching.metron_spellings is on."""
+    import pipeline_config
+    names = [(name, key, volume, None, None) for name, key, volume in name_variants(series)]
+    if pipeline_config.matching('metron_spellings'):
+        known = {(key, None) for _, key, _, _, _ in names}
+        names += [entry for entry in spelling_variants(series) if (entry[1], entry[3]) not in known]
+    return names
+
+
+def same_series(item, key, volume, began=None):
     import research
     series = item.get('series') or {}
     if research.series_key(series.get('name')) != key:
         return False
+    if began is not None and str(series.get('year_began') or '') != str(began):
+        return False  # Option 2: "Batman (2016)" is the Batman series that began in 2016.
     found = series.get('volume')
     return volume is None or found in (None, '') or str(found).strip() == str(volume)
 
@@ -201,6 +262,51 @@ ONE_ISSUE_TYPES = {'One-Shot', 'Graphic Novel', 'Trade Paperback', 'Hardcover', 
 # name ("Vampirella_V3_002_") hides its number from app.parse_name, so it never counts as unnumbered either.
 NUMBERED_NAME = re.compile(r'\d|_|#|\b(?:vol(?:ume)?|book|part|chapter|tome)\b', re.I)
 RULES_VERSION = 3  # Corrected filename identities wake misses once; verification rules stay unchanged.
+# Option 3 (Sergei 2026-11-17, matching.collection_label): Metron series types whose issue N a book labelled
+# "Vol N", "vNN" or "Book N" can be. One-Shot is left out: a one-shot has no volume N.
+COLLECTION_TYPES = {'Trade Paperback', 'Hardcover', 'Graphic Novel', 'Omnibus'}
+MAX_COLLECTION_DETAILS = 3  # Same-name, same-number, same-year candidates whose series type is asked for.
+VOLUME_LABEL_TITLE = re.compile(r'^(?:vol(?:ume)?\.?|book|tome)\s*(?:\d+|[ivxlc]+|one|two|three|four|five|six|seven|eight|nine|ten)$', re.I)
+
+
+def collection_identity(row, series, number):
+    """(base series, volume number, subtitle) for option 3, or None.
+
+    The filename carries one explicit collection label (filename_identity.collection: "Saga v02", "Saga Vol. 2 -
+    Subtitle", "Fables Book 3"), and the identity being searched is the filename's own: a ComicInfo Series or Number
+    that says something else keeps the ordinary rules, as GCD's collection label rule does."""
+    import research
+    from filename_identity import collection, legacy_parse, parse_name
+    edition = collection(row['path'])
+    if not edition:
+        return None
+    base, volume, subtitle = edition
+    filename = {research.series_key(legacy_parse(row['path'])[0]), research.series_key(parse_name(row['path'])[0])}
+    if research.series_key(series) not in filename:
+        return None
+    if number and research.issue_number(number) != research.issue_number(volume):
+        return None
+    return base, volume, subtitle
+
+
+def binding_hint(path):
+    """The Metron series type a filename names outright: HC or TPB (both, or neither: no hint)."""
+    from pathlib import Path
+    name = Path(path).name
+    hc = bool(re.search(r'\b(?:HC|hardcover|hardback)\b', name, re.I))
+    tpb = bool(re.search(r'\b(?:TPB|trade paperback|paperback)\b', name, re.I))
+    return 'Hardcover' if hc and not tpb else 'Trade Paperback' if tpb and not hc else None
+
+
+def subtitle_agrees(subtitle, title):
+    """A filename subtitle and Metron's issue title do not name different books. A missing title, or a title that
+    is only a volume label ("Vol. 2", "Volume Two"), says nothing either way."""
+    import research
+    title = str(title or '').strip()
+    if not subtitle or not title or VOLUME_LABEL_TITLE.fullmatch(title):
+        return True
+    a, b = research.normalize(subtitle), research.normalize(title)
+    return bool(a and b) and (a == b or (min(len(a), len(b)) >= 4 and (a in b or b in a)))
 
 
 def unnumbered_book(path):
@@ -220,7 +326,9 @@ def identity(row, old):
     'filename_year'  Enrichment B: a cover date or year app.parse_name does not read (year_hints.filename_year)
     'folder_year'    Enrichment B: the folder's year; the series' start year, not the cover year
     'yearless'       Enrichment B: no year at all (off unless switched on: measured too loose)
-    'unnumbered'     Enrichment C: no issue number; searched as issue 1 of a one-shot, graphic novel or collection"""
+    'unnumbered'     Enrichment C: no issue number; searched as issue 1 of a one-shot, graphic novel or collection
+    'collection_label'  Option 3: an explicit "Vol N"/"vNN"/"Book N" label and a year; issue N of a collection series
+                     (off unless matching.collection_label is on)"""
     import research, pipeline_config, year_hints
     series, number = research.query_identity(row, old)
     if not series:
@@ -228,6 +336,10 @@ def identity(row, old):
     year, rule = str(old.get('Year') or row.get('year') or ''), 'year'
     if not year and pipeline_config.matching('filename_year_formats'):
         year, rule = year_hints.filename_year(row['path']), 'filename_year'
+    if year and pipeline_config.matching('collection_label'):
+        edition = collection_identity(row, series, number)
+        if edition:
+            return edition[0], edition[1], year, 'collection_label'
     if not number:
         if year and pipeline_config.matching('unnumbered_as_one') and unnumbered_book(row['path']):
             return series, '1', year, 'unnumbered'
@@ -283,7 +395,7 @@ def lookup(row, old):
     if not token() or not found:
         return None
     series, number, year, rule = found
-    for name, key, volume in name_variants(series):
+    for name, key, volume, began, spelling in search_names(series):
         if rule in ('folder_year', 'yearless'):
             import research_runtime
             with research_runtime.stage('Metron candidate search'):
@@ -293,28 +405,46 @@ def lookup(row, old):
         # A truncated candidate list cannot establish uniqueness.
         if payload.get('next'):
             return None
-        named = [i for i in payload.get('results', []) if same_series(i, key, volume)]
+        named = [i for i in payload.get('results', []) if same_series(i, key, volume, began)]
         if named:
             break  # This name is the series; other spellings are not tried.
     else:
         return None
     matches = [i for i in named if research.issue_number(i.get('number'))==research.issue_number(number)
                and year_agrees(i, rule, year)]
+    import research_runtime
+    known = {}
+    if rule == 'collection_label' and 1 < len(matches) <= MAX_COLLECTION_DETAILS:
+        # Option 3: a collection and an ordinary issue often share name, number and year ("Saga" #1 and the first
+        # Saga collection, both 2012). Search results carry no series type, so each candidate's details are asked
+        # for, and exactly one of them must be a collection.
+        for item in matches:
+            with research_runtime.stage('Metron issue details'):
+                known[item['id']] = request('issue/'+str(int(item['id']))+'/')
+        matches = [i for i in matches if ((known[i['id']].get('series') or {}).get('series_type') or {}).get('name') in COLLECTION_TYPES]
     if len(matches)!=1:
         return None
     candidate=matches[0]
     preview=candidate.get('image') or ''
     # primary holds what accepted the cover (verified_cover's record, v0.5.0 review F4), or a plain truth value.
     primary=not preview or verified_cover(row['path'],preview)
-    import research_runtime
-    with research_runtime.stage('Metron issue details'):
-        detail = request('issue/'+str(int(candidate['id']))+'/')
-    if (detail.get('id')!=candidate['id'] or not same_series(detail, key, volume)
+    detail = known.get(candidate['id'])
+    if detail is None:
+        with research_runtime.stage('Metron issue details'):
+            detail = request('issue/'+str(int(candidate['id']))+'/')
+    if (detail.get('id')!=candidate['id'] or not same_series(detail, key, volume, began)
         or research.issue_number(detail.get('number')) != research.issue_number(number)
         or not year_agrees(detail, rule, year)):
         return None
     if rule == 'unnumbered' and ((detail.get('series') or {}).get('series_type') or {}).get('name') not in ONE_ISSUE_TYPES:
         return None  # Issue 1 of an ordinary series is not what an unnumbered book is.
+    if rule == 'collection_label':
+        kind = ((detail.get('series') or {}).get('series_type') or {}).get('name')
+        edition = collection_identity(row, *research.query_identity(row, old))
+        wanted = binding_hint(row['path'])
+        if (kind not in COLLECTION_TYPES or (wanted and kind != wanted)
+                or not edition or not subtitle_agrees(edition[2], detail.get('title'))):
+            return None  # Volume N of a collection, of the binding the filename names, with no other title.
     url = detail.get('image') or ''
     if primary and (not preview or url!=preview):primary=verified_cover(row['path'],url)
     variant=None
@@ -336,4 +466,7 @@ def lookup(row, old):
     text=unescape(re.sub('<[^>]+>',' ',detail.get('desc') or '')).strip()
     scope='Exact issue identity and '+('variant cover ('+str(variant.get('name') or 'unnamed')+')' if variant else 'cover')+' verified'
     # match_rule (Enrichment B/C) stays in the evidence and the pass plan, so writes made under a looser rule can be found.
-    return {'provider':'Metron','metadata_version':2,'match_rule':rule,'cover_match':cover_match,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    found = {'provider':'Metron','metadata_version':2,'match_rule':rule,'cover_match':cover_match,'fields':fields,'sources':[{'url':'https://metron.cloud/issue/'+str(detail['id'])+'/', 'title':detail.get('issue') or series+' #'+number, 'text':text,'scope':scope,'retrieved':time.time()}] if text else [],'status':'issue_verified'}
+    if spelling:
+        found['name_spelling'] = spelling  # Option 2: which spelling found the series, kept beside match_rule.
+    return found

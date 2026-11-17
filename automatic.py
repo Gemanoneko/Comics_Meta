@@ -432,13 +432,16 @@ def _discover(root,coverage_only,lookahead,refine=False):
         attempts=[]
         def completed(name,result,exc):
             nonlocal lookup_error
-            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable)
+            rules=None
             if name=='Metron':
                 import metron
-                source_schedule[name]['rules']=metron.rules_stamp()  # A miss under older rules is asked once more.
+                rules=metron.rules_stamp()  # A miss under older rules is asked once more.
             if name=='GCD offline':
                 import gcd_offline
-                source_schedule[name]['rules']=gcd_offline.rules_stamp()
+                rules=gcd_offline.rules_stamp()
+            # Option 5: misses are counted under the rules in force (source_scheduling.record).
+            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable,rules=rules)
+            if rules is not None:source_schedule[name]['rules']=rules
             attempts.append({'provider':name,'result':source_schedule[name]['result']})
             if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
         import pipeline_config
@@ -648,6 +651,7 @@ def _discover(root,coverage_only,lookahead,refine=False):
             if fields:
                 extra,note=replacement_record(external.get('provider','web research'),replaced)
                 if external.get('match_rule'):extra=dict(extra,match_rule=external['match_rule'])  # Enrichment B/C provenance.
+                if external.get('name_spelling'):extra=dict(extra,name_spelling=external['name_spelling'])  # Option 2 (2026-11-17).
                 if external.get('cover_match'):extra=dict(extra,cover_match=external['cover_match'])  # Which cover check accepted it (review F4).
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])+('\n'+note if note else '')
                 if external.get('attribution'):fields['Notes']+='\n'+external['attribution']
@@ -712,7 +716,7 @@ def _discover(root,coverage_only,lookahead,refine=False):
         state['checked'][str(path)] = {'version':MATCHER_VERSION,'metron_metadata_version':2,'signature':signature,'outcome':'identity_conflict' if conflict else outcome,'retry_at':retry,'cover_leads':saved.get('reverse_image_matches'),'provider_waits':provider_waits,'source_schedule':source_schedule,'error':lookup_error[:2000] if lookup_error else None}
         if hold:state['checked'][str(path)]['hold'] = hold_record
         if (outcome=='needs_identity_lookup' and not hold and not conflict and not match and not dead_web
-                and not external and cover_read and source_scheduling.nothing_can_search(row,old)):
+                and not external and cover_read and source_scheduling.nothing_can_search(row,old,source_schedule)):
             # Enrichment A (Sergei 2026-10-26): no switched-on source can ask anything for this comic and its cover
             # has been read, so it is not passed again until its file, the sources or the matching rules change.
             state['checked'][str(path)]['unsearchable'] = source_scheduling.search_fingerprint()
