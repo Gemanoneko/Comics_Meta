@@ -367,6 +367,33 @@ class WouldWriteListingTests(unittest.TestCase):
             tool.check_out_folder(Path(r'Y:\Comix\pilot'), Path(r'C:\Users\X\AppData\Local\ComicsMeta'), Path(r'Y:\Comix'))
         self.assertIsNone(tool.check_out_folder(Path(r'C:\Temp\pilot'), Path(r'C:\Users\X\AppData\Local\ComicsMeta'), Path(r'Y:\Comix')))
 
+    def load(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('metron_would_write', Path(app.BASE) / 'tools' / 'metron_would_write.py')
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        return tool
+
+    def test_tagged_mode_reads_comicvine_tags_and_never_counts_our_own_writes(self):
+        tool = self.load()
+        self.assertEqual(tool.comicvine_id({'Web': 'https://comicvine.gamespot.com/saga-1/4000-337212/'}), '337212')
+        self.assertEqual(tool.comicvine_id({'Notes': 'Tagged with ComicTagger 1.6 using info from Comic Vine. [Issue ID 4321]'}), '4321')
+        self.assertEqual(tool.comicvine_id({'Notes': '[CVDB98765]'}), '98765')
+        self.assertIsNone(tool.comicvine_id({'Notes': 'Issue ID 4321'}))  # Not said to be ComicVine's.
+        self.assertIsNone(tool.comicvine_id({'Web': 'https://metron.cloud/issue/12/ https://comicvine.gamespot.com/x/4000-1/'}))
+        self.assertIsNone(tool.comicvine_id({'Web': 'https://www.comics.org/issue/5/', 'Notes': '[CVDB1]'}))
+
+    def test_tagged_mode_judges_by_cv_id_then_number_and_year(self):
+        tool = self.load()
+        self.assertEqual(tool.judge('100', {}, {'cv_id': 100}), 'right')
+        self.assertEqual(tool.judge('100', {}, {'cv_id': 101}), 'wrong')
+        old = {'Number': '2', 'Year': '2013'}
+        self.assertEqual(tool.judge('100', old, {'cv_id': None, 'number': '2', 'cover_date': '2014-01-01'}), 'right_no_cv_id')
+        self.assertEqual(tool.judge('100', old, {'cv_id': None, 'number': '2', 'cover_date': '2016-01-01'}), 'wrong_no_cv_id')
+        self.assertEqual(tool.judge('100', old, {'number': '3', 'cover_date': '2013-01-01'}), 'wrong_no_cv_id')
+        with self.assertRaises(SystemExit):
+            tool.main(['--rule', 'metron_spellings', '--tagged', '--out', r'C:\Temp\never-made'])
+
 
 if __name__ == '__main__':
     unittest.main()
