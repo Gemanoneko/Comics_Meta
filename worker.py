@@ -184,7 +184,7 @@ def main():
                     selection = scheduler.select(root,on_progress=inventory_progress,with_mode=True)
                     folder = selection['folder'] if selection else None
                     if not folder:
-                        state=json.loads(scheduler.STATE.read_text(encoding='utf-8'))
+                        state=scheduler.load()
                         if state.get('inventory_pending') or state.get('coverage_pending'):
                             if state.get('coverage_pending'):
                                 batch.progress(phase='Checking first-update readiness',detail='Checking the next bounded catalog slice before selecting refinement work. Existing source waits are retained.')

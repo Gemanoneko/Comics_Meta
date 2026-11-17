@@ -1,5 +1,4 @@
 """Persistent folder-by-folder delta passes; a pass is not a completeness claim."""
-import json
 import os
 import time
 from pathlib import Path
@@ -7,6 +6,17 @@ import app
 import storage
 
 STATE=app.DATA/'folders.json'
+
+
+def schedule_record(value):
+    """What a readable folders.json holds (also the dashboard's check, progress_snapshot.collect)."""
+    return isinstance(value,dict) and isinstance(value.get('folders',{}),dict)
+
+
+def load():
+    """The saved schedule; an unreadable folders.json is replaced by its previous good copy (storage.read_json).
+    FileNotFoundError when there is none; ValueError when neither reads."""
+    return storage.read_json(STATE,valid=schedule_record)
 
 def folders(root,on_progress=None):
     root=Path(root).resolve()
@@ -26,7 +36,8 @@ def folders(root,on_progress=None):
 
 def select(root,now=None,on_progress=None,with_mode=False):
     now=time.time() if now is None else now
-    state=json.loads(STATE.read_text(encoding='utf-8')) if STATE.exists() else {'folders':{}}
+    try:state=load()
+    except FileNotFoundError:state={'folders':{}}
     root=Path(root).resolve()
     if not root.is_dir():raise ValueError('Library root unavailable.')
     changed=state.get('root')!=str(root)
@@ -107,10 +118,10 @@ def select(root,now=None,on_progress=None,with_mode=False):
     return {'folder':folder,'coverage_only':False} if with_mode else folder
 
 def save(state):
-    storage.save(STATE,state)
+    storage.save(STATE,state,keep_previous=True,valid=schedule_record)
 
 def finish(folder,queued=False,error=None):
-    state=json.loads(STATE.read_text(encoding='utf-8'))
+    state=load()
     state['folders'][str(folder)]={'next_scan':time.time() if queued else time.time()+(3600 if error else 600),
         'last_pass':time.time(),'state':'writing' if queued else 'retry_wait' if error else 'pass_complete',
         'error':error}

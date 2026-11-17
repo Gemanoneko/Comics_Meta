@@ -44,17 +44,17 @@ def settings():
 def legacy_status(**changes):
     path=app.DATA/'browser-search.json'
     try:
-        previous=json.loads(storage.read_text(path))
-        if not isinstance(previous,dict):raise ValueError('Invalid browser status')
+        # An unreadable file is replaced by its previous good copy (storage.read_json, 2026-11-17).
+        previous=storage.read_json(path)
     except FileNotFoundError:
         previous={}
     except (ValueError,UnicodeError):
-        # Never replace unknown challenge/cooldown data with guessed defaults.
+        # No readable copy either: never replace unknown challenge/cooldown data with guessed defaults.
         # A partial worker update cannot repair a record whose prior fields are lost.
         if changes:raise ValueError('Browser search status is unreadable') from None
         previous={'status_unavailable':True}
     if changes:
-        previous.update(changes,timestamp=time.time());storage.save(path,previous)
+        previous.update(changes,timestamp=time.time());storage.save(path,previous,keep_previous=True)
     heartbeat=app.DATA/'browser-heartbeat'
     # The worker's heartbeat thread replaces this file every 2 s; a plain read
     # meeting that replace crashed the worker at start (installed 0.2.1 QA, M3).

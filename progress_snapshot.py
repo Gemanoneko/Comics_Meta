@@ -2,7 +2,8 @@
 
 The payload lists the PAYLOAD_BATCHES most recent write batches; completed_total
 counts every batch in progress.json. Only immutable parsed values are cached. File identity detects atomic replace;
-removed queue files are evicted. No history, queue, plan or archive is rewritten.
+removed queue files are evicted. No history, queue, plan or archive is rewritten. An unreadable progress.json or
+folders.json is replaced by its previous good copy (storage.read_json, 2026-11-17), as the worker would do.
 """
 import copy
 import hashlib
@@ -39,14 +40,20 @@ class Files:
         try:self.close()
         except Exception:pass
 
-    def read(self,path,default):
+    def read(self,path,default,valid=None):
+        """valid: the record check of a state file saved with its previous good copy; an unreadable one is then
+        replaced by that copy (storage.read_json). A missing file returns default."""
         try:stat=path.stat()
         except FileNotFoundError:
             self.values.pop(path,None);return default
         key=(stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
         previous=self.values.get(path)
         if previous is not None and previous[0]==key:return previous[1]
-        value=json.loads(storage.read_text(path))
+        if valid is None:value=json.loads(storage.read_text(path))
+        else:
+            try:value=storage.read_json(path,valid=valid)
+            except FileNotFoundError:
+                self.values.pop(path,None);return default
         self.values[path]=(key,value)
         return value
 
@@ -68,9 +75,9 @@ def cover_research():
 
 
 def collect(files):
-    import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime
+    import pause_control,discovery_state,cover_tasks,browser_search,providers,research_runtime,batch,scheduler
     try:
-        saved=files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]})
+        saved=files.read(app.DATA/'progress.json',{'phase':'Ready','current_folder':'','completed':[]},batch.progress_record)
         if not isinstance(saved,dict) or not isinstance(saved.get('completed',[]),list):raise ValueError('Invalid progress')
         result=dict(saved)
     except (ValueError,UnicodeError):
@@ -98,7 +105,7 @@ def collect(files):
     except Exception:pass  # Absent, never zero: the page then shows no problem lines.
     result['performance']=research_runtime.metrics()
     try:
-        folder_state=files.read(app.DATA/'folders.json',None)
+        folder_state=files.read(app.DATA/'folders.json',None,scheduler.schedule_record)
         if folder_state is not None and (not isinstance(folder_state,dict) or not isinstance(folder_state.get('folders',{}),dict)):raise ValueError('Invalid folder schedule')
     except (ValueError,UnicodeError):
         files.unreadable('folders.json')

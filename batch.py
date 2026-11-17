@@ -12,22 +12,29 @@ import storage
 import pause_control
 
 
+def progress_record(value):
+    """What a readable progress.json holds (also the dashboard's check, progress_snapshot.collect)."""
+    return isinstance(value,dict) and isinstance(value.get('completed',[]),list)
+
+
 def progress_available():
-    """An unreadable prior progress record must not be silently replaced."""
+    """An unreadable prior progress record must not be silently replaced. Its previous good copy is put back
+    (storage.read_json, 2026-11-17); with no readable copy the record is preserved and batches wait (0.6.2)."""
     target=app.DATA/'progress.json'
-    try:value=json.loads(storage.read_text(target))
+    try:storage.read_json(target,valid=progress_record)
     except FileNotFoundError:return True
     except (OSError,ValueError,UnicodeError):return False
-    return isinstance(value,dict)
+    return True
 
 
 def progress(**updates):
     target=app.DATA/'progress.json'
     target.parent.mkdir(parents=True,exist_ok=True)
-    current=json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+    try:current=storage.read_json(target,valid=progress_record)
+    except FileNotFoundError:current={}
     current.update(updates)
     current['timestamp']=datetime.now(timezone.utc).isoformat()
-    storage.save(target,current)
+    storage.save(target,current,keep_previous=True,valid=progress_record)
 
 
 RECENT_BATCHES = 200
@@ -265,7 +272,7 @@ def apply(plan_path, remove_verified_backups=False):
     app.JOB.update(running=True,visited=0,changed=0,errors=0)
     app.scan([plan['folder']],recursive=False)  # Subfolders are inventoried by their own passes.
     print('Repeat scan:',app.JOB)
-    status=json.loads((app.DATA/'progress.json').read_text(encoding='utf-8'))
+    status=storage.read_json(app.DATA/'progress.json',valid=progress_record)
     completed=[b for b in status.get('completed',[]) if b.get('batch')!=plan_path.parent.name]
     completed.append({'batch':plan_path.parent.name,'folder':Path(plan['folder']).name,'updated':len(results),
                       'review':sum(e['action']=='review' for e in plan['entries'])})
