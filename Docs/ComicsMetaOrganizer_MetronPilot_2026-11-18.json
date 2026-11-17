@@ -1,0 +1,721 @@
+{
+ "what": "tools/metron_would_write.py pilot, 2026-11-17 22:50 to 2026-11-18 01:29, app stopped, read-only; no comic or live state written. Rows for Futaba sampling; numbers in the Brief (B3 and option 3 rows).",
+ "code": "branch ender/enrichment-2026-11-17 @ 745c169 (tool), run from a frozen export",
+ "runs": {
+  "4-tagged": {
+   "summary": {
+    "rule": "yearless",
+    "tagged": true,
+    "pool": 1864,
+    "sample": 400,
+    "asked": 400,
+    "outcomes": {
+     "natural refused_after_cover": 30,
+     "natural refused_before_cover": 359,
+     "natural right": 8,
+     "natural right_no_cv_id": 3
+    },
+    "metron_requests": 487,
+    "backoffs_429": 0,
+    "stopped": null,
+    "offline": false,
+    "natural_in_pool": 813
+   },
+   "matched": [
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator - Secondary Objectives (Dark Horse)\\The Terminator - Secondary Objectives #04 (Obi).cbz",
+     "tag_cv_id": "34712",
+     "tag_series": "Terminator: Secondary Objectives",
+     "tag_number": "4",
+     "tag_year": "1991",
+     "web": "https://metron.cloud/issue/144505/",
+     "metron_cv_id": 34712,
+     "metron_series": "The Terminator: Secondary Objectives",
+     "metron_number": "4",
+     "metron_cover_date": "1991-10-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Conan and the\\Conan and the Midnight God (Dark Horse)\\Conan and the Midnight God #01 (TheRedStar).cbz",
+     "tag_cv_id": "112027",
+     "tag_series": "Conan and the Midnight God",
+     "tag_number": "1",
+     "tag_year": "2006",
+     "web": "https://metron.cloud/issue/73271/",
+     "metron_cv_id": 112027,
+     "metron_series": "Conan and the Midnight God",
+     "metron_number": "1",
+     "metron_cover_date": "2007-01-01",
+     "cover_match": {
+      "comparison": "aligned",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator - Secondary Objectives (Dark Horse)\\The Terminator - Secondary Objectives #03 (Obi).cbz",
+     "tag_cv_id": "34590",
+     "tag_series": "Terminator: Secondary Objectives",
+     "tag_number": "3",
+     "tag_year": "1991",
+     "web": "https://metron.cloud/issue/144504/",
+     "metron_cv_id": 34590,
+     "metron_series": "The Terminator: Secondary Objectives",
+     "metron_number": "3",
+     "metron_cover_date": "1991-09-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator The\\Terminator - The Dark Years (Dark Horse)\\The Terminator - The Dark Years #02.cbz",
+     "tag_cv_id": "143630",
+     "tag_series": "Terminator: The Dark Years",
+     "tag_number": "2",
+     "tag_year": "1999",
+     "web": "https://metron.cloud/issue/144496/",
+     "metron_cv_id": 143630,
+     "metron_series": "The Terminator: The Dark Years",
+     "metron_number": "2",
+     "metron_cover_date": "1999-10-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator - Hunters and Killers (Dark Horse)\\The Terminator - Hunters and Killers #03 (Obi).cbz",
+     "tag_cv_id": "35636",
+     "tag_series": "Terminator: Hunters and Killers",
+     "tag_number": "3",
+     "tag_year": "1992",
+     "web": "https://metron.cloud/issue/144501/",
+     "metron_cv_id": 35636,
+     "metron_series": "The Terminator: Hunters and Killers",
+     "metron_number": "3",
+     "metron_cover_date": "1992-05-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator The\\Terminator - The Enemy Within (Dark Horse)\\The Terminator - The Enemy Within #01.cbz",
+     "tag_cv_id": "34830",
+     "tag_series": "Terminator: The Enemy Within",
+     "tag_number": "1",
+     "tag_year": "1991",
+     "web": "https://metron.cloud/issue/144506/",
+     "metron_cv_id": 34830,
+     "metron_series": "The Terminator: The Enemy Within",
+     "metron_number": "1",
+     "metron_cover_date": "1991-11-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator The\\Terminator - The Enemy Within (Dark Horse)\\The Terminator - The Enemy Within #04.cbz",
+     "tag_cv_id": "35316",
+     "tag_series": "Terminator: The Enemy Within",
+     "tag_number": "4",
+     "tag_year": "1992",
+     "web": "https://metron.cloud/issue/144509/",
+     "metron_cv_id": 35316,
+     "metron_series": "The Terminator: The Enemy Within",
+     "metron_number": "4",
+     "metron_cover_date": "1992-02-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right_no_cv_id",
+     "path": "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files - 30 Days Of Night #6.cbz",
+     "tag_cv_id": "253890",
+     "tag_series": "The X-Files/30 Days of Night",
+     "tag_number": "6",
+     "tag_year": "2011",
+     "web": "https://metron.cloud/issue/182798/",
+     "metron_cv_id": null,
+     "metron_series": "The X-Files / 30 Days of Night",
+     "metron_number": "6",
+     "metron_cover_date": "2011-02-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right_no_cv_id",
+     "path": "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files - 30 Days Of Night #3.cbz",
+     "tag_cv_id": "234689",
+     "tag_series": "The X-Files/30 Days of Night",
+     "tag_number": "3",
+     "tag_year": "2010",
+     "web": "https://metron.cloud/issue/182795/",
+     "metron_cv_id": null,
+     "metron_series": "The X-Files / 30 Days of Night",
+     "metron_number": "3",
+     "metron_cover_date": "2010-11-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right_no_cv_id",
+     "path": "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files - 30 Days Of Night #1.cbz",
+     "tag_cv_id": "224651",
+     "tag_series": "The X-Files/30 Days of Night",
+     "tag_number": "1",
+     "tag_year": "2010",
+     "web": "https://metron.cloud/issue/182793/",
+     "metron_cv_id": null,
+     "metron_series": "The X-Files / 30 Days of Night",
+     "metron_number": "1",
+     "metron_cover_date": "2010-09-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!Dark Horse\\Terminator The\\Terminator - The Dark Years (Dark Horse)\\The Terminator - The Dark Years #04.cbz",
+     "tag_cv_id": "143632",
+     "tag_series": "Terminator: The Dark Years",
+     "tag_number": "4",
+     "tag_year": "1999",
+     "web": "https://metron.cloud/issue/144498/",
+     "metron_cv_id": 143632,
+     "metron_series": "The Terminator: The Dark Years",
+     "metron_number": "4",
+     "metron_cover_date": "1999-12-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    }
+   ],
+   "refused_at_cover_stage": [
+    "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files #2.cbz",
+    "Y:\\Comix\\!BD\\Baker Street\\Baker Street 003.cbz",
+    "Y:\\Comix\\!Dark Horse\\Deadline USA\\Deadline USA v1 (Dark Horse)\\Deadline USA v1 002 (TokerTheKid) (LARGE).cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #01.cbz",
+    "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files #40.cbz",
+    "Y:\\Comix\\!Avatar Press\\Scars (Avatar)\\Scars 002.cbz",
+    "Y:\\Comix\\!Dark Horse\\Star Wars\\Star Wars - Tales (Dark Horse)\\Star Wars Tales #12.cbz",
+    "Y:\\Comix\\!BD\\Baker Street\\Baker Street 004.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #02.cbz",
+    "Y:\\Comix\\!Avatar Press\\Scars (Avatar)\\Scars 003.cbz",
+    "Y:\\Comix\\!BD\\Blackwood\\Blackwood 002.cbz",
+    "Y:\\Comix\\!Dark Horse\\Star Wars\\Star Wars - Tales (Dark Horse)\\Star Wars Tales #13.cbz",
+    "Y:\\Comix\\!BD\\Elric\\Elric 003.cbz",
+    "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files #14.cbz",
+    "Y:\\Comix\\!BD\\Baker Street\\Baker Street 005.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #19.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #12.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #14.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #11.cbz",
+    "Y:\\Comix\\!Dark Horse\\Classic Star Wars\\Classic Star Wars (Dark Horse)\\Classic Star Wars #17.cbz",
+    "Y:\\Comix\\!Dark Horse\\Star Wars\\Star Wars - Tales (Dark Horse)\\Star Wars Tales #08.cbz",
+    "Y:\\Comix\\!Dark Horse\\Conan V1 (Dark Horse)\\Conan #013.cbz",
+    "Y:\\Comix\\!BD\\Baker Street\\Baker Street 001.cbz",
+    "Y:\\Comix\\!Avatar Press\\Mercy (Avatar)\\Mercy 01.cbz",
+    "Y:\\Comix\\!Dark Horse\\Cheval Noir (Dark Horse)\\Cheval Noir 03.cbz",
+    "Y:\\Comix\\!Avatar Press\\Scars (Avatar)\\Scars 005.cbz",
+    "Y:\\Comix\\X-Files\\The X Files\\The X-Files [Eng]\\The X-Files #6.cbz",
+    "Y:\\Comix\\!Dark Horse\\Star Wars\\Star Wars - Tales (Dark Horse)\\Star Wars Tales #11.cbz",
+    "Y:\\Comix\\!Dark Horse\\Star Wars\\Star Wars - Tales (Dark Horse)\\Star Wars Tales #09.cbz",
+    "Y:\\Comix\\!Avatar Press\\Belladonna (Brian Pulido's) (Avatar)\\Belladonna 04.cbz"
+   ],
+   "cover_stage_offline": {
+    "method": "refused_at_cover_stage comics re-run from the run cache with the cover check forced to accept",
+    "counts": {
+     "wrong": 9,
+     "right": 18,
+     "right_no_cv_id": 3
+    },
+    "wrong_runs_stopped": [
+     "Baker Street 001/003/004/005 (!BD) vs Metron 1989-90",
+     "Blackwood 002 (!BD) vs 2018",
+     "Elric 003 (!BD) vs 1983",
+     "Mercy 01 (Avatar 1998) vs 2020",
+     "X-Files #2, #6 (2009) vs 1995"
+    ]
+   }
+  },
+  "3-tagged": {
+   "summary": {
+    "rule": "collection_label",
+    "tagged": true,
+    "pool": 240,
+    "sample": 240,
+    "asked": 208,
+    "outcomes": {
+     "refused_after_cover": 2,
+     "refused_before_cover": 201,
+     "right": 2,
+     "right_no_cv_id": 1,
+     "wrong": 2
+    },
+    "metron_requests": 200,
+    "backoffs_429": 0,
+    "stopped": "--max-requests reached",
+    "offline": false,
+    "natural_in_pool": 0
+   },
+   "matched": [
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!DC\\Birds of Prey\\Birds of Prey v01\\Birds of Prey v01 - Megadeath (2024) (digital-SD) (Dakota Scanning).cbz",
+     "tag_cv_id": "1069447",
+     "tag_series": "Birds of Prey",
+     "tag_number": "1",
+     "tag_year": "2024",
+     "web": "https://metron.cloud/issue/188546/",
+     "metron_cv_id": 1069447,
+     "metron_series": "Birds of Prey",
+     "metron_number": "1",
+     "metron_cover_date": "2024-10-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right_no_cv_id",
+     "path": "Y:\\Comix\\Self Help\\Self Help v01 (2025) (Digital) (DR & Quinch-Empire).cbz",
+     "tag_cv_id": "1061049",
+     "tag_series": "Self Help",
+     "tag_number": "1",
+     "tag_year": "2024",
+     "web": "https://metron.cloud/issue/137524/",
+     "metron_cv_id": null,
+     "metron_series": "Self Help",
+     "metron_number": "1",
+     "metron_cover_date": "2025-02-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "wrong",
+     "path": "Y:\\Comix\\Star Wars\\Bounty Hunters (2020)\\Star Wars - Bounty Hunters v05 - The Raid On The Vermillion (2023) (digital).cbz",
+     "tag_cv_id": "803650",
+     "tag_series": "Star Wars: Bounty Hunters",
+     "tag_number": "5",
+     "tag_year": "2020",
+     "web": "https://metron.cloud/issue/160190/",
+     "metron_cv_id": 979752,
+     "metron_series": "Star Wars: Bounty Hunters",
+     "metron_number": "5",
+     "metron_cover_date": "2023-02-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "wrong",
+     "path": "Y:\\Comix\\Star Wars\\High Republic\\The High Republic Adventures\\Star Wars - The High Republic Adventures v01 (2023) (Digital) (Kileko-Empire).cbz",
+     "tag_cv_id": "958117",
+     "tag_series": "Star Wars: The High Republic Adventures",
+     "tag_number": "1",
+     "tag_year": "2022",
+     "web": "https://metron.cloud/issue/159538/",
+     "metron_cv_id": 1026236,
+     "metron_series": "Star Wars: The High Republic Adventures",
+     "metron_number": "1",
+     "metron_cover_date": "2023-09-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    },
+    {
+     "outcome": "right",
+     "path": "Y:\\Comix\\!DC\\Birds of Prey\\Birds of Prey v03\\Birds of Prey v03 - Bird Undercover (2025) (digital) (Son of Ultron-Empire).cbz",
+     "tag_cv_id": "1123512",
+     "tag_series": "Birds of Prey",
+     "tag_number": "3",
+     "tag_year": "2025",
+     "web": "https://metron.cloud/issue/188535/",
+     "metron_cv_id": 1123512,
+     "metron_series": "Birds of Prey",
+     "metron_number": "3",
+     "metron_cover_date": "2025-08-01",
+     "cover_match": {
+      "comparison": "today",
+      "page": 1,
+      "image": "primary"
+     }
+    }
+   ],
+   "refused_at_cover_stage": [
+    "Y:\\Comix\\Spawn Universe\\Spawn Resurrection v01 (2015) (digital) (Zone-Empire).cbz",
+    "Y:\\Comix\\!Marvel Universe\\Shanna the She-Devil\\Shanna, The She-Devil v01 (2005) (digital) (Marika-Empire).cbz"
+   ],
+   "adjudication": "The 2 \"wrong\" are wrong tags: Star Wars Bounty Hunters v05 (142 images) matched Metron TPB \"The Raid on the Vermillion\" (148 pages), tag = single issue #5 (2020); High Republic Adventures v01 (2023, 94 images) matched Metron TPB \"Volume I\" (96 pages), tag = single issue #1 (2022). Adjudicated 5 of 5 right."
+  },
+  "3-live": {
+   "summary": {
+    "rule": "collection_label",
+    "tagged": false,
+    "pool": 1001,
+    "sample": 200,
+    "asked": 183,
+    "outcomes": {
+     "no_match": 175,
+     "would_write": 8
+    },
+    "metron_requests": 200,
+    "backoffs_429": 0,
+    "stopped": "--max-requests reached",
+    "offline": false,
+    "would_write": 8
+   },
+   "would_write": [
+    {
+     "path": "Y:\\Comix\\Dungeons & Dragons\\Comics\\19 Dungeons & Dragons - The Legend Of Drizzt (2015) [Forgotten Realms (2005)]\\Dungeons & Dragons - The Legend Of Drizzt Vol. 002 - Exile (2015) (Digital) (TPB).cbz",
+     "metron_issue": "https://metron.cloud/issue/162098/",
+     "series": "Dungeons & Dragons: The Legend of Drizzt",
+     "number": "2",
+     "year": "2015",
+     "format": "Trade Paperback",
+     "cover_match": "{\"comparison\": \"wraparound\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre ISBN Inker LanguageISO Letterer Month Number Penciller Publisher Series Teams Title Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Valiant Universe\\X-O Manowar\\X O Manowar Unconquered\\X-O Manowar - Unconquered Book 02 (of 02) (2024) (digital) (Son of Ultron-Empire).cbz",
+     "metron_issue": "https://metron.cloud/issue/142152/",
+     "series": "X-O Manowar: Unconquered",
+     "number": "2",
+     "year": "2024",
+     "format": "Trade Paperback",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Format Genre LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Valiant Universe\\Harbinger\\The Harbinger Book 01 (2022) (digital) (Son of Ultron-Empire).cbz",
+     "metron_issue": "https://metron.cloud/issue/52042/",
+     "series": "The Harbinger",
+     "number": "1",
+     "year": "2022",
+     "format": "Trade Paperback",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre ISBN LanguageISO Letterer Month Number Penciller Publisher Series Title Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\EC Artists Library\\The Fantagraphics EC Artists Library\\The Fantagraphics EC Artists Library v04 - Taint the Meat.Its the Humanity! (2013) (Digital) (TLK-EMPIRE-HD).cbz",
+     "metron_issue": "https://metron.cloud/issue/134700/",
+     "series": "The Fantagraphics EC Artists' Library",
+     "number": "4",
+     "year": "2013",
+     "format": "Hardcover",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Day Editor Format Genre ISBN Inker LanguageISO Letterer Month Number Penciller Publisher Series Title Volume Web Year"
+    },
+    {
+     "path": "Y:\\Comix\\Star Wars\\Star Wars Legends\\[20XX - 20XX] Miniseries, One-Shots\\Rise of the Sith\\Star Wars Legends Epic Collection - Rise of the Sith Vol.01 (2015).cbz",
+     "metron_issue": "https://metron.cloud/issue/75023/",
+     "series": "Star Wars Legends Epic Collection: Rise of the Sith",
+     "number": "1",
+     "year": "2015",
+     "format": "Trade Paperback",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Colorist Day Editor Format Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Alien\\Aliens Omnibus\\Aliens Omnibus v06 (2009) (digital) (The Magicians-Empire).cbz",
+     "metron_issue": "https://metron.cloud/issue/157118/",
+     "series": "Aliens Omnibus",
+     "number": "6",
+     "year": "2009",
+     "format": "Omnibus",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre ISBN Inker LanguageISO Letterer Month Number Penciller Publisher Series Teams Title Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!DYNAMITE\\Red Sonja\\Sonjaversal\\Sonjaversal v02 (2024) (Digital) (DR & Quinch-Empire).cbz",
+     "metron_issue": "https://metron.cloud/issue/160240/",
+     "series": "Sonjaversal",
+     "number": "2",
+     "year": "2024",
+     "format": "Trade Paperback",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Format ISBN LanguageISO Month Number Penciller Publisher Series Teams Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!DC\\DC vs Vampires\\DC vs. Vampires - World War V v02 (2025) (digital) (Son of Ultron-Empire).cbz",
+     "metron_issue": "https://metron.cloud/issue/160593/",
+     "series": "DC vs. Vampires: World War V",
+     "number": "2",
+     "year": "2025",
+     "format": "Hardcover",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Colorist Day Editor Format Genre ISBN LanguageISO Letterer Month Number Penciller Publisher Series Title Volume Web Writer Year"
+    }
+   ]
+  },
+  "4-live": {
+   "summary": {
+    "rule": "yearless",
+    "tagged": false,
+    "pool": 4168,
+    "sample": 200,
+    "asked": 200,
+    "outcomes": {
+     "no_match": 179,
+     "would_write": 21
+    },
+    "metron_requests": 301,
+    "backoffs_429": 0,
+    "stopped": null,
+    "offline": false,
+    "would_write": 21
+   },
+   "would_write": [
+    {
+     "path": "Y:\\Comix\\CONAN\\MARVEL\\Miniseries & One-shots\\Conan the Adventurer 03.cbz",
+     "metron_issue": "https://metron.cloud/issue/73301/",
+     "series": "Conan the Adventurer",
+     "number": "3",
+     "year": "1994",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre LanguageISO Letterer Month Penciller Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Ghost\\Ghost v1 01-36\\Ghost v1 20.cbz",
+     "metron_issue": "https://metron.cloud/issue/147714/",
+     "series": "Ghost",
+     "number": "20",
+     "year": "1996",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format GTIN Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Ghost\\Ghost v1 01-36\\Ghost v1 05.cbz",
+     "metron_issue": "https://metron.cloud/issue/147698/",
+     "series": "Ghost",
+     "number": "5",
+     "year": "1995",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series StoryArc Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Ghost\\Ghost v2 01-22\\Ghost v2 19.cbz",
+     "metron_issue": "https://metron.cloud/issue/147788/",
+     "series": "Ghost",
+     "number": "19",
+     "year": "2000",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Editor Format Genre LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Buffy the Vampire Slayer\\Buffy the Vampire Slayer v1 (Dark Horse)\\Buffy the Vampire Slayer v1 #48 (Obi).cbz",
+     "metron_issue": "https://metron.cloud/issue/119609/",
+     "series": "Buffy the Vampire Slayer",
+     "number": "48",
+     "year": "2002",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"aligned\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Inker LanguageISO Letterer Month Number Penciller Publisher Series Teams Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Ghost v1 (Dark Horse)\\Ghost v1 #23.cbz",
+     "metron_issue": "https://metron.cloud/issue/147717/",
+     "series": "Ghost",
+     "number": "23",
+     "year": "1997",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Mask - The Hunt for Green October (Dark Horse)\\The Mask - The Hunt for Green October #03.cbz",
+     "metron_issue": "https://metron.cloud/issue/150531/",
+     "series": "The Mask: The Hunt For Green October",
+     "number": "3",
+     "year": "1995",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format LanguageISO Letterer Month Penciller Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 083.cbz",
+     "metron_issue": "https://metron.cloud/issue/119211/",
+     "series": "Usagi Yojimbo",
+     "number": "83",
+     "year": "2005",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 072.cbz",
+     "metron_issue": "https://metron.cloud/issue/119200/",
+     "series": "Usagi Yojimbo",
+     "number": "72",
+     "year": "2004",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Format Genre LanguageISO Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Epic (Marvel group)\\Alien Legion\\Alien Legion v1 (Epic)\\Alien Legion v1 17.cbz",
+     "metron_issue": "https://metron.cloud/issue/103417/",
+     "series": "Alien Legion",
+     "number": "17",
+     "year": "1986",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Colorist Day Editor Format Genre Imprint Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Ghost v1 (Dark Horse)\\Ghost v1 #07.cbz",
+     "metron_issue": "https://metron.cloud/issue/147701/",
+     "series": "Ghost",
+     "number": "7",
+     "year": "1995",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Epic (Marvel group)\\Dreadstar v1 (Epic)\\Dreadstar v1 002.cbz",
+     "metron_issue": "https://metron.cloud/issue/121926/",
+     "series": "Dreadstar",
+     "number": "2",
+     "year": "1983",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Imprint Inker LanguageISO Letterer Month Number Penciller Publisher Series Teams Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Ghost v2 (Dark Horse)\\Ghost v2 #14.cbz",
+     "metron_issue": "https://metron.cloud/issue/147783/",
+     "series": "Ghost",
+     "number": "14",
+     "year": "1999",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Editor Format Genre LanguageISO Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Ghost\\Ghost v1 01-36\\Ghost v1 07.cbz",
+     "metron_issue": "https://metron.cloud/issue/147701/",
+     "series": "Ghost",
+     "number": "7",
+     "year": "1995",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 074.cbz",
+     "metron_issue": "https://metron.cloud/issue/119202/",
+     "series": "Usagi Yojimbo",
+     "number": "74",
+     "year": "2004",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Format Genre LanguageISO Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 044.cbz",
+     "metron_issue": "https://metron.cloud/issue/119172/",
+     "series": "Usagi Yojimbo",
+     "number": "44",
+     "year": "2000",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"aligned\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Format Genre LanguageISO Month Number Publisher Series Volume Web Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 106.cbz",
+     "metron_issue": "https://metron.cloud/issue/119234/",
+     "series": "Usagi Yojimbo",
+     "number": "106",
+     "year": "2007",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Day Format GTIN Genre LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Epic (Marvel group)\\Dreadstar v1 (Epic)\\Dreadstar v1 017.cbz",
+     "metron_issue": "https://metron.cloud/issue/121941/",
+     "series": "Dreadstar",
+     "number": "17",
+     "year": "1985",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Imprint Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\Ghost\\Ghost v1 01-36\\Ghost v1 16.cbz",
+     "metron_issue": "https://metron.cloud/issue/147710/",
+     "series": "Ghost",
+     "number": "16",
+     "year": "1996",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Inker LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Epic (Marvel group)\\Dreadstar v1 (Epic)\\Dreadstar v1 015.cbz",
+     "metron_issue": "https://metron.cloud/issue/121939/",
+     "series": "Dreadstar",
+     "number": "15",
+     "year": "1984",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre Imprint Inker LanguageISO Letterer Month Number Penciller Publisher Series Teams Volume Web Writer Year"
+    },
+    {
+     "path": "Y:\\Comix\\!Dark Horse\\Usagi Yojimbo\\Usagi Yojimbo v3 (Dark Horse)\\Usagi Yojimbo v3 108.cbz",
+     "metron_issue": "https://metron.cloud/issue/119236/",
+     "series": "Usagi Yojimbo",
+     "number": "108",
+     "year": "2007",
+     "format": "Single Issue",
+     "cover_match": "{\"comparison\": \"today\", \"page\": 1, \"image\": \"primary\"}",
+     "fills": "AgeRating Characters Colorist Day Editor Format Genre LanguageISO Letterer Month Number Penciller Publisher Series Volume Web Writer Year"
+    }
+   ]
+  }
+ }
+}
