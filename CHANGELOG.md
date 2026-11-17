@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.6.4] - 2026-11-18
+
+### Changed
+
+- Comics that keep missing are re-asked at spread-out times, and after six misses in a row they wait 30 days (on by default; each part can be switched off).
+
+### Fixed
+
+- State files are saved durably, so an unclean shutdown no longer leaves them zero-filled.
+- An unreadable progress, folders or browser-search state file is restored from its previous good copy.
+
 ## [v0.6.3] - 2026-11-14
 
 ### Fixed
