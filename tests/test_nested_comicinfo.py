@@ -205,6 +205,32 @@ class MergeTests(Isolated):
         self.assertEqual((source, writer), ('nested-comicinfo-merge', 'manual'))
         self.assertEqual(json.loads(fields), {'Number': '1', 'Summary': 'Lobo and Deadman team up.', 'Genre': 'Superhero', 'Volume': '1995'})
 
+    def test_a_nested_none_is_blank(self):
+        # Sergei 2026-11-18: some scrapers write the text "None" for a missing value.
+        make_comic(self.path, root='<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                   nested=[NESTED.replace('<Number>1</Number>', '<Number>None</Number>')])
+        app.scan([str(self.folder)], recursive=False)
+        self.merge(tags=['Summary', 'Genre', 'Volume'])  # Before: Number "None" was filled, outside the plan.
+        self.assertNotIn('Number', app.read_metadata(self.path)[0])
+
+    def test_skipped_tags_are_not_filled_and_the_nested_copy_still_goes(self):
+        # Sergei 2026-11-18: where the nested date would sit beside a different root date, the root date stays.
+        make_comic(self.path, root='<ComicInfo><Series>Root Series</Series><Year>1980</Year><Month>3</Month></ComicInfo>',
+                   nested=[NESTED.replace('</ComicInfo>', '<Year>2022</Year><Month>6</Month><Day>28</Day></ComicInfo>')])
+        app.scan([str(self.folder)], recursive=False)
+        self.merge(tags=['Number', 'Summary', 'Genre', 'Volume'], skip=['Year', 'Month', 'Day'])
+        metadata = app.read_metadata(self.path)[0]
+        self.assertEqual((metadata['Year'], metadata['Month'], metadata.get('Day')), ('1980', '3', None))
+        self.assertEqual(metadata['Summary'], 'Lobo and Deadman team up.')
+        with zipfile.ZipFile(self.path) as archive:
+            self.assertEqual([n for n in archive.namelist() if n.lower().endswith('comicinfo.xml')], ['ComicInfo.xml'])
+        # Positive control: without the skip the same merge would fill Day, which the plan does not list.
+        make_comic(self.path, root='<ComicInfo><Series>Root Series</Series><Year>1980</Year><Month>3</Month></ComicInfo>',
+                   nested=[NESTED.replace('</ComicInfo>', '<Year>2022</Year><Month>6</Month><Day>28</Day></ComicInfo>')])
+        app.scan([str(self.folder)], recursive=False)
+        with self.assertRaisesRegex(app.ArchiveChanged, 'not planned \\(Day\\)'):
+            self.merge(tags=['Number', 'Summary', 'Genre', 'Volume'])
+
     def test_a_nested_copy_changed_since_planning_is_refused_before_any_backup(self):
         make_comic(self.path, root=ROOT, nested=[NESTED])
         app.scan([str(self.folder)], recursive=False)

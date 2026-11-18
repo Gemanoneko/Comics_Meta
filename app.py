@@ -249,18 +249,28 @@ def comicinfo_filled(element):
     return bool((element.text or '').strip()) or len(element) > 0 or bool(element.attrib)
 
 
-def merge_comicinfo(root, nested):
+def nested_donor(element):
+    """A nested element the merge may copy: it says something, and is not the bare text "None" some scrapers write
+    for a missing value (Sergei 2026-11-18: a nested "None" counts as blank)."""
+    if not len(element) and not element.attrib and (element.text or '').strip() == 'None':
+        return False
+    return comicinfo_filled(element)
+
+
+def merge_comicinfo(root, nested, skip=()):
     """Fill-empty from a nested ComicInfo into the root copy, element by element (Sergei 2026-11-18, option d).
 
     Every tag the nested copy fills and the root copy does not is copied, all of its elements in order (a repeated
-    tag, Pages and other structured elements included); where both fill a tag, the root copy wins. A blank root
-    element of that tag is replaced. Changes `root` in place and returns the tags filled, in the nested copy's order."""
+    tag, Pages and other structured elements included); where both fill a tag, the root copy wins. A nested "None"
+    is blank. A blank root element of that tag is replaced. Tags in `skip` are never filled (Sergei 2026-11-18: where
+    the nested date would sit beside a root date that differs, the nested Year, Month and Day are left out and the
+    root date stays). Changes `root` in place and returns the tags filled, in the nested copy's order."""
     import copy
     filled = []
     for tag in dict.fromkeys(child.tag for child in nested):
-        donors = [e for e in nested if e.tag == tag and comicinfo_filled(e)]
+        donors = [e for e in nested if e.tag == tag and nested_donor(e)]
         current = [e for e in root if e.tag == tag]
-        if not donors or any(comicinfo_filled(e) for e in current):
+        if tag in skip or not donors or any(comicinfo_filled(e) for e in current):
             continue
         for element in current:
             root.remove(element)
@@ -723,11 +733,12 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     stored in attempt['backup'], so a caller whose write then fails knows exactly which
     backup this call made (v0.1.3 review F29). A backup name already in use is never
     reused, so that path always names a file this call created.
-    merge_nested (Sergei 2026-11-18, option d): {'name', 'crc', 'size', 'tags'} for an archive with a root and
-    exactly one nested ComicInfo. The nested entry must still be that one (name, CRC, size); merge_comicinfo fills
-    the root copy from it (fill-empty, the root wins), refusing to fill a tag outside 'tags', and the write removes
-    it. A nested-only comic's nested copy (the one the new root copy started from) is removed the same way without
-    being asked. The entry check then allows exactly that one removal.
+    merge_nested (Sergei 2026-11-18, option d): {'name', 'crc', 'size', 'tags', optional 'skip'} for an archive with
+    a root and exactly one nested ComicInfo. The nested entry must still be that one (name, CRC, size);
+    merge_comicinfo fills the root copy from it (fill-empty, the root wins, a nested "None" is blank), never fills a
+    tag in 'skip', refuses to fill one outside 'tags', and the write removes it. A nested-only comic's nested copy
+    (the one the new root copy started from) is removed the same way without being asked. The entry check then
+    allows exactly that one removal.
     writer: 'automatic' for the service's own plans, 'manual' (default) for anything Sergei
     starts. The write ledger records it with the fields this call set and the archive
     signature before and after, in the history transaction (provenance.py)."""
@@ -778,7 +789,7 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
                     or nested[0].filename != merge_nested['name']
                     or (nested[0].CRC, nested[0].file_size) != (merge_nested['crc'], merge_nested['size'])):
                 raise ArchiveChanged('Nested ComicInfo changed since planning; nothing written.')
-            merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename))
+            merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename), skip=merge_nested.get('skip', ()))
             unplanned = sorted(set(merged) - set(merge_nested['tags']))
             if unplanned:
                 raise ArchiveChanged('The merge would fill fields not planned (' + ', '.join(unplanned) + '); nothing written.')
