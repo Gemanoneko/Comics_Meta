@@ -6,13 +6,16 @@ const crypto=require('node:crypto');
 const net=require('node:net');
 const {EventEmitter}=require('node:events');
 // Broker exit codes that report its whole Job empty (engine_host.py): the engine's own 0/75, 126 for any other
-// engine exit, 125 for a forced stop.
-const CONFIRMED_EXIT=[0,75,125,126];
-// The broker's own closure check failed (engine_host.py CLOSURE_LEFTOVER): its Job still counted a member after
-// termination. That is evidence, so the shell never confirms closure over it (code review v0.6.6 T1).
-const UNCONFIRMED_EXIT=124;
+// engine exit, 125 for a forced stop; and 123, a start the broker refused because a previous session's part still
+// runs (PREVIOUS_CLOSING): it created nothing, so there is nothing to wait for (Judy's Quit spec rev 2, R4 item 5).
+const CONFIRMED_EXIT=[0,75,123,125,126];
+// Parts still ran after the broker's whole closure wait (engine_host.py CLOSURE_LEFTOVER). The broker named them in
+// locks/leftover-<owner>.json; the shell never confirms closure over this code (code review v0.6.6 T1), but it no
+// longer refuses Quit or Retry over it either: the next broker re-checks the record before it starts anything.
+const LEFTOVER_EXIT=124;
 // One wait for a forced stop, in seconds (Sergei 2026-11-18; Judy's Quit spec rev 2, R4 item 2): the broker
-// re-terminates its Job for up to this long before it records what is left (engine_host.py --closure-wait).
+// re-terminates its Job for up to this long before it records what is left (engine_host.py --closure-wait), the shell
+// waits one second more for its answer (R4 item 3), and the quit dialog names the number.
 const CLOSURE_WAIT_S=30;
 class Engine extends EventEmitter {
   constructor({resources,state,locks,port,log}) {super();Object.assign(this,{resources,state,locks,port,log});this.token=crypto.randomBytes(32).toString('hex');this.child=null;this.owner=null;this.ready=false;this.starting=null;this.stopping=null;this.stopGeneration=0;this.closureWaitMs=10000;this.closureWaitS=CLOSURE_WAIT_S;}
@@ -55,7 +58,7 @@ class Engine extends EventEmitter {
     this.child.once('exit',(code)=>{const wasReady=this.ready;this.ready=false;this.emit('exit',code,wasReady);});
     this.child.once('error',error=>this.emit('engine-error',error));
     if(!this.child.pid){this.child=null;throw Object.assign(Error('Engine process could not be started'),{code:'ENGINE_EXIT'});}
-    if(!this.child.stdin){throw Object.assign(Error('Engine control unavailable'),{code:'CLOSURE_UNCONFIRMED'});}
+    if(!this.child.stdin){throw Object.assign(Error('Engine control unavailable'),{code:'ENGINE_EXIT'});}
     this.child.stdin.on('error',error=>this.emit('engine-error',error));
     this.child.stdin.write(this.token+'\n');
     // The observed competing catalog workload took 122.6 s. Give initialization
@@ -72,8 +75,11 @@ class Engine extends EventEmitter {
       }
       throw Object.assign(Error('Engine start timed out'),{code:'START_TIMEOUT',budgetMs});
     }catch(error){
+      // The start's own failure is what the screen reports. A part left running is recorded by this forced stop,
+      // and the next start's broker re-checks it (Sergei 2026-11-18); until 0.6.7 an unconfirmed closure here became
+      // its own failure and blocked every later start.
       this.emit('startup-phase','stopping');
-      try{await this.forceStop();}catch(closure){throw Object.assign(Error('Owned engine closure unconfirmed'),{code:'CLOSURE_UNCONFIRMED',cause:closure});}
+      await this.forceStop();
       throw error;
     }
   }
@@ -90,33 +96,43 @@ class Engine extends EventEmitter {
     this.stopping=this.forceStopOwned();
     try{return await this.stopping;}finally{this.stopping=null;}
   }
+  // Resolves true when the engine's closure is confirmed and false when it is not; it never refuses (Quit always
+  // closes the app, Sergei 2026-11-18). Unconfirmed, a leftover record names the engine for the next start's broker,
+  // which refuses to start anything beside a part that still runs (engine_host.py previous_session_closing). It
+  // resolves within closureWaitS + 1 s even when the broker never answers (Judy's Quit spec rev 2, R4 item 3).
   async forceStopOwned() {
-    const child=this.child;if(!child)return;if(child.signalCode!=null)throw Error('Owned engine closure was not confirmed');
-    if(child.exitCode===null){
-      // Ask the native broker to terminate and confirm its whole private Job.
-      // Killing only the broker would observe root exit before descendant closure.
-      if(!child.stdin?.writable)throw Error('Owned engine control unavailable');
-      child.stdin.write('force\n');
-      await new Promise((resolve,reject)=>{if(child.exitCode!==null)return resolve();const timer=setTimeout(()=>reject(Error('Owned engine closure unconfirmed')),45000);child.once('exit',()=>{clearTimeout(timer);resolve();});child.once('error',error=>{clearTimeout(timer);reject(error);});});
+    const child=this.child,owner=this.owner;if(!child)return true;
+    const deadline=performance.now()+(this.closureWaitS+1)*1000;
+    if(child.exitCode===null&&child.signalCode==null){
+      // Ask the native broker to terminate and confirm its whole private Job. Killing only the broker would observe
+      // root exit before descendant closure. Without the owner stream the broker forces itself when the stream ends.
+      if(child.stdin?.writable)child.stdin.write('force\n');
+      await new Promise(resolve=>{if(child.exitCode!==null||child.signalCode!=null)return resolve();const timer=setTimeout(resolve,deadline-performance.now());const done=()=>{clearTimeout(timer);resolve();};child.once('exit',done);child.once('error',done);});
     }
-    if(CONFIRMED_EXIT.includes(child.exitCode))return;
-    // The broker reported that its own closure check failed: refused, whatever the shell could observe.
-    if(child.exitCode===UNCONFIRMED_EXIT)throw Error('Owned engine closure was not confirmed');
-    // The broker ended without reporting: ended from outside (exit code 1, as Task Manager and taskkill end it), a
-    // crash, or a failure before its Job held anything or after it proved the Job empty (exit code 1 too). Before
-    // 0.6.6 only its exit code could confirm closure, so Retry and tray Quit stayed refused for good (TrayQA v0.6.4
-    // finding 2). Its Job is kill-on-close and only the broker held a handle to it, so Windows ends the whole tree
-    // with the broker; closure is claimed only once the shell sees that itself (treeEnded).
-    if(child.signalCode==null&&await this.treeEnded())return;
-    throw Error('Owned engine closure was not confirmed');
+    if(child.signalCode==null&&CONFIRMED_EXIT.includes(child.exitCode))return true;
+    // The broker ended without reporting: ended from outside (exit code 1, as an outside kill ends it), a crash, or a
+    // failure before its Job held anything or after it proved the Job empty (exit code 1 too). Its Job is
+    // kill-on-close and only the broker held a handle to it, so Windows ends the whole tree with the broker; closure
+    // is claimed once the shell sees that itself (treeEnded, TrayQA v0.6.4 finding 2), within what is left of the wait.
+    if(child.exitCode!==null&&child.exitCode!==LEFTOVER_EXIT&&child.signalCode==null&&await this.treeEnded(Math.min(this.closureWaitMs,Math.max(0,deadline-performance.now()))))return true;
+    this.recordLeftover(owner);
+    return false;
   }
-  async treeEnded() {
-    // Seen within closureWaitMs: the engine port is free (the dashboard server is gone) and none of this engine's
+  recordLeftover(owner=this.owner) {
+    // The broker writes its own record, with every live member, when it can (exit 124). The shell only fills in a
+    // record without a process list when there is none: the broker ended without one, or has not answered (it then
+    // replaces this record with its own, or removes it once it proves its Job empty). Checked by the engine's claims.
+    if(!/^[0-9a-f]{64}$/.test(owner||''))return;
+    try{fs.mkdirSync(this.locks,{recursive:true});fs.writeFileSync(path.join(this.locks,'leftover-'+owner+'.json'),JSON.stringify({schema:1,owner,written:Date.now()/1000,members:null,source:'shell'}),{flag:'wx'});}
+    catch(error){if(error.code!=='EEXIST')this.emit('engine-error',error);}
+  }
+  async treeEnded(waitMs=this.closureWaitMs) {
+    // Seen within waitMs: the engine port is free (the dashboard server is gone) and none of this engine's
     // library claims is still held (every process that can change the library holds one: engine-<owner>-<pid>-<id>,
     // library_lock.acquire). A missing claims folder means no claim: it cannot be removed while a claim is held.
     // Anything unreadable is not proof.
     if(!/^[0-9a-f]{64}$/.test(this.owner||''))return false;
-    const until=performance.now()+this.closureWaitMs;
+    const until=performance.now()+waitMs;
     while(true){
       if(this.claimHoldersEnded()&&await this.portFree())return true;
       if(performance.now()>=until)return false;

@@ -4,9 +4,11 @@
 // is replaced before engine.cjs loads, so nothing is started.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
 const childProcess=require('node:child_process');const {EventEmitter}=require('node:events');
-const calls=[];
-childProcess.spawn=(file,args,options)=>{calls.push({file,args,options});const child=new EventEmitter();child.pid=123;child.exitCode=126;child.stdin={on(){},write(){}};return child;};
+const calls=[];let brokerExit=126;
+childProcess.spawn=(file,args,options)=>{calls.push({file,args,options});const child=new EventEmitter();child.pid=123;child.exitCode=brokerExit;child.stdin={on(){},write(){}};return child;};
 const {Engine}=require('../engine.cjs');
+async function resourcesIn(root){const resources=path.join(root,'resources');await fs.mkdir(path.join(resources,'runtime','python'),{recursive:true});await fs.mkdir(path.join(resources,'engine'));
+  await fs.writeFile(path.join(resources,'runtime','python','python.exe'),'');await fs.writeFile(path.join(resources,'engine','engine_host.py'),'');return resources;}
 test('engine and all its descendants run with bytecode writing off',async()=>{
   const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-spawn-'));
   try{
@@ -63,4 +65,17 @@ test('tray Quit during Retry\'s closure wait cancels Retry: no broker is started
     await assert.rejects(retry,error=>error.code==='START_CANCELLED');
     assert.equal(calls.length,before);  // No broker was started for a shell that is exiting.
   }finally{if(held)await new Promise(resolve=>holder.close(resolve));assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
+});
+// Quit always closes (Sergei 2026-11-18): a start whose own cleanup leaves a part running reports the start's failure,
+// and the next start's broker re-checks the leftover record. Until 0.6.7 it became CLOSURE_UNCONFIRMED, and every
+// later start returned at once (main.cjs guard), so Try again did nothing.
+test('a start whose cleanup leaves a part running reports its own failure and leaves a leftover record',async()=>{
+  const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-leftover-'));
+  try{
+    const engine=new Engine({resources:await resourcesIn(root),state:path.join(root,'state'),locks:path.join(root,'locks'),port:0,log:path.join(root,'logs','engine.log')});
+    brokerExit=124;
+    await assert.rejects(engine.start(),error=>error.code==='ENGINE_EXIT');
+    const record=JSON.parse(await fs.readFile(path.join(root,'locks','leftover-'+engine.owner+'.json'),'utf8'));
+    assert.equal(record.owner,engine.owner);
+  }finally{brokerExit=126;assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
