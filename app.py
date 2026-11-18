@@ -227,8 +227,9 @@ def comicinfo_entry(archive):
     Nested ComicInfo, Sergei 2026-11-18 (option c): with no root copy, exactly one ComicInfo.xml inside a folder
     (for example a Comixology scrape kept beside the pages) is the comic's existing metadata, so the root copy a
     write adds starts from it, and that write removes the nested copy (option d), so the archive keeps one ComicInfo
-    holding all of it. Several nested copies, or a single one that cannot be read, are ignored and kept, as they were
-    before: the comic reads as having no ComicInfo."""
+    holding all of it. A bare "None" in it (some scrapers write it for a missing Number) is blank and left out
+    (Sergei 2026-11-18). Several nested copies, or a single one that cannot be read, are ignored and kept, as they
+    were before: the comic reads as having no ComicInfo."""
     names = archive.namelist()
     root = [n for n in names if n.lower() == 'comicinfo.xml']
     if len(root) > 1:
@@ -239,9 +240,12 @@ def comicinfo_entry(archive):
     if len(nested) != 1:
         return None, None
     try:
-        return nested[0], _comicinfo_xml(archive, nested[0])
+        xml = _comicinfo_xml(archive, nested[0])
     except Exception:
         return None, None  # Unreadable, oversized or not ComicInfo: ignored, as before.
+    for element in [e for e in xml if comicinfo_filled(e) and not nested_donor(e)]:
+        xml.remove(element)
+    return nested[0], xml
 
 
 def comicinfo_filled(element):
@@ -257,20 +261,50 @@ def nested_donor(element):
     return comicinfo_filled(element)
 
 
-def merge_comicinfo(root, nested, skip=()):
+# The ComicInfo schema's element names (ComicInfo 2.0 and 2.1).
+COMICINFO_TAGS = frozenset((
+    'Title Series Number Count Volume AlternateSeries AlternateNumber AlternateCount Summary Notes Year Month Day '
+    'Writer Penciller Inker Colorist Letterer CoverArtist Editor Translator Publisher Imprint Genre Tags Web PageCount '
+    'LanguageISO Format BlackAndWhite Manga Characters Teams Locations ScanInformation StoryArc StoryArcNumber '
+    'SeriesGroup AgeRating Pages CommunityRating MainCharacterOrTeam Review GTIN').split())
+
+
+def nested_left_out(tag, root, nested):
+    """Why the nested merge never copies this nested tag, or '' (Sergei 2026-11-18, after Futaba's sample).
+
+    - Year, Month, Day: nested dates are store or release dates, not cover dates; the app fills cover dates.
+    - PageCount: the nested count often disagrees with the archive, and the app never writes PageCount.
+    - A tag that differs from another tag in the root or the nested copy only in letter case (`writer` beside
+      `Writer`): readers match exact names, so it would only duplicate. The schema's own spelling is never left out
+      for the sake of a non-schema twin.
+    - Volume when it is a four-digit year: the app's Volume is the volume number."""
+    if tag in ('Year', 'Month', 'Day'):
+        return 'nested date never copied'
+    if tag == 'PageCount':
+        return 'PageCount never copied'
+    if tag == 'Volume' and any(re.fullmatch(r'\s*\d{4}\s*', e.text or '') for e in nested if e.tag == tag and not len(e)):
+        return 'Volume is a year'
+    if isinstance(tag, str):
+        twins = {e.tag for e in (*root, *nested) if isinstance(e.tag, str) and e.tag != tag and e.tag.lower() == tag.lower()}
+        if twins and not (tag in COMICINFO_TAGS and not twins & COMICINFO_TAGS):
+            return 'same tag in another letter case'
+    return ''
+
+
+def merge_comicinfo(root, nested):
     """Fill-empty from a nested ComicInfo into the root copy, element by element (Sergei 2026-11-18, option d).
 
     Every tag the nested copy fills and the root copy does not is copied, all of its elements in order (a repeated
     tag, Pages and other structured elements included); where both fill a tag, the root copy wins. A nested "None"
-    is blank. A blank root element of that tag is replaced. Tags in `skip` are never filled (Sergei 2026-11-18: where
-    the nested date would sit beside a root date that differs, the nested Year, Month and Day are left out and the
-    root date stays). Changes `root` in place and returns the tags filled, in the nested copy's order."""
+    is blank. A blank root element of that tag is replaced. Never copied (nested_left_out): Year, Month, Day,
+    PageCount, a tag that is another tag's letter-case twin, and a Volume that is a year. Changes `root` in place and
+    returns the tags filled, in the nested copy's order."""
     import copy
     filled = []
     for tag in dict.fromkeys(child.tag for child in nested):
         donors = [e for e in nested if e.tag == tag and nested_donor(e)]
         current = [e for e in root if e.tag == tag]
-        if tag in skip or not donors or any(comicinfo_filled(e) for e in current):
+        if not donors or any(comicinfo_filled(e) for e in current) or nested_left_out(tag, root, nested):
             continue
         for element in current:
             root.remove(element)
@@ -733,10 +767,10 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     stored in attempt['backup'], so a caller whose write then fails knows exactly which
     backup this call made (v0.1.3 review F29). A backup name already in use is never
     reused, so that path always names a file this call created.
-    merge_nested (Sergei 2026-11-18, option d): {'name', 'crc', 'size', 'tags', optional 'skip'} for an archive with
-    a root and exactly one nested ComicInfo. The nested entry must still be that one (name, CRC, size);
-    merge_comicinfo fills the root copy from it (fill-empty, the root wins, a nested "None" is blank), never fills a
-    tag in 'skip', refuses to fill one outside 'tags', and the write removes it. A nested-only comic's nested copy
+    merge_nested (Sergei 2026-11-18, option d): {'name', 'crc', 'size', 'tags'} for an archive with a root and
+    exactly one nested ComicInfo. The nested entry must still be that one (name, CRC, size); merge_comicinfo fills
+    the root copy from it (fill-empty, the root wins, a nested "None" is blank, never a date, PageCount, letter-case
+    twin or year-like Volume), refuses to fill a tag outside 'tags', and the write removes it. A nested-only comic's nested copy
     (the one the new root copy started from) is removed the same way without being asked. The entry check then
     allows exactly that one removal.
     writer: 'automatic' for the service's own plans, 'manual' (default) for anything Sergei
@@ -789,7 +823,7 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
                     or nested[0].filename != merge_nested['name']
                     or (nested[0].CRC, nested[0].file_size) != (merge_nested['crc'], merge_nested['size'])):
                 raise ArchiveChanged('Nested ComicInfo changed since planning; nothing written.')
-            merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename), skip=merge_nested.get('skip', ()))
+            merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename))
             unplanned = sorted(set(merged) - set(merge_nested['tags']))
             if unplanned:
                 raise ArchiveChanged('The merge would fill fields not planned (' + ', '.join(unplanned) + '); nothing written.')

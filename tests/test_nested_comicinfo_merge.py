@@ -54,29 +54,45 @@ def snapshot(folder):
 class PlanTests(unittest.TestCase):
     def test_fill_empty_with_the_root_winning_and_each_dropped_value_listed(self):
         plan = tool.plan_merge(app, xml(ROOT), xml(NESTED))
-        self.assertEqual(plan['fills'], {'Summary': 'Lobo and Deadman team up.', 'Year': '1995', 'Month': '2',
-                                         'Pages': '<Pages: 1 element(s), 1 child element(s)>'})
-        # Series and Number say the same thing written another way; Genre differs. The root wins each time.
+        self.assertEqual(plan['fills'], {'Summary': 'Lobo and Deadman team up.', 'Pages': '<Pages: 1 element(s), 1 child element(s)>'})
+        # Series and Number say the same thing written another way; Genre differs. The root wins each time. The
+        # nested date is never copied, listed with the rule that keeps it out.
         self.assertEqual(plan['dropped'], {
             'Series': {'nested': 'Lobo/Deadman: The Brave and the Bald', 'root': 'Lobo-Deadman - The Brave And The Bald', 'why': 'root wins'},
             'Number': {'nested': '001', 'root': '1', 'why': 'root wins'},
-            'Genre': {'nested': 'Superhero', 'root': 'Humor', 'why': 'root wins'}})
-        self.assertEqual((plan['skip'], plan['notes'], plan['nested_none']), ([], [], []))
+            'Genre': {'nested': 'Superhero', 'root': 'Humor', 'why': 'root wins'},
+            'Year': {'nested': '1995', 'root': '', 'why': 'nested date never copied'},
+            'Month': {'nested': '2', 'root': '', 'why': 'nested date never copied'}})
+        self.assertEqual((plan['notes'], plan['nested_none']), ([], []))
 
-    def test_a_nested_date_beside_a_differing_root_date_is_left_out(self):
-        plan = tool.plan_merge(app, xml('<ComicInfo><Year>2024</Year></ComicInfo>'), xml(NESTED))
-        self.assertEqual(plan['skip'], ['Year', 'Month', 'Day'])
-        self.assertNotIn('Month', plan['fills'])  # Before (hold rule): the archive was held; plain fill-empty adds Month 2.
-        self.assertEqual(plan['dropped']['Year'], {'nested': '1995', 'root': '2024', 'why': 'root date stays'})
-        self.assertEqual(plan['dropped']['Month'], {'nested': '2', 'root': '', 'why': 'root date stays'})
-        self.assertIn('Summary', plan['fills'])  # Everything else is merged.
-        # The same year: the month joins it, nothing is left out.
-        plan = tool.plan_merge(app, xml('<ComicInfo><Year>1995</Year></ComicInfo>'), xml(NESTED))
-        self.assertEqual((plan['skip'], plan['fills']['Month']), ([], '2'))
-        # The root holds the whole date: nothing would be filled, so nothing is skipped; the root wins.
-        plan = tool.plan_merge(app, xml('<ComicInfo><Year>2024</Year><Month>11</Month></ComicInfo>'),
-                               xml('<ComicInfo><Year>2025</Year><Month>1</Month></ComicInfo>'))
-        self.assertEqual((plan['fills'], plan['skip'], sorted(plan['dropped'])), ({}, [], ['Month', 'Year']))
+    def test_rule_1_a_nested_date_is_never_copied(self):
+        # Futaba F1: before, a root with no date (or only a Year) got the nested store date.
+        for root in ('<ComicInfo/>', '<ComicInfo><Year>1995</Year></ComicInfo>', '<ComicInfo><Year>2024</Year></ComicInfo>'):
+            with self.subTest(root=root):
+                plan = tool.plan_merge(app, xml(root), xml(NESTED))
+                self.assertFalse({'Year', 'Month', 'Day'} & set(plan['fills']))
+                self.assertEqual(plan['dropped']['Month'], {'nested': '2', 'root': '', 'why': 'nested date never copied'})
+                self.assertIn('Summary', plan['fills'])  # Everything else is merged.
+
+    def test_rule_2_pagecount_is_never_copied(self):
+        # Futaba F2. The app never writes PageCount, so it is left out, not computed.
+        plan = tool.plan_merge(app, xml('<ComicInfo/>'), xml('<ComicInfo><PageCount>91</PageCount><Genre>Humor</Genre></ComicInfo>'))
+        self.assertEqual((plan['fills'], plan['dropped']['PageCount']['why']), ({'Genre': 'Humor'}, 'PageCount never copied'))
+
+    def test_rule_3_a_letter_case_twin_is_never_copied(self):
+        # Futaba F3: `writer` beside a root `Writer`, or beside a nested one.
+        plan = tool.plan_merge(app, xml('<ComicInfo><Writer>Greg Pak</Writer></ComicInfo>'), xml('<ComicInfo><writer>Greg Pak</writer></ComicInfo>'))
+        self.assertEqual((plan['fills'], plan['dropped']['writer']['why']), ({}, 'same tag in another letter case'))
+        plan = tool.plan_merge(app, xml('<ComicInfo/>'), xml('<ComicInfo><writer>A</writer><Writer>B</Writer></ComicInfo>'))
+        self.assertEqual((plan['fills'], plan['dropped']['writer']['why']), ({'Writer': 'B'}, 'same tag in another letter case'))
+        # Positive control: an odd tag with no twin is copied.
+        self.assertEqual(tool.plan_merge(app, xml('<ComicInfo/>'), xml('<ComicInfo><Issue>4</Issue></ComicInfo>'))['fills'], {'Issue': '4'})
+
+    def test_rule_4_a_volume_that_is_a_year_is_never_copied(self):
+        # Futaba F4.
+        plan = tool.plan_merge(app, xml('<ComicInfo/>'), xml('<ComicInfo><Volume>1980</Volume></ComicInfo>'))
+        self.assertEqual((plan['fills'], plan['dropped']['Volume']['why']), ({}, 'Volume is a year'))
+        self.assertEqual(tool.plan_merge(app, xml('<ComicInfo/>'), xml('<ComicInfo><Volume>2</Volume></ComicInfo>'))['fills'], {'Volume': '2'})
 
     def test_a_different_series_or_number_is_merged_and_noted(self):
         plan = tool.plan_merge(app, xml('<ComicInfo><Series>Batman</Series><Number>2</Number></ComicInfo>'), xml(NESTED))
@@ -99,6 +115,9 @@ class Library(unittest.TestCase):
         self.merge = make_comic(self.library / 'Lobo' / 'Lobo-Deadman 001 (1995).cbz', root=ROOT, nested=[NESTED])
         self.renamed = make_comic(self.library / 'Lobo' / 'Lobo-Deadman 002 (1995).cbz',
                                   root=ROOT.replace('<Number>1<', '<Number>2<'), nested=[NESTED])
+        self.broken = make_comic(self.library / 'Lobo' / 'Lobo-Deadman 003 (1995).cbz',  # As Ms. Tree v04 (Futaba F5).
+                                 root=ROOT.replace('<Number>1<', '<Number>3<').replace('</ComicInfo>', '<Year>2022</Year><Month>10</Month></ComicInfo>'),
+                                 nested=['<ComicInfo><Web>https://example.com/x/Web></ComicInfo>'])
         self.nested_only = make_comic(self.library / 'Other' / 'Nested 001.cbz', nested=[NESTED])
         self.plain = make_comic(self.library / 'Other' / 'Plain 001.cbz')
         self.several = make_comic(self.library / 'Other' / 'Several 001.cbz', root=ROOT, nested=[NESTED, NESTED])
@@ -120,7 +139,7 @@ class DryRunTests(Library):
         self.assertFalse((self.root / 'data').exists())  # No catalog was opened.
         layouts = {Path(r['path']).name: r['layout'] for r in records}
         self.assertEqual(layouts, {'Lobo-Deadman 001 (1995).cbz': 'root_and_nested', 'Lobo-Deadman 002 (1995).cbz': 'root_and_nested',
-                                   'Busy 001.cbz': 'busy', 'Nested 001.cbz': 'nested_only', 'Plain 001.cbz': 'none',
+                                   'Lobo-Deadman 003 (1995).cbz': 'root_and_nested', 'Busy 001.cbz': 'busy', 'Nested 001.cbz': 'nested_only', 'Plain 001.cbz': 'none',
                                    'Several 001.cbz': 'root_and_several_nested'})  # The backup folder is skipped.
 
     def test_the_plan_lists_fields_the_nested_entry_removed_and_zip_order(self):
@@ -129,20 +148,29 @@ class DryRunTests(Library):
         entries = {Path(e['path']).name: e for e in plan['entries']}
         merge = entries['Lobo-Deadman 001 (1995).cbz']
         self.assertEqual((merge['action'], list(merge['fills']), merge['remove']['name'], merge['first_in_zip']),
-                         ('merge', ['Summary', 'Year', 'Month', 'Pages'], FOLDER + 'ComicInfo.xml', 'nested'))
+                         ('merge', ['Summary', 'Pages'], FOLDER + 'ComicInfo.xml', 'nested'))
         self.assertTrue(merge['root_is_last_entry'])
         renamed = entries['Lobo-Deadman 002 (1995).cbz']
-        self.assertEqual((renamed['action'], renamed['notes']), ('merge', ['Number named differently']))  # Before: held.
+        self.assertEqual((renamed['action'], renamed['notes']), ('merge', ['Number named differently']))
         with open(self.report.with_suffix('.csv'), encoding='utf-8-sig', newline='') as handle:
             rows = [r for r in csv.DictReader(handle) if r['archive'].endswith('001 (1995).cbz')]
-        self.assertEqual([(r['change'], r['field']) for r in rows][:2], [('fill', 'Summary'), ('fill', 'Year')])
-        self.assertIn(('nested value dropped (root wins)', 'Genre', 'Superhero', 'Humor'),
-                      [(r['change'], r['field'], r['nested value'], r['root value kept']) for r in rows])
+        self.assertEqual([(r['change'], r['field']) for r in rows][:2], [('fill', 'Summary'), ('fill', 'Pages')])
+        found = [(r['change'], r['field'], r['nested value'], r['root value kept']) for r in rows]
+        self.assertIn(('nested value dropped (root wins)', 'Genre', 'Superhero', 'Humor'), found)
+        self.assertIn(('nested value dropped (nested date never copied)', 'Year', '1995', ''), found)
         self.assertEqual({r['nested entry removed'] for r in rows}, {FOLDER + 'ComicInfo.xml'})
         report = self.report.read_text(encoding='utf-8')
-        self.assertIn('| Root + one nested (this merge) | 2 |', report)
-        self.assertIn('| Held (see below) | 0 |', report)
+        self.assertIn('| Root + one nested (this merge) | 3 |', report)
+        self.assertIn('| Held (see below) | 1 |', report)
+        self.assertIn('| nested date never copied | 4 | 2 |', report)  # Year and Month in 001 and 002.
         self.assertIn('--apply', report)
+
+    def test_the_held_line_names_the_root(self):
+        # Futaba F5: before, a held archive read "root: - #-, no date" although its root names the comic.
+        self.dry_run()
+        held = [line for line in self.report.read_text(encoding='utf-8').splitlines() if 'Lobo-Deadman 003' in line and 'unreadable' in line]
+        self.assertEqual(len(held), 1)
+        self.assertIn('root: Lobo-Deadman - The Brave And The Bald #3, 2022-10; nested: (unreadable)', held[0])
 
 
 class ApplyTests(Library):
@@ -164,7 +192,7 @@ class ApplyTests(Library):
             before = {i.filename: i.CRC for i in archive.infolist()}
             nested = archive.read(FOLDER + 'ComicInfo.xml')
         counts = self.apply('run1')
-        self.assertEqual(counts, {'written': 2})  # Before: the second (Number named differently) was held.
+        self.assertEqual(counts, {'written': 2, 'held': 1})
         with zipfile.ZipFile(self.merge) as archive:
             root = app.metadata_xml(archive.read('ComicInfo.xml'))
             after = {i.filename: i.CRC for i in archive.infolist()}
@@ -180,16 +208,31 @@ class ApplyTests(Library):
             dropped = [r for r in csv.DictReader(handle) if r['archive'] == str(self.merge)]
         self.assertEqual({(r['field'], r['nested value'], r['root value kept'], r['why']) for r in dropped},
                          {('Series', 'Lobo/Deadman: The Brave and the Bald', 'Lobo-Deadman - The Brave And The Bald', 'root wins'),
-                          ('Number', '001', '1', 'root wins'), ('Genre', 'Superhero', 'Humor', 'root wins')})
+                          ('Number', '001', '1', 'root wins'), ('Genre', 'Superhero', 'Humor', 'root wins'),
+                          ('Year', '1995', '', 'nested date never copied'), ('Month', '2', '', 'nested date never copied')})
+        self.assertIsNone(root.find('Year'))
         copies = {json.loads(line)['archive']: json.loads(line) for line in (out / 'removed-nested-copies.jsonl').read_text(encoding='utf-8').splitlines()}
         self.assertEqual(base64.b64decode(copies[str(self.merge)]['xml_base64']), nested)  # The whole nested copy, byte for byte.
         results = [json.loads(line) for line in (out / 'results.jsonl').read_text(encoding='utf-8').splitlines()]
         self.assertEqual({r['backup_removed'] for r in results}, {True})
         with app.db() as con:
             rows = con.execute('SELECT h.source, l.writer FROM history h JOIN write_ledger l ON l.history_id=h.id').fetchall()
-        self.assertEqual({tuple(r) for r in rows}, {('nested-comicinfo-merge', 'manual')})
+        self.assertEqual({tuple(r) for r in rows}, {('nested-comicinfo-merge', 'automatic')})  # Rule 5: not Sergei's.
         # Once more: no nested copy left, nothing written.
-        self.assertEqual(self.apply('run2'), {'skipped': 2})
+        self.assertEqual(self.apply('run2'), {'skipped': 2, 'held': 1})
+
+    def test_rule_5_the_merge_is_not_recorded_as_sergeis_so_earlier_in_book_values_stay_correctable(self):
+        # Before: the merge was a 'manual' write, which makes every value in the comic Sergei's, so the Title the
+        # in-book tier wrote earlier could no longer be replaced by a verified source (provenance.in_book_values).
+        import provenance
+        with app.db() as con:
+            row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.merge),)).fetchone())
+        app.write_metadata(row, {'Title': 'From the cover'}, writer='automatic', history_source='in-book:cover',
+                           remove_verified_backups=True)
+        self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
+        with app.db() as con:
+            row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.merge),)).fetchone())
+            self.assertEqual(provenance.in_book_values(row, app.read_metadata(self.merge)[0], con), {'Title': 'From the cover'})
 
     def test_a_failed_check_keeps_the_backup_saves_nothing_and_stops_the_run(self):
         # Negative control for the delete gate: a written archive that does not pass is never left without its backup.
@@ -226,7 +269,7 @@ class ApplyTests(Library):
         with app.db() as con:
             row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.merge),)).fetchone())
         app.write_metadata(row, {'Summary': 'Sergei wrote this.'}, remove_verified_backups=True)
-        self.assertEqual(self.apply('run1'), {'skipped': 1, 'written': 1})
+        self.assertEqual(self.apply('run1'), {'skipped': 1, 'written': 1, 'held': 1})
         self.assertEqual(app.read_metadata(self.merge)[0]['Summary'], 'Sergei wrote this.')
         with zipfile.ZipFile(self.merge) as archive:
             self.assertIn(FOLDER + 'ComicInfo.xml', archive.namelist())  # Kept until a fresh dry run plans it.
