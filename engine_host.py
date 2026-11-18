@@ -19,6 +19,10 @@ CONTRACT_ID = 'guard-safety-selftests'
 # the next broker re-checks the record before it starts anything (previous_session_closing).
 # Until 0.6.7 this code meant a refused closure (code review v0.6.6 T1), and the shell refused Quit and Retry over it.
 CLOSURE_LEFTOVER = 124
+# At start: a part of an earlier engine named by a leftover record still runs after it was terminated again, or the
+# shell stopped this broker during that check. Nothing was started; the shell shows "The previous session is still
+# closing." (Judy's Quit spec rev 2, R2) and treats the exit as closed.
+PREVIOUS_CLOSING = 123
 RETERMINATE_EVERY = 5.0  # Seconds the Job is given to empty after each termination.
 STARTED = globals().get('BOOTSTRAP_STARTED', time.monotonic())
 if os.name != 'nt' or C.sizeof(C.c_void_p) != 8:
@@ -151,6 +155,13 @@ def main():
         # EOF or any control byte closes the owned tree fail-closed. Native
         # polling leaves no buffered-stdin daemon alive during clean shutdown.
         return available_owner_bytes()!=0
+    try:waiting=previous_session_closing(owner_stopped)
+    except BaseException:
+        close(parent)
+        raise
+    if waiting:
+        close(parent)
+        return PREVIOUS_CLOSING
     job=create_job(None,None); require(job,'Create engine job')
     proc=ProcessInfo(); attributes=None; result=None; failure=None
     try:
@@ -307,5 +318,123 @@ def forget_leftover(owner):
     if not re.fullmatch('[0-9a-f]{64}',owner or ''):return
     try:leftover_path(owner).unlink(missing_ok=True)
     except OSError as error:note('Leftover record not removed: '+type(error).__name__+' '+str(error))
+
+def previous_session_closing(owner_stopped):
+    """True when this start must wait (exit PREVIOUS_CLOSING): a part of an earlier engine named by a leftover record
+    still runs after it was terminated again, or the shell stopped this broker during the check.
+
+    A record whose parts have all ended is removed. A reboot clears every record: no process keeps its PID and
+    creation time across one, and no claim lock survives it. A record that cannot be read, or that has no process
+    list, is checked by its engine's library claims instead; one that cannot be checked at all never blocks."""
+    try:records=sorted(lock_dir().glob('leftover-*.json'))
+    except OSError as error:
+        # Not a block: without a working lock folder library_lock refuses every library claim anyway.
+        note('Leftover records could not be listed: '+type(error).__name__+' '+str(error))
+        return False
+    waiting=False
+    for path in records:
+        try:
+            if leftover_running(path,owner_stopped):waiting=True
+        except Exception as error:
+            note('Leftover record '+path.name+' could not be checked ('+type(error).__name__+' '+str(error)+'); not waiting for it.')
+        if owner_stopped():return True
+    return waiting
+
+def leftover_running(path,owner_stopped):
+    """Check one leftover record (Judy's Quit spec rev 2, R4 item 7: every check logs each member, whether it is alive,
+    and the record's age). True while something of it runs RETERMINATE_EVERY seconds after it was terminated again."""
+    match=re.fullmatch(r'leftover-([0-9a-f]{64})\.json',path.name)
+    owner=match.group(1) if match else ''
+    label='Leftover record leftover-'+(owner[:12] or path.stem[9:21])
+    try:
+        record=json.loads(path.read_text(encoding='utf-8'))
+        written,members=float(record['written']),record['members']
+        if members is not None and not (isinstance(members,list) and all(
+                isinstance(member,list) and len(member)==2 and all(type(value) is int and value>0 for value in member)
+                for member in members)):
+            raise ValueError('member list')
+        readable=True
+    except (OSError,ValueError,KeyError,TypeError):
+        readable,members=False,None
+        try:written=path.stat().st_mtime
+        except OSError:written=None
+    age='age unknown' if written is None else 'age '+str(round(time.time()-written))+' s'
+    handles,parts=[],[]
+    if members is not None:
+        for pid,created_at in members:
+            state,handle=check_member(pid,created_at)
+            parts.append('pid '+str(pid)+' '+state)
+            if handle:handles.append((pid,handle))
+        held=0
+    else:
+        held=held_claims(owner)
+        parts.append(('unreadable' if not readable else 'no process list')+', so its engine claims are checked: '+str(held)+' held')
+    note(label+' ('+age+'): '+('; '.join(parts) or 'no members')+'.')
+    deadline,stopped=time.monotonic()+RETERMINATE_EVERY,False
+    try:
+        while handles or held:
+            if owner_stopped():
+                stopped=True
+                break
+            if time.monotonic()>=deadline:break
+            time.sleep(.05)
+            running=[]
+            for pid,handle in handles:
+                if wait_process(handle,0)==0x102:running.append((pid,handle))
+                else:close(handle)
+            handles=running
+            if members is None:held=held_claims(owner)
+    finally:
+        alive=[pid for pid,_ in handles]
+        for _,handle in handles:close(handle)
+    if stopped:
+        note(label+': the shell stopped this start during the check.')
+        return True
+    if alive or held:
+        what=', '.join('pid '+str(pid) for pid in alive) if alive else str(held)+' claim(s) held'
+        note(label+': still running '+format(RETERMINATE_EVERY,'g')+' s later ('+what+'); this start waits for it.')
+        return True
+    path.unlink(missing_ok=True)
+    note(label+': nothing of that session is left; record removed.')
+    return False
+
+def check_member(pid,created_at):
+    """(what was found, a handle while the very process the record names still runs). Such a process is terminated
+    again. A PID that now names another process (another creation time) is left alone."""
+    try:handle,terminable=open_member(pid,QUERY_LIMITED|SYNCHRONIZE|TERMINATE),True
+    except OSError as error:
+        if error.errno!=5:raise
+        try:handle,terminable=open_member(pid,QUERY_LIMITED|SYNCHRONIZE),False
+        except OSError:return 'cannot be opened, so it is not one of this user\'s engine parts',None
+    if handle is None:return 'ended',None
+    try:
+        if created(handle)!=created_at:
+            close(handle)
+            return 'ended (its PID now names another process)',None
+        if wait_process(handle,0)!=0x102:
+            close(handle)
+            return 'ended',None
+    except BaseException:
+        close(handle)
+        raise
+    if terminable and terminate_process(handle,125):return 'alive, terminated again',handle
+    return 'alive, could not be terminated (Windows error '+str(C.get_last_error())+')',handle
+
+def held_claims(owner):
+    """How many of that engine's library claims are still locked (library_lock's byte lock; an unopenable one counts)."""
+    if not owner:return 0
+    import file_lock
+    held=0
+    for lock in (lock_dir()/'claims').glob('engine-'+owner+'-*.lock'):
+        try:descriptor=file_lock.open_lock(lock,create=False)
+        except FileNotFoundError:continue
+        except OSError:
+            held+=1
+            continue
+        try:
+            if file_lock.try_lock(descriptor):file_lock.unlock(descriptor)
+            else:held+=1
+        finally:os.close(descriptor)
+    return held
 
 if __name__=='__main__':raise SystemExit(main())

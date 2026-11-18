@@ -22,7 +22,7 @@ from pathlib import Path
 from test_worker import scratch_directory
 
 CODE = Path(__file__).resolve().parents[1]
-TOKEN, OWNER = 'c' * 64, 'd' * 64
+TOKEN, OWNER, OTHER = 'c' * 64, 'd' * 64, 'e' * 64
 ENGINE = r'''
 import os, time
 print("engine up", flush=True)
@@ -99,10 +99,12 @@ class BrokerRun:
         process.stdin.flush()
         return process
 
-    def run(self, *, force=True, **options):
+    def run(self, *, force=True, while_running=None, **options):
         """(exit code, stderr, owners retired, seconds from the stop to the exit) of one broker run."""
         process = self.start(**options)
         self.case.assertEqual(process.stdout.readline().strip(), b'engine up')
+        if while_running:
+            while_running()
         began = time.monotonic()
         if force:
             process.stdin.write(b'force\n')  # What the shell's forceStop sends.
@@ -118,6 +120,26 @@ class BrokerRun:
     def leftover(self, owner=OWNER):
         path = self.locks / ('leftover-' + owner + '.json')
         return json.loads(path.read_text(encoding='utf-8')) if path.exists() else None
+
+    def refused(self, *, stop_after=None, engine='exit', **options):
+        """(exit code, stderr, stdout, seconds) of a broker start that ends before its engine starts. (Its engine, if it
+        does start, exits at once with 0.)"""
+        process = self.start(engine=engine, **options)
+        began = time.monotonic()
+        if stop_after is not None:
+            time.sleep(stop_after)
+            process.stdin.write(b'force\n')  # Quit or a second start from the shell during the check.
+            process.stdin.flush()
+        code = process.wait(60)
+        return code, process.stderr.read().decode('utf-8', 'replace'), process.stdout.read(), time.monotonic() - began
+
+    def record(self, members, owner=OTHER, written=None, raw=None):
+        self.locks.mkdir(exist_ok=True)
+        path = self.locks / ('leftover-' + owner + '.json')
+        path.write_text(raw if raw is not None else json.dumps(
+            {'schema': 1, 'owner': owner, 'written': time.time() if written is None else written, 'members': members}),
+            encoding='utf-8')
+        return path
 
 
 class BrokerClosureTests(unittest.TestCase):
@@ -191,9 +213,9 @@ class BrokerClosureTests(unittest.TestCase):
         provisional = run.locks / ('leftover-' + OWNER + '.json')
         provisional.write_text(json.dumps({'schema': 1, 'owner': OWNER, 'written': time.time(), 'members': None,
                                            'source': 'shell'}), encoding='utf-8')
-        other = run.locks / ('leftover-' + 'e' * 64 + '.json')
-        other.write_text('{}', encoding='utf-8')
-        code, err, _, _ = run.run()
+        other = run.locks / ('leftover-' + OTHER + '.json')
+        code, err, _, _ = run.run(while_running=lambda: other.write_text(  # After this broker's own start check.
+            json.dumps({'schema': 1, 'owner': OTHER, 'written': time.time(), 'members': None}), encoding='utf-8'))
         self.assertEqual(code, 125, err)
         self.assertFalse(provisional.exists())
         self.assertTrue(other.exists())  # Another engine's record is not this broker's to remove.
@@ -206,6 +228,140 @@ class BrokerClosureTests(unittest.TestCase):
                 self.assertEqual(code, expected, err)
                 self.assertEqual(retired, [OWNER])
                 self.assertIn('Engine claims were not retired: OSError claims folder unavailable', err)
+
+
+def dummy(case):
+    """A live process standing in for an earlier engine's part: (pid, creation time)."""
+    import engine_host
+    process = subprocess.Popen([sys.executable, '-I', '-B', '-c', 'import time; time.sleep(120)'],
+                               creationflags=0x08000000)
+    case.addCleanup(lambda: (process.kill(), process.wait(30)))
+    handle = engine_host.open_member(process.pid, engine_host.QUERY_LIMITED)
+    try:
+        created = engine_host.created(handle)
+    finally:
+        engine_host.close(handle)
+    return process, created
+
+
+def stuck(case, process):
+    """Hold `process`'s exit: terminated again, it still runs, as a part finishing a disk operation does."""
+    from debug_hold import Hold
+    hold = Hold(process.pid)
+    case.addCleanup(hold.release)
+    return hold
+
+
+def hold_claim(case, locks, owner):
+    """A process holding one of `owner`'s library claims the way library_lock does (file_lock's byte 0)."""
+    claims = locks / 'claims'
+    claims.mkdir(parents=True, exist_ok=True)
+    lock = claims / ('engine-' + owner + '-4242-0123456789ab.lock')
+    code = ('import sys;sys.path.insert(0,sys.argv[1]);import file_lock;fd=file_lock.open_lock(sys.argv[2]);'
+            'assert file_lock.try_lock(fd);print("locked",flush=True);sys.stdin.read()')
+    holder = subprocess.Popen([sys.executable, '-I', '-B', '-c', code, str(CODE), str(lock)], stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, creationflags=0x08000000)
+    case.addCleanup(lambda: (holder.kill(), holder.wait(30), holder.stdin.close(), holder.stdout.close()))
+    case.assertEqual(holder.stdout.readline().strip(), b'locked')
+    return holder
+
+
+class PreviousSessionTests(unittest.TestCase):
+    """At start the broker checks every leftover record before it starts anything (Sergei 2026-11-18): a part still
+    running after it is terminated again refuses the start with PREVIOUS_CLOSING (123); otherwise the record goes."""
+
+    def broker(self):
+        return BrokerRun(self, Path(self.enterContext(scratch_directory())))
+
+    def test_a_part_still_running_after_it_is_terminated_again_refuses_the_start_with_123(self):
+        run = self.broker()
+        part, created = dummy(self)
+        hold = stuck(self, part)
+        path = run.record([[part.pid, created]], written=time.time() - 75)
+        code, err, out, _ = run.refused(every='0.3')
+        self.assertEqual(code, 123, err)
+        self.assertEqual(out, b'')  # The engine never started.
+        self.assertIn('pid %d alive, terminated again' % part.pid, err)  # Its members, alive or not ...
+        self.assertRegex(err, r'\(age 7[5-9] s\)')  # ... and the record's age are logged (R4 item 7).
+        self.assertIn('still running 0.3 s later (pid %d); this start waits for it.' % part.pid, err)
+        self.assertTrue(path.exists())
+        self.assertTrue(hold.exit_held.is_set())  # The broker did terminate it; only its exit is still pending.
+        hold.release()  # The part finishes its operation and ends.
+        part.wait(10)
+        code, err, _, _ = run.run(every='0.3')  # The next start: a normal start, and the record is gone.
+        self.assertEqual(code, 125, err)
+        self.assertIn('pid %d ended' % part.pid, err)
+        self.assertIn('nothing of that session is left; record removed.', err)
+        self.assertFalse(path.exists())
+
+    def test_a_pid_that_now_names_another_process_is_left_alone_and_the_record_goes(self):
+        run = self.broker()
+        part, created = dummy(self)
+        path = run.record([[part.pid, created + 1]])  # Same PID, another creation time: PID reuse.
+        code, err, _, _ = run.run()
+        self.assertEqual(code, 125, err)
+        self.assertIn('pid %d ended (its PID now names another process)' % part.pid, err)
+        self.assertIsNone(part.poll())  # Not terminated.
+        self.assertFalse(path.exists())
+
+    def test_a_record_whose_parts_have_ended_goes_as_after_a_reboot(self):
+        run = self.broker()
+        ended = subprocess.Popen([sys.executable, '-I', '-B', '-c', ''], creationflags=0x08000000)
+        ended.wait(30)
+        path = run.record([[ended.pid, 1], [999999996, 2]])
+        code, err, _, _ = run.run()
+        self.assertEqual(code, 125, err)
+        self.assertFalse(path.exists())
+
+    def test_a_record_without_a_process_list_or_unreadable_is_checked_by_its_engine_claims(self):
+        for name, write in (('no process list', lambda run: run.record(None)),
+                            ('unreadable', lambda run: run.record(None, raw='\x00\x00 not json'))):
+            with self.subTest(name):
+                run = self.broker()
+                path = write(run)
+                holder = hold_claim(self, run.locks, OTHER)
+                code, err, _, _ = run.refused(every='0.3')
+                self.assertEqual(code, 123, err)
+                self.assertIn('so its engine claims are checked: 1 held', err)
+                holder.stdin.close()  # The old engine's claim holder ends.
+                holder.wait(30)
+                code, err, _, _ = run.run()
+                self.assertEqual(code, 125, err)
+                self.assertIn('0 held', err)
+                self.assertFalse(path.exists())
+
+    def test_a_record_that_names_no_engine_never_blocks(self):
+        run = self.broker()
+        path = run.record(None, owner='', raw='garbage')
+        self.assertEqual(path.name, 'leftover-.json')
+        code, err, _, _ = run.run()
+        self.assertEqual(code, 125, err)
+        self.assertFalse(path.exists())
+
+    def test_quit_during_the_check_ends_the_broker_at_once(self):
+        run = self.broker()
+        part, created = dummy(self)
+        stuck(self, part)
+        run.record([[part.pid, created]])
+        code, err, out, elapsed = run.refused(every='20', stop_after=0.5)
+        self.assertEqual(code, 123, err)
+        self.assertLess(elapsed, 3)  # Not the 20 s re-check period.
+        self.assertIn('the shell stopped this start during the check.', err)
+        self.assertEqual(out, b'')
+
+    def test_a_part_left_by_one_broker_refuses_the_next_start_until_it_ends(self):
+        run = self.broker()
+        part, created = dummy(self)
+        hold = stuck(self, part)
+        code, err, _, _ = run.run(count='survivor', members=[[part.pid, created]])
+        self.assertEqual(code, 124, err)
+        self.assertEqual(run.leftover()['members'], [[part.pid, created]])
+        code, err, _, _ = run.refused(owner=OTHER, every='0.3')  # The next shell, with a new engine identity.
+        self.assertEqual(code, 123, err)
+        hold.release()
+        code, err, _, _ = run.run(owner=OTHER)
+        self.assertEqual(code, 125, err)
+        self.assertIsNone(run.leftover())
 
 
 if __name__ == '__main__':
