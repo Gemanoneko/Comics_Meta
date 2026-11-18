@@ -199,3 +199,13 @@ This repeats v0.6.4's N1: the fix trusts a proxy where a direct observation exis
 **Verdict:** RELEASE CLEAR
 
 This clears construction for source commit acb567d (range b793d3a..acb567d), plus a bump that changes only the version and changelog. It does not prove installer behaviour, the QA entry gate or publication. T1, t1 and t2 are the first items for Ender's next cycle; T1 and M3 share one change in `engine_host.py`.
+
+**Built commit covered:** v0.6.6 build `30e55c40d2bf0d91e9f395d262598fe5fb53ff20`. It is acb567d plus two commits, ac20813 (this review) and 30e55c4 (Sully's bump). I checked this with `git diff acb567d 30e55c40d2bf0d91e9f395d262598fe5fb53ff20`, which touches 5 paths:
+
+- this review;
+- `VERSION`: 0.6.5 to 0.6.6;
+- `package.json`: the `version` field, 0.6.5 to 0.6.6;
+- `package-lock.json`: its two version fields, 0.6.5 to 0.6.6;
+- `CHANGELOG.md`: a v0.6.6 entry naming the three fixes.
+
+There is no source, test, tool or build-config change.
