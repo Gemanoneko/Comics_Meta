@@ -15,7 +15,8 @@ RETIRED_SOURCES = ('GCD', 'Dark Horse', 'Google Books', 'Open Library local inde
 # New sources that start switched off (Sergei 2026-11-17: a new source goes on after its results are checked). Like
 # the retired ones they stay off whatever "disabled" lists; "sources": {"enabled": [...]} switches one on.
 # 'ComicVine search': comicvine_search.py, the name search after Metron and GCD offline find nothing.
-OPT_IN_SOURCES = ('ComicVine search',)
+# 'VerseDB': versedb.py, after those and the ComicVine name search find nothing.
+OPT_IN_SOURCES = ('ComicVine search', 'VerseDB')
 
 
 def load():

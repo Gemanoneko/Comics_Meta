@@ -442,6 +442,9 @@ def _discover(root,coverage_only,lookahead,refine=False):
             if name=='ComicVine search':
                 import comicvine_search
                 rules=comicvine_search.rules_stamp()
+            if name=='VerseDB':
+                import versedb
+                rules=versedb.rules_stamp()
             # Option 5: misses are counted under the rules in force (source_scheduling.record).
             source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable,rules=rules,
                                                            long_miss=name in source_scheduling.LONG_MISS_SOURCES)
@@ -536,14 +539,16 @@ def _discover(root,coverage_only,lookahead,refine=False):
             batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
             try:external=research_runtime.first_verified(ready,row,old,completed,accept=useful)
             except pause_control.PauseRequested:return True
-            if not external and pipeline_config.source_enabled('ComicVine search'):
-                # ComicVine name search (Sergei 2026-11-18, off by default): only after Metron and GCD offline answered
-                # this comic with no match, so it is asked on its own once they have, never beside them. Its own gate
-                # (comicvine_search.lookup) reads their results from source_schedule, recorded above.
-                import comicvine_search
-                name=comicvine_search.NAME
+            # Fallbacks (Sergei 2026-11-18, each off by default), in this order: the ComicVine name search only after
+            # Metron and GCD offline answered this comic with no match, VerseDB only after those and the name search.
+            # Each is asked on its own once the sources before it have answered, never beside them; its own gate
+            # (<module>.lookup) reads their results from source_schedule, recorded above.
+            for name,module in (('ComicVine search','comicvine_search'),('VerseDB','versedb')):
+                if external or not pipeline_config.source_enabled(name):continue
+                import importlib
+                fallback_source=importlib.import_module(module)
                 if source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):
-                    fallback=[(name,lambda row,old:comicvine_search.lookup(row,old,source_schedule))]
+                    fallback=[(name,lambda row,old,source=fallback_source:source.lookup(row,old,source_schedule))]
                     try:external=research_runtime.first_verified(fallback,row,old,completed,accept=useful)
                     except pause_control.PauseRequested:return True
                 else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})

@@ -9,12 +9,12 @@ KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library 
       'GCD offline':'gcd_offline',
       'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics',
       'General free web':'free_web','Wikipedia/wiki':'wikipedia',
-      'ComicVine search':'comicvine_search'}
+      'ComicVine search':'comicvine_search','VerseDB':'versedb'}
 FREE_SOURCES={'General free web','Wikipedia/wiki'}
-# ComicVine name search (2026-11-18): every miss waits scheduling.long_miss_days from the first one. Its ComicVine
-# answers are cached 30 days (app.api's cache), so a sooner re-ask gives the same answer, and short re-asks of about
-# 11,800 comics would hold its hourly allowance for good (pilot 2026-11-17, recommendation 4).
-LONG_MISS_SOURCES={'ComicVine search'}
+# ComicVine name search and VerseDB (2026-11-18): every miss waits scheduling.long_miss_days from the first one.
+# Their answers are cached 30 days, so a sooner re-ask gives the same answer, and short re-asks of thousands of
+# comics would hold their hourly allowances for good (ComicVine pilot 2026-11-17, recommendation 4).
+LONG_MISS_SOURCES={'ComicVine search','VerseDB'}
 
 
 def useful(result,old,replaceable=None):
@@ -77,6 +77,9 @@ def can_search(name,row,old,schedule=None):
     if name=='ComicVine search':
         import comicvine_search
         return comicvine_search.can_search(row,old)
+    if name=='VerseDB':
+        import versedb
+        return versedb.can_search(row,old)
     if name=='GCD offline':
         import gcd_offline
         if gcd_offline_settled((schedule or {}).get('GCD offline')):return False
@@ -176,6 +179,9 @@ def ready(name,attempt,statuses,now):
     if name=='ComicVine search' and attempt.get('result')=='no_verified_match':
         import comicvine_search
         if attempt.get('rules')!=comicvine_search.rules_stamp():return True  # Its identity or cover rules changed.
+    if name=='VerseDB' and attempt.get('result')=='no_verified_match':
+        import versedb
+        if attempt.get('rules')!=versedb.rules_stamp():return True
     if available_free_alternative(name,attempt,statuses,now):return True
     if attempt.get('result')=='unavailable' and blocked(attempt_status(name,attempt,statuses),now):return False
     if attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready'):return True

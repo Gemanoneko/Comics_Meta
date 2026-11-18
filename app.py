@@ -107,6 +107,8 @@ def db():
             -- "issues", "issue", "volume") and origin ("app": reserve_request, "name_search": comicvine_search),
             -- because ComicVine counts 200 requests per resource per hour. Pruned to one hour by both reservations.
             CREATE TABLE IF NOT EXISTS comicvine_requests(timestamp REAL NOT NULL, resource TEXT NOT NULL, origin TEXT NOT NULL);
+            -- VerseDB (2026-11-18): its API requests of the last hour (versedb.reserve).
+            CREATE TABLE IF NOT EXISTS versedb_requests(timestamp REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS catalog_migrations(name TEXT PRIMARY KEY);
         ''')
         refresh_fractional_numbers(con)

@@ -91,3 +91,31 @@ def compare(local, remote):
 def agree(local, remote):
     """The archive image (bytes) shows the same cover as Metron's image (bytes)."""
     return compare(local, remote) is not None
+
+
+ARCHIVE_IMAGES = 3  # Archive images compared with a source's cover, as metron.verified_cover.
+
+
+def archive_match(path, remote, images=ARCHIVE_IMAGES):
+    """False, or what accepted the cover: {'comparison': 'today'|'aligned'|'wraparound', 'page': 1-3}.
+
+    metron.verified_cover's loop for the ComicVine name search and VerseDB (2026-11-18), on a source's cover bytes:
+    with cover_rule_v2 off only the first image and today's comparison; otherwise images 1-3, where an unreadable
+    first image fails the lookup and pages 2 and 3 are extra chances only."""
+    import automatic, pause_control, pipeline_config, reverse_image
+    if not pipeline_config.matching('cover_rule_v2'):
+        local, _, _ = reverse_image.cover(path, 0)
+        return {'comparison': 'today', 'page': 1} if automatic.covers_agree(local, remote) else False
+    for index in range(images):
+        try:
+            local, _, _ = reverse_image.cover(path, index)
+            comparison = compare(local, remote)
+        except pause_control.PauseRequested:
+            raise
+        except Exception:
+            if index == 0:
+                raise
+            continue
+        if comparison:
+            return {'comparison': comparison, 'page': index + 1}
+    return False

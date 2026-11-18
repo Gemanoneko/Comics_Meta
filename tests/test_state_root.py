@@ -97,7 +97,7 @@ class StateFilesTests(unittest.TestCase):
         (self.code / 'config.json').write_text(json.dumps({'sources': {'disabled': ['Code only']}}), encoding='utf-8')
         config = self.state / 'config.json'
         # Enrichment E (2026-10-26): these stay off whatever "disabled" lists; only "enabled" turns them back on.
-        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index', 'ComicVine search'}  # + opt-in (2026-11-18)
+        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index', 'ComicVine search', 'VerseDB'}  # + opt-in (2026-11-18)
         config.write_text(json.dumps({'sources': {'disabled': ['State only']}}), encoding='utf-8')
         self.assertEqual(pipeline_config.disabled_sources(), {'State only'} | retired)  # The state file's list, never 'Code only'.
         config.write_text(json.dumps({'sources': {'disabled': []}}), encoding='utf-8')

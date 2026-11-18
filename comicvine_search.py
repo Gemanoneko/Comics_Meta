@@ -140,12 +140,13 @@ def rules_stamp():
     return value
 
 
-def after_misses(schedule):
-    """'asked' when every switched-on source in AFTER answered this comic with no match; 'found' when one found it
-    (verified, even with nothing new); otherwise 'waiting' (unavailable, an error, or never asked)."""
+def after_misses(schedule, after=AFTER):
+    """'asked' when every switched-on source in `after` answered this comic with no match; 'found' when one found it
+    (verified, even with nothing new); otherwise 'waiting' (unavailable, an error, or never asked).
+    VerseDB passes its own list (versedb.AFTER)."""
     import pipeline_config
     state = 'asked'
-    for name in AFTER:
+    for name in after:
         if not pipeline_config.source_enabled(name):
             continue
         result = (schedule.get(name) or {}).get('result')
@@ -316,29 +317,14 @@ def download_cover(url):
 def verified_cover(path, url):
     """False, or what accepted the cover: {'comparison': 'today'|'aligned'|'wraparound', 'page': 1-3}.
 
-    metron.verified_cover's comparison on ComicVine's image: an unreadable first archive image fails the lookup,
-    pages 2 and 3 are extra chances only."""
-    import automatic, cover_match, pause_control, pipeline_config, research_runtime, reverse_image
+    metron.verified_cover's comparison on ComicVine's image (cover_match.archive_match): an unreadable first archive
+    image fails the lookup, pages 2 and 3 are extra chances only."""
+    import cover_match, research_runtime
     research_runtime.research_checkpoint()
     remote = download_cover(url)
     if remote is None:
         return False
-    if not pipeline_config.matching('cover_rule_v2'):
-        local, _, _ = reverse_image.cover(path, 0)
-        return {'comparison': 'today', 'page': 1} if automatic.covers_agree(local, remote) else False
-    for index in range(COVER_IMAGES):
-        try:
-            local, _, _ = reverse_image.cover(path, index)
-            comparison = cover_match.compare(local, remote)
-        except pause_control.PauseRequested:
-            raise
-        except Exception:
-            if index == 0:
-                raise
-            continue
-        if comparison:
-            return {'comparison': comparison, 'page': index + 1}
-    return False
+    return cover_match.archive_match(path, remote, COVER_IMAGES)
 
 
 def volume_id(item):

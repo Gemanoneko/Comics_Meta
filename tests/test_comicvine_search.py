@@ -424,7 +424,8 @@ class SchedulingTests(unittest.TestCase):
             self.assertEqual(deferred['next_at'], 500)  # A wait is not a miss.
         with patch.object(pipeline_config, 'scheduling', side_effect=self.settings(long_miss_days=0)):
             self.assertEqual(source_scheduling.record({}, None, None, {}, 0, long_miss=True)['next_at'], self.DAY)
-        self.assertEqual(source_scheduling.LONG_MISS_SOURCES, {'ComicVine search'})
+        self.assertIn('ComicVine search', source_scheduling.LONG_MISS_SOURCES)
+        self.assertNotIn('Metron', source_scheduling.LONG_MISS_SOURCES)
 
     def test_a_miss_under_other_rules_is_asked_again(self):
         stamp = comicvine_search.rules_stamp()
