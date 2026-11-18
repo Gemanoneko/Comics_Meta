@@ -12,7 +12,7 @@ if(qa){for(const folder of [qaPolicy.profile,qaPolicy.cache,path.join(qaPolicy.p
 const locked=app.requestSingleInstanceLock();
 if(!locked){app.exit(0);}else{
   nativeTheme.themeSource='dark';app.setAppUserModelId('studio.illuminati.comicmetadata');
-  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,firstMiss=null,restarts=[],starting=null,quitting=false;
+  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,firstMiss=null,restarts=[],starting=null,quitting=false;const quitTimers=[];
   let state={loadedShellVersion:app.getVersion(),service:'starting',control:null,update:{phase:'idle',check:'idle'},stopping:null};let trayPause=false;
   const profile=app.getPath('userData');const boundsFile=path.join(profile,'window.json');
   const local=process.env.LOCALAPPDATA;if(!qa && !local)throw Error('Local app state is unavailable');
@@ -20,7 +20,7 @@ if(!locked){app.exit(0);}else{
   const logFolder=path.join(stateRoot,'logs');fs.mkdirSync(logFolder,{recursive:true});
   const log=error=>{if(qaPolicy)return;try{fs.appendFileSync(path.join(logFolder,'desktop.log'),new Date().toISOString()+' '+String(error.stack||error)+'\n');}catch{}};
   function broadcast(){for(const target of [window,dialog])if(target&&!target.isDestroyed())target.webContents.send('shell-state',state);refreshTray();}
-  function exit(){finalExit=true;if(tray)tray.destroy();app.quit();}
+  function exit(){if(finalExit)return;finalExit=true;for(const timer of quitTimers)clearTimeout(timer);if(tray)tray.destroy();app.quit();}
   function show(){if(dialog&&!dialog.isDestroyed()){if(!qa){dialog.show();dialog.focus();}return;}if(window){if(window.isMinimized())window.restore();if(!qa){window.show();window.focus();}window.webContents.send('shell-refresh');}}
   function notify(title,body,onShow){if(qa || !Notification.isSupported())return;const notice=new Notification({title,body,silent:true});notice.once('show',()=>onShow?.());notice.once('click',show);notice.show();}
   function initialBounds(){
@@ -45,10 +45,10 @@ if(!locked){app.exit(0);}else{
     else if(state.verification){icon='verification';label='Needs your verification: '+(state.verification_engines||['Google Lens']).join(' and ');}else if(state.service==='ready')label='Processing enabled';
     if(!state.update.dismissed&&['available','ready','confirm'].includes(state.update.phase))label+=' · Update available';
     // Item 2 stays disabled from Pause and install until the app closes, not only while the stopper runs (spec §2, Revised 2026-10-26).
-    const paused=Boolean(c?.requested);const enabled=state.service==='ready'&&!stopper?.busy&&!installPending();
-    const presentation=JSON.stringify([label,icon,paused,enabled,Boolean(stopper?.busy)]);if(presentation===lastTrayPresentation)return;lastTrayPresentation=presentation;
+    const paused=Boolean(c?.requested);const stopping=Boolean(state.stopping)||Boolean(stopper?.busy);const enabled=state.service==='ready'&&!stopping&&!installPending();
+    const presentation=JSON.stringify([label,icon,paused,enabled,stopping]);if(presentation===lastTrayPresentation)return;lastTrayPresentation=presentation;
     const image=trayImage(icon);if(!image.isEmpty())tray.setImage(image);tray.setToolTip(('Comic Metadata — '+label).slice(0,127));
-    tray.setContextMenu(Menu.buildFromTemplate([{label:'&Open',click:show},{label:paused?'&Resume processing':'&Pause && release GPU',enabled,click:async()=>{if(installPending())return;try{const fresh=await engine.call('/api/shell/status');if(Boolean(fresh.control.requested)!==paused)return;await engine.call(paused?'/api/resume':'/api/pause',{});trayPause=!paused;await poll();}catch(error){log(error);}}},{type:'separator'},{label:stopper?.busy?'Quitting…':'&Quit',enabled:!stopper?.busy,click:()=>quit()}]));
+    tray.setContextMenu(Menu.buildFromTemplate([{label:'&Open',click:show},{label:paused?'&Resume processing':'&Pause && release GPU',enabled,click:async()=>{if(installPending())return;try{const fresh=await engine.call('/api/shell/status');if(Boolean(fresh.control.requested)!==paused)return;await engine.call(paused?'/api/resume':'/api/pause',{});trayPause=!paused;await poll();}catch(error){log(error);}}},{type:'separator'},{label:stopping?'Quitting…':'&Quit',enabled:!stopping,click:()=>quit()}]));
   }
   function senderAllowed(event){return [window,dialog].some(target=>target&&!target.isDestroyed()&&event.sender===target.webContents&&event.senderFrame===target.webContents.mainFrame);}
   ipcMain.handle('shell-snapshot',event=>{if(!senderAllowed(event))throw Error('Untrusted shell sender');return state;});
@@ -77,12 +77,35 @@ if(!locked){app.exit(0);}else{
     if(state.update.phase==='installer-uncertain'&&!['quit','openLogs'].includes(name))throw Error('Installation outcome unconfirmed');
     const actions={setupOpenDashboard:async()=>{if(state.service!=='setup')throw Error('Setup unavailable');const fresh=await engine.call('/api/shell/status');if(!fresh.setup?.configured)throw Error('Setup incomplete');state.service='ready';state.control=fresh.control;await window.loadURL('http://127.0.0.1:'+engine.port);broadcast();beginUpdateCadence();},quit:()=>quit(),retryService:()=>start(),openLogs:()=>shell.openPath(logFolder),check:()=>updates?.check(true),download:()=>updates?.download(),dismiss:()=>updates?.dismiss(),confirm:()=>updates?.confirm(),cancelConfirm:()=>updates?.cancelConfirm(),install:()=>updates?.install(),retryUpdate:()=>updates?.retry(),cancelStop:()=>stopper?.cancel(),forceQuit:()=>stopper?.force()};
     if(!Object.hasOwn(actions,name))throw Error('Unsupported shell action');return actions[name]();});
-  function secure(target,allowed){target.webContents.setWindowOpenHandler(({url})=>{if((providerPage(url)||gcdInfoPage(url))&&!qa)shell.openExternal(url).catch(log);return {action:'deny'};});target.webContents.on('will-navigate',(event,url)=>{if(!allowed(url))event.preventDefault();});target.webContents.on('page-title-updated',event=>event.preventDefault());target.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&input.control&&!input.alt&&input.key.toLowerCase()==='q'&&!stopper?.busy&&target.isVisible()){event.preventDefault();quit();}});}
-  async function quit(){if(stopper?.busy)return;quitting=true;if(starting)window?.webContents.stop?.();trayPause=false;try{if(!stopper){exit();return;}state.stopping={mode:'quit'};broadcast();if(await stopper.run('quit'))exit();}catch(error){log(error);try{await engine?.forceStop();}catch(closure){log(closure);}exit();}finally{if(!finalExit)quitting=false;state.stopping=null;broadcast();}}
-  function stoppingDialog(value){state.stopping=value;if(!dialog){
+  function secure(target,allowed){target.webContents.setWindowOpenHandler(({url})=>{if((providerPage(url)||gcdInfoPage(url))&&!qa)shell.openExternal(url).catch(log);return {action:'deny'};});target.webContents.on('will-navigate',(event,url)=>{if(!allowed(url))event.preventDefault();});target.webContents.on('page-title-updated',event=>event.preventDefault());target.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&input.control&&!input.alt&&input.key.toLowerCase()==='q'&&!quitting&&!stopper?.busy&&target.isVisible()){event.preventDefault();quit();}});}
+  // Quit always ends the process (Sergei 2026-11-18; ProcessRules § Desktop App / GUI Rules; Judy's Quit spec rev 2,
+  // R1 and R4 item 1). From Quit accepted until exit, state.stopping stays set and the quit dialog is the only surface:
+  // the stopper's 'finished' neither clears it nor closes the dialog on the way to exit(). Only Cancel quit comes back.
+  async function quit(){if(stopper?.busy||quitting||finalExit)return;quitting=true;if(starting)window?.webContents.stop?.();trayPause=false;
+    if(!stopper){exit();return;}
+    // The dialog exists by 1.5 s on every path, made by the shell, not only from stopper events (R4 item 1).
+    state.stopping={mode:'quit'};broadcast();quitTimers.push(setTimeout(()=>openDialog(state.stopping?.stage==='ending'),1500));let ended;
+    try{ended=await stopper.run('quit');}catch(error){log(error);beginEnding();try{await engine?.forceStop();}catch(closure){log(closure);}ended=true;}
+    if(ended){exit();return;}
+    for(const timer of quitTimers.splice(0))clearTimeout(timer);quitting=false;state.stopping=null;closeDialog();broadcast();  // Cancel quit.
+  }
+  function openDialog(inactive){if(dialog||finalExit)return;
     if(!qa)window.showInactive();dialog=new BrowserWindow({parent:window,modal:true,width:440,resizable:false,minimizable:false,maximizable:false,show:false,backgroundColor:'#1b202b',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:qa}});
-    dialog.setMenu(null);secure(dialog,shellFile);dialog.loadFile(path.join(__dirname,'stopping.html'));dialog.once('ready-to-show',()=>{if(!qa)dialog.show();broadcast();});dialog.on('close',event=>{if(stopper.busy){event.preventDefault();stopper.cancel();}});
-  }broadcast();}
+    // A dialog first created in the ending state takes no focus: Quit was pressed seconds ago and the user may be in
+    // another app (R1). Its close button cancels the quit while that can work, and does nothing once the ending began.
+    dialog.setMenu(null);secure(dialog,shellFile);dialog.loadFile(path.join(__dirname,'stopping.html'));dialog.once('ready-to-show',()=>{if(!qa&&!finalExit){if(inactive)dialog.showInactive();else dialog.show();}broadcast();});
+    dialog.on('close',event=>{if(finalExit)return;event.preventDefault();if(state.stopping?.stage!=='ending')stopper.cancel();});
+  }
+  function closeDialog(){if(!dialog)return;dialog.removeAllListeners('close');if(!dialog.isDestroyed())dialog.close();dialog=null;}
+  function stoppingDialog(value){if(value.stage==='ending')return beginEnding();state.stopping=value;openDialog(false);broadcast();}
+  // The ending state (forced termination, any path): an open dialog switches in this frame; a dialog first made in it
+  // (at 1.5 s) takes no focus. The detail gains its second sentence at 10 s. The number is the engine's closure wait,
+  // and the shell exits by that wait + 1 s even if the broker never answers.
+  function beginEnding(){if(finalExit||state.stopping?.stage==='ending')return;
+    const waitSeconds=engine.closureWaitS;state.stopping={mode:'quit',stage:'ending',waitSeconds,late:false};broadcast();
+    quitTimers.push(setTimeout(()=>{if(state.stopping?.stage==='ending'){state.stopping={...state.stopping,late:true};broadcast();}},10000));
+    quitTimers.push(setTimeout(()=>{log(Error('Quit: the local service did not answer within '+waitSeconds+' s; exiting without it'));try{engine.recordLeftover();}catch(error){log(error);}exit();},(waitSeconds+1)*1000+500));
+  }
   async function poll(){if(polling||!engine?.ready)return;polling=true;try{const fresh=await engine.call('/api/shell/status');misses=0;firstMiss=null;state.service=fresh.setup?.configured?'ready':'setup';state.control=fresh.control;state.verification=fresh.verification;state.verification_engines=fresh.verification_engines;
     if(trayPause&&!fresh.control.requested)trayPause=false;
     if(trayPause&&fresh.control.phase==='paused'&&(fresh.control.gpu_released||fresh.control.error)){trayPause=false;if(!stopper.busy&&!(window.isVisible()&&window.isFocused()))notify('Comic Metadata',fresh.control.error?'Paused. GPU release not confirmed.':'Paused. Gemma released from GPU.');}
@@ -114,8 +137,8 @@ if(!locked){app.exit(0);}else{
     window.once('ready-to-show',()=>{if(!qa)window.show();});window.loadFile(path.join(__dirname,'startup.html'));
     Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&File',submenu:[{label:'&Exit',accelerator:'Ctrl+Q',click:()=>quit()}]},{label:'&Edit',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'&View',submenu:[{role:'reload'},{role:'forceReload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]}]));
     try{const icon=trayImage('processing');if(icon.isEmpty())throw Error('Tray image missing');tray=new Tray(icon);tray.on('click',show);tray.on('double-click',show);}catch(error){log(error);tray=null;}
-    engine=new Engine({resources:app.isPackaged?process.resourcesPath:path.join(__dirname,'..','build','staged'),state:stateRoot,locks:qa?qaPolicy.locks:path.join(local,'ComicsMeta','locks'),port:qa?qaPolicy.enginePort:8765,log:path.join(logFolder,'engine.log')});
-    stopper=new GracefulStop(engine);stopper.on('stage',stoppingDialog);stopper.on('finished',()=>{if(dialog){dialog.removeAllListeners('close');dialog.close();dialog=null;}state.stopping=null;broadcast();});
+    engine=new Engine({resources:app.isPackaged?process.resourcesPath:path.join(__dirname,'..','build','staged'),state:stateRoot,locks:qa?qaPolicy.locks:path.join(local,'ComicsMeta','locks'),port:qa?qaPolicy.enginePort:8765,log:path.join(logFolder,'engine.log')});if(qaPolicy?.closureWaitSeconds)engine.closureWaitS=qaPolicy.closureWaitSeconds;
+    stopper=new GracefulStop(engine);stopper.on('stage',stoppingDialog);stopper.on('finished',()=>{if(quitting)return;closeDialog();state.stopping=null;broadcast();});  // A quit keeps both until exit().
     const {autoUpdater}=require('electron-updater');
     if(qa){Object.defineProperty(autoUpdater.app,'baseCachePath',{value:qaPolicy.cache});autoUpdater.logger=null;if(autoUpdater.netSession!==session.defaultSession)autoUpdater.netSession.webRequest.onBeforeRequest({urls:['<all_urls>']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url,{feedOnly:true})}));autoUpdater.setFeedURL({provider:'generic',url:qaPolicy.feedURL,requestHeaders:{Authorization:'Bearer '+qaPolicy.feedToken}});autoUpdater.requestHeaders={Authorization:'Bearer '+qaPolicy.feedToken};}
     fs.mkdirSync(path.join(stateRoot,'work'),{recursive:true});
