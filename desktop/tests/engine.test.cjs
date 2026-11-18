@@ -36,8 +36,38 @@ test('a broker that ended on its own is closed once its port is free and its cla
   await engine.forceStop();
   assert.deepEqual(child.commands,[]);  // Nothing is asked of a broker that has already ended.
 });
-test('a dead broker stays unconfirmed while a process holding one of its claims lives',async t=>{
-  const {engine}=await deadBroker(t,[[OWNER,deadPid()],[OWNER,process.pid]]);
+// Code review v0.6.6 t2: a claim is held while its .lock byte is locked, whatever PID its name carries. A real holder
+// takes the lock the way library_lock does (file_lock, the pinned test Python).
+const {spawn}=require('node:child_process');
+const claimFile=(engine,pid,id='0123456789ab',suffix='.lock')=>path.join(engine.locks,'claims','engine-'+OWNER+'-'+pid+'-'+id+suffix);
+async function holdLock(t,file){
+  const python=process.env.COMICS_META_TEST_PYTHON;assert.ok(python,'COMICS_META_TEST_PYTHON names the pinned test Python');
+  const code='import sys;sys.path.insert(0,sys.argv[1]);import file_lock;fd=file_lock.open_lock(sys.argv[2]);assert file_lock.try_lock(fd);print("locked",flush=True);sys.stdin.read()';
+  const holder=spawn(python,['-B','-I','-c',code,path.resolve(__dirname,'..','..'),file],{windowsHide:true,stdio:['pipe','pipe','inherit']});
+  t.after(()=>{if(holder.exitCode===null)holder.kill();});
+  await new Promise((resolve,reject)=>{let out='';holder.stdout.on('data',data=>{out+=data;if(out.includes('locked'))resolve();});holder.once('exit',code=>reject(Error('Lock holder exited with '+code)));});
+  return {release:()=>new Promise(resolve=>{holder.once('exit',resolve);holder.stdin.end();})};
+}
+test('a dead broker stays unconfirmed while one of its claims is locked, even when the PID it names has ended',async t=>{
+  const pid=deadPid(),{engine}=await deadBroker(t,[[OWNER,deadPid()],[OWNER,pid]]);
+  const holder=await holdLock(t,claimFile(engine,pid));
+  try{await assert.rejects(engine.forceStop(),/closure/);}finally{await holder.release();}  // Released even on failure.
+  await engine.forceStop();  // Positive control: the same claim once its holder has let go.
+});
+test('a leftover claim whose PID now belongs to another process does not block closure while its lock is free',async t=>{
+  const {engine}=await deadBroker(t,[[OWNER,process.pid]]);  // This live process stands in for the PID's new owner.
+  await engine.forceStop();
+});
+test('a claim with no record yet counts its named PID: its claimant may not have locked it yet',async t=>{
+  const {engine}=await deadBroker(t,[]);
+  fs.writeFileSync(claimFile(engine,process.pid),'');
+  await assert.rejects(engine.forceStop(),/closure/);
+  fs.rmSync(claimFile(engine,process.pid));fs.writeFileSync(claimFile(engine,deadPid()),'');
+  await engine.forceStop();  // The same unrecorded claim whose claimant has ended.
+});
+test('a claim lock that cannot be read stays unconfirmed',async t=>{
+  const {engine}=await deadBroker(t,[[OWNER,deadPid()]]);
+  const pid=deadPid();fs.mkdirSync(claimFile(engine,pid));fs.writeFileSync(claimFile(engine,pid,undefined,'.json'),'');
   await assert.rejects(engine.forceStop(),/closure/);
 });
 test('a dead broker stays unconfirmed while its engine port is still bound, and closes once it is free',async t=>{

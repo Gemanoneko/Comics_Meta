@@ -108,9 +108,10 @@ class Engine extends EventEmitter {
     throw Error('Owned engine closure was not confirmed');
   }
   async treeEnded() {
-    // Seen within closureWaitMs: the engine port is free (the dashboard server is gone) and no process lives that
-    // holds one of this engine's library claims (every process that can change the library holds one; its name
-    // carries the holder's PID: engine-<owner>-<pid>-<id>, library_lock.acquire). Anything unreadable is not proof.
+    // Seen within closureWaitMs: the engine port is free (the dashboard server is gone) and none of this engine's
+    // library claims is still held (every process that can change the library holds one: engine-<owner>-<pid>-<id>,
+    // library_lock.acquire). A missing claims folder means no claim: it cannot be removed while a claim is held.
+    // Anything unreadable is not proof.
     if(!/^[0-9a-f]{64}$/.test(this.owner||''))return false;
     const until=performance.now()+this.closureWaitMs;
     while(true){
@@ -120,17 +121,36 @@ class Engine extends EventEmitter {
     }
   }
   claimHoldersEnded() {
-    let names;
-    try{names=fs.readdirSync(path.join(this.locks,'claims'));}catch(error){return error.code==='ENOENT';}
-    const claim=new RegExp('^engine-'+this.owner+'-(\\d+)-[0-9a-f]{12}\\.(?:lock|json)$');
-    for(const name of names){
-      const match=claim.exec(name);if(!match)continue;
-      try{process.kill(Number(match[1]),0);return false;}catch(error){if(error.code!=='ESRCH')return false;}
+    // A claim is held while its holder keeps byte 0 of <claim>.lock locked (file_lock: a mandatory byte-range lock,
+    // so reading that byte fails with EBUSY). That is the claim itself; until 0.6.7 the PID in the claim's name was
+    // asked instead, and Windows may give a dead holder's PID to another process (code review v0.6.6 t2). The lock
+    // also stays held until an ended holder's handles are closed.
+    const folder=path.join(this.locks,'claims');let names;
+    try{names=fs.readdirSync(folder);}catch(error){return error.code==='ENOENT';}
+    const claim=new RegExp('^(engine-'+this.owner+'-(\\d+)-[0-9a-f]{12})\\.(?:lock|json)$'),claims=new Map();
+    for(const name of names){const match=claim.exec(name);if(match)claims.set(match[1],Number(match[2]));}
+    for(const [stem,pid] of claims){
+      // The record is written after the lock is taken, so it is looked for first: with it, a free lock is proof.
+      // Without it, the claimant may be between creating its .lock and locking it, so its named PID counts too.
+      const recorded=fs.existsSync(path.join(folder,stem+'.json'));
+      const lock=lockState(path.join(folder,stem+'.lock'));
+      if(lock==='missing')continue;  // Released: the .lock is created first and removed first.
+      if(lock!=='free')return false;  // Held, or unreadable: not proof.
+      if(!recorded&&pidAlive(pid))return false;
     }
     return true;
   }
   portFree() {
     return new Promise(resolve=>{const probe=net.createServer();probe.once('error',()=>resolve(false));probe.listen(this.port,'127.0.0.1',()=>probe.close(()=>resolve(true)));});
   }
+}
+function lockState(file) {
+  let fd;
+  try{fd=fs.openSync(file,'r');}catch(error){return error.code==='ENOENT'?'missing':'unreadable';}
+  try{fs.readSync(fd,Buffer.alloc(1),0,1,0);return 'free';}catch(error){return error.code==='EBUSY'?'held':'unreadable';}
+  finally{fs.closeSync(fd);}
+}
+function pidAlive(pid) {
+  try{process.kill(pid,0);return true;}catch(error){return error.code!=='ESRCH';}  // Only "no such process" is proof.
 }
 module.exports={Engine};
