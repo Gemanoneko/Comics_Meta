@@ -578,8 +578,8 @@ Fields filled, nested values dropped, the nested entry removed, and which copy Y
 
 ## Apply (only after Futaba's sample and Sergei's final OK)
 
-Needs the installed app to be a version with the nested merge (the tool refuses an older engine). The `--out` folder keeps the record of every dropped nested value and removed nested copy: keep it.
+Needs the installed app to be a version with the nested merge (the tool refuses an older engine). The `--out` folder keeps the record of every dropped nested value and removed nested copy: keep it. Run it from the Comics Meta Organizer checkout once this branch is merged.
 
 ```
-"C:\Users\AnGeLZzZ\AppData\Local\Programs\comic-metadata\resources\runtime\python\python.exe" -B "I:\AI Projects\Worktrees\Comics Meta Organizer\nested-holds\tools\nested_comicinfo_merge.py" --apply "I:\AI Projects\Worktrees\Comics Meta Organizer\nested-holds\Docs\ComicsMetaOrganizer_NestedMergeDryRun_2026-11-18.json" --out "<new empty folder>"
+"%LOCALAPPDATA%\Programs\comic-metadata\resources\runtime\python\python.exe" -B tools\nested_comicinfo_merge.py --apply "Docs\ComicsMetaOrganizer_NestedMergeDryRun_2026-11-18.json" --out "<new empty folder>"
 ```

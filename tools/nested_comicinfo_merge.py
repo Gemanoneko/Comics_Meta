@@ -430,8 +430,9 @@ def summary_markdown(library, records, plan, seconds, stem):
 
 
 def apply_command(stem):
-    python = default_engine().parent / 'runtime' / 'python' / 'python.exe'
-    return '"%s" -B "%s" --apply "%s" --out "<new empty folder>"' % (python, CODE / 'tools' / 'nested_comicinfo_merge.py', stem.with_suffix('.json'))
+    """From the Comics Meta Organizer checkout, so the line stays right wherever the checkout and the plan live."""
+    return ('"%%LOCALAPPDATA%%\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe" -B '
+            'tools\\nested_comicinfo_merge.py --apply "Docs\\%s" --out "<new empty folder>"' % stem.with_suffix('.json').name)
 
 
 # Apply ----------------------------------------------------------------------------------------------------------
