@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.6.6] - 2026-11-18
+
+### Fixed
+
+- The restore race is fixed: saves and restores of the same file take turns.
+- After the engine is ended from outside, Retry and Quit work again.
+- Comics VerseDB already credited are no longer re-asked of ComicVine.
+
 ## [v0.6.5] - 2026-11-18
 
 ### Added
