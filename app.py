@@ -110,8 +110,12 @@ def db():
             -- VerseDB (2026-11-18): its API requests of the last hour (versedb.reserve).
             CREATE TABLE IF NOT EXISTS versedb_requests(timestamp REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS catalog_migrations(name TEXT PRIMARY KEY);
+            -- Nested ComicInfo (Sergei 2026-11-18, option c): comics with no ComicInfo as last read, to be read once
+            -- more by the folder scan even though unchanged (queue_nested_recheck).
+            CREATE TABLE IF NOT EXISTS nested_recheck(id INTEGER PRIMARY KEY);
         ''')
         refresh_fractional_numbers(con)
+        queue_nested_recheck(con)
     except BaseException:
         con.close()
         raise
@@ -137,6 +141,30 @@ def refresh_fractional_numbers(con):
                 if number.startswith('0.') and row['number'] == number[1:]:
                     con.execute('UPDATE comics SET number=? WHERE id=? AND number=?',
                                 (number, row['id'], row['number']))
+            con.execute('INSERT INTO catalog_migrations(name) VALUES(?)', (name,))
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+
+
+def queue_nested_recheck(con):
+    """Once per catalog: queue every CBZ row that read as having no ComicInfo for one more read.
+
+    Sergei 2026-11-18 (option c): a single nested ComicInfo.xml is now the comic's metadata when there is no root
+    copy. The folder scan reads only changed files, so rows read before this would keep showing no metadata, and a
+    plan made from them would be refused at write time ("ComicInfo changed since planning") on every pass. Only the
+    queue is filled here (SQL, no file access); the folder scan does the reads as it reaches each folder
+    (nested_recheck). Rows read after this point are read with nested ComicInfo already, so they are not queued.
+    An absent row with no metadata comes back as 'missing', so it is queued too."""
+    name = 'nested-comicinfo-recheck-v067'
+    if con.execute('SELECT 1 FROM catalog_migrations WHERE name=?', (name,)).fetchone():
+        return
+    con.execute('BEGIN IMMEDIATE')
+    try:
+        if not con.execute('SELECT 1 FROM catalog_migrations WHERE name=?', (name,)).fetchone():
+            con.execute("INSERT OR IGNORE INTO nested_recheck(id) SELECT id FROM comics WHERE path LIKE '%.cbz' AND "
+                        "(status='missing' OR (status='absent' AND COALESCE(metadata,'{}') IN ('{}','')))")
             con.execute('INSERT INTO catalog_migrations(name) VALUES(?)', (name,))
         con.commit()
     except BaseException:
@@ -177,6 +205,44 @@ def metadata_xml(raw):
         return ET.fromstring(''.join(parts))
 
 
+def nested_comicinfo(name):
+    """True for a ComicInfo.xml entry inside a folder of the archive (not the root copy)."""
+    parts = name.replace('\\', '/').split('/')
+    return len(parts) > 1 and parts[-1].lower() == 'comicinfo.xml'
+
+
+def _comicinfo_xml(archive, name):
+    if archive.getinfo(name).file_size > 2_000_000:
+        raise ValueError('Metadata exceeds the 2 MB limit.')
+    xml = metadata_xml(archive.read(name))
+    if xml.tag != 'ComicInfo':
+        raise ValueError('Unexpected metadata root.')
+    return xml
+
+
+def comicinfo_entry(archive):
+    """(entry name, parsed ComicInfo) the app reads from an open ZIP and starts a write from, or (None, None).
+
+    The root ComicInfo.xml when there is one: several root copies, or one that cannot be read, raise as before.
+    Nested ComicInfo, Sergei 2026-11-18 (option c): with no root copy, exactly one ComicInfo.xml inside a folder
+    (for example a Comixology scrape kept beside the pages) is the comic's existing metadata, so the root copy a
+    write adds starts from it. The nested copy itself is never changed. Several nested copies, or a single one that
+    cannot be read, are ignored, as they were before: the comic reads as having no ComicInfo."""
+    names = archive.namelist()
+    root = [n for n in names if n.lower() == 'comicinfo.xml']
+    if len(root) > 1:
+        raise ValueError('Multiple ComicInfo.xml entries; review before writing.')
+    if root:
+        return root[0], _comicinfo_xml(archive, root[0])
+    nested = [n for n in names if nested_comicinfo(n)]
+    if len(nested) != 1:
+        return None, None
+    try:
+        return nested[0], _comicinfo_xml(archive, nested[0])
+    except Exception:
+        return None, None  # Unreadable, oversized or not ComicInfo: ignored, as before.
+
+
 def read_metadata(path):
     path = filesystem_path(path)
     if path.suffix.lower() != '.cbz':
@@ -185,17 +251,9 @@ def read_metadata(path):
     if signature.startswith((b'7z\xbc\xaf\x27\x1c',b'Rar!')):
         return {}, 'unsupported', 'Readable RAR/7-Zip container with a .cbz filename; automatic ZIP metadata writes are unavailable.'
     with zipfile.ZipFile(path) as archive:
-        names = [n for n in archive.namelist() if n.lower() == 'comicinfo.xml']
-        if len(names) > 1:
-            raise ValueError('Multiple ComicInfo.xml entries; review before writing.')
-        if not names:
+        name, xml = comicinfo_entry(archive)
+        if name is None:
             return {}, 'missing', ''
-        if archive.getinfo(names[0]).file_size > 2_000_000:
-            raise ValueError('Metadata exceeds the 2 MB limit.')
-        raw = archive.read(names[0])
-        xml = metadata_xml(raw)
-        if xml.tag != 'ComicInfo':
-            raise ValueError('Unexpected metadata root.')
         return {n.tag: n.text or '' for n in xml if n.tag != 'Pages'}, 'embedded', ''
 
 
@@ -226,6 +284,22 @@ def reconcile_missing(con, candidates, allowed_folders=None):
                            (row['id'],row['path'],row['status'],row['size'],row['mtime'],row['seen']))
         if not result.rowcount:uncertain+=1
     return uncertain
+
+
+def nested_recheck(con, comic_id, path):
+    """read_metadata's answer for an unchanged row queued by queue_nested_recheck, when it now finds a nested-only
+    ComicInfo; else None, and the row stays as the scan found it.
+
+    The row leaves the queue once its archive was read, whatever it held. An archive that cannot be read now stays
+    queued for the next scan and keeps its row: a passing read failure never turns a comic into an error."""
+    if not con.execute('SELECT 1 FROM nested_recheck WHERE id=?', (comic_id,)).fetchone():
+        return None
+    try:
+        found = read_metadata(path)
+    except Exception:
+        return None
+    con.execute('DELETE FROM nested_recheck WHERE id=?', (comic_id,))
+    return found if found[1] == 'embedded' else None
 
 
 def scan(roots, recursive=True):
@@ -261,9 +335,13 @@ def scan(roots, recursive=True):
                                     restored_status = 'unsupported' if path.suffix.lower() != '.cbz' else 'embedded' if json.loads(old['metadata']) else 'missing'
                                     if restored_status == 'embedded' and con.execute('SELECT 1 FROM history WHERE path IN (?,?) LIMIT 1',(str(path),str(filesystem_path(path)))).fetchone():
                                         restored_status = 'tagged'
-                                con.execute('UPDATE comics SET seen=?,status=? WHERE id=?', (generation, restored_status, old['id']))
-                                continue
-                            metadata, status, error = read_metadata(path)
+                                found = nested_recheck(con, old['id'], path) if restored_status == 'missing' else None
+                                if found is None:
+                                    con.execute('UPDATE comics SET seen=?,status=? WHERE id=?', (generation, restored_status, old['id']))
+                                    continue
+                            else:
+                                found = None
+                            metadata, status, error = found or read_metadata(path)
                             series, number, year = parse_name(path)
                             series = metadata.get('Series') or series
                             number = metadata.get('Number') or number
@@ -645,7 +723,11 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             stale = sorted(key for key, value in expected.items() if (present.get(key) or '').strip() != (value or '').strip())
             if stale:
                 raise ArchiveChanged('ComicInfo changed since planning (' + ', '.join(stale) + '); nothing written.')
-        xml = metadata_xml(source.read(names[0])) if names else ET.Element('ComicInfo')
+        # The copy read_metadata read: the root one, else a single nested one (Sergei 2026-11-18, option c),
+        # which the copy loop below keeps unchanged; the archive check after it proves that.
+        _, xml = comicinfo_entry(source)
+        if xml is None:
+            xml = ET.Element('ComicInfo')
         expected_fields = {}
         written = {}  # Fields this call sets (not Notes, not values it leaves in place).
         for key, value in fields.items():
