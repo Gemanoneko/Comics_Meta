@@ -72,6 +72,19 @@ class ReadTests(Isolated):
         self.assertEqual(metadata['Summary'], 'Lobo and Deadman team up.')
         self.assertEqual(error, '')
 
+    def test_a_nested_only_none_is_blank(self):
+        # Sergei 2026-11-18 (after Futaba's sample): as in the merge, a nested "None" is blank. Before, the comic read
+        # Number "None" and the app looked up issue "None".
+        make_comic(self.path, nested=[NESTED.replace('<Number>1</Number>', '<Number>None</Number>')])
+        metadata = app.read_metadata(self.path)[0]
+        self.assertNotIn('Number', metadata)
+        self.assertEqual(metadata['Summary'], 'Lobo and Deadman team up.')
+        app.scan([str(self.folder)], recursive=False)
+        self.assertEqual(catalog_row(self.path)['number'], '1')  # The filename's number, not "None".
+        app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, verify_readback=True)
+        with zipfile.ZipFile(self.path) as archive:
+            self.assertIsNone(app.metadata_xml(archive.read('ComicInfo.xml')).find('Number'))
+
     def test_the_root_copy_wins_over_a_nested_one(self):
         make_comic(self.path, root=ROOT, nested=[NESTED])
         self.assertEqual(app.read_metadata(self.path), ({'Series': 'Root Series'}, 'embedded', ''))
@@ -202,8 +215,62 @@ class MergeTests(Isolated):
                          {k: v for k, v in before.items() if k.lower() not in ('comicinfo.xml', (FOLDER + 'ComicInfo.xml').lower())})
         with app.db() as con:
             source, writer, fields = con.execute('SELECT h.source, l.writer, l.fields FROM history h JOIN write_ledger l ON l.history_id=h.id').fetchone()
-        self.assertEqual((source, writer), ('nested-comicinfo-merge', 'manual'))
-        self.assertEqual(json.loads(fields), {'Number': '1', 'Summary': 'Lobo and Deadman team up.', 'Genre': 'Superhero', 'Volume': '1995'})
+        self.assertEqual((source, writer), ('nested-comicinfo-merge', 'manual'))  # The writer is the caller's choice.
+        # Volume 1995 is a year, so it is not copied (Futaba F4).
+        self.assertEqual(json.loads(fields), {'Number': '1', 'Summary': 'Lobo and Deadman team up.', 'Genre': 'Superhero'})
+
+    def test_a_nested_none_is_blank(self):
+        # Sergei 2026-11-18: some scrapers write the text "None" for a missing value.
+        make_comic(self.path, root='<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                   nested=[NESTED.replace('<Number>1</Number>', '<Number>None</Number>')])
+        app.scan([str(self.folder)], recursive=False)
+        self.merge(tags=['Summary', 'Genre'])  # Before: Number "None" was filled, outside the plan.
+        self.assertNotIn('Number', app.read_metadata(self.path)[0])
+
+    def merged(self, root, nested, tags):
+        """The root copy after a merge of `nested` into `root`, planned for `tags`."""
+        make_comic(self.path, root=root, nested=[nested])
+        app.scan([str(self.folder)], recursive=False)
+        self.merge(tags=tags)
+        with zipfile.ZipFile(self.path) as archive:
+            self.assertEqual([n for n in archive.namelist() if n.lower().endswith('comicinfo.xml')], ['ComicInfo.xml'])
+            return app.metadata_xml(archive.read('ComicInfo.xml'))
+
+    def test_nested_dates_are_never_copied_even_into_a_root_with_no_date(self):
+        # Futaba F1, Sergei 2026-11-18: nested dates are store dates; the app fills cover dates later.
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                           NESTED.replace('</ComicInfo>', '<Year>2022</Year><Month>6</Month><Day>28</Day></ComicInfo>'),
+                           ['Number', 'Summary', 'Genre'])  # Before: Year, Month and Day were filled, outside the plan.
+        self.assertEqual([root.find(p) for p in ('Year', 'Month', 'Day')], [None, None, None])
+        self.assertEqual(root.findtext('Summary'), 'Lobo and Deadman team up.')
+
+    def test_nested_pagecount_is_never_copied(self):
+        # Futaba F2: the nested count often disagrees with the archive; the app never writes PageCount.
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                           NESTED.replace('</ComicInfo>', '<PageCount>91</PageCount></ComicInfo>'), ['Number', 'Summary', 'Genre'])
+        self.assertIsNone(root.find('PageCount'))
+
+    def test_a_letter_case_twin_is_never_copied(self):
+        # Futaba F3: `writer` beside a `Writer` in the root or in the nested copy.
+        root = self.merged('<ComicInfo><Series>Root Series</Series><Writer>Alan Grant</Writer></ComicInfo>',
+                           NESTED.replace('</ComicInfo>', '<writer>Alan Grant</writer></ComicInfo>'), ['Number', 'Summary', 'Genre'])
+        self.assertEqual([e.tag for e in root if e.tag.lower() == 'writer'], ['Writer'])
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                           NESTED.replace('</ComicInfo>', '<writer>A</writer><Writer>Alan Grant</Writer></ComicInfo>'),
+                           ['Number', 'Summary', 'Genre', 'Writer'])  # The schema's spelling is kept.
+        self.assertEqual([(e.tag, e.text) for e in root if e.tag.lower() == 'writer'], [('Writer', 'Alan Grant')])
+        # Positive control: an odd tag with no twin is copied as it is.
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>',
+                           NESTED.replace('</ComicInfo>', '<Artist>Ernie Chan</Artist></ComicInfo>'), ['Number', 'Summary', 'Genre', 'Artist'])
+        self.assertEqual(root.findtext('Artist'), 'Ernie Chan')
+
+    def test_a_nested_volume_that_is_a_year_is_never_copied(self):
+        # Futaba F4: the app's Volume is the volume number.
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>', NESTED, ['Number', 'Summary', 'Genre'])
+        self.assertIsNone(root.find('Volume'))  # Before: Volume 1995 was filled, outside the plan.
+        root = self.merged('<ComicInfo><Series>Root Series</Series></ComicInfo>', NESTED.replace('<Volume>1995<', '<Volume>2<'),
+                           ['Number', 'Summary', 'Genre', 'Volume'])
+        self.assertEqual(root.findtext('Volume'), '2')  # Positive control: a volume number is copied.
 
     def test_a_nested_copy_changed_since_planning_is_refused_before_any_backup(self):
         make_comic(self.path, root=ROOT, nested=[NESTED])
@@ -219,8 +286,8 @@ class MergeTests(Isolated):
         make_comic(self.path, root=ROOT, nested=[NESTED])
         app.scan([str(self.folder)], recursive=False)
         original = self.path.read_bytes()
-        with self.assertRaisesRegex(app.ArchiveChanged, 'not planned \\(Volume\\)'):
-            self.merge(tags=['Number', 'Summary', 'Genre'])
+        with self.assertRaisesRegex(app.ArchiveChanged, 'not planned \\(Genre\\)'):
+            self.merge(tags=['Number', 'Summary'])
         self.assertEqual(self.path.read_bytes(), original)
 
     def test_several_nested_copies_or_no_root_copy_are_refused(self):

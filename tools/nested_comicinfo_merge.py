@@ -11,12 +11,15 @@ moves it to the root at its next write.)
 
 The merge is the app's own (app.merge_comicinfo): fill-empty, element by element. Every tag the nested copy fills and
 the root copy does not is copied (repeated tags, Pages and other structured elements included); where both fill a
-tag the root copy wins and the nested value is dropped. Each dropped nested value is listed. Then the nested entry is
-removed, so the archive keeps one ComicInfo.
+tag the root copy wins and the nested value is dropped; a nested "None" is blank. Then the nested entry is removed,
+so the archive keeps one ComicInfo. Sergei's rulings (2026-11-18): copies that name a different Series or Number are
+merged too (the root's Series and Number stay, as fill-empty already does; the dry run lists them). After Futaba's
+sample the merge never copies a nested Year, Month or Day (store dates; the app fills cover dates), PageCount (it
+disagrees with the archive; the app never writes PageCount), a tag that is another tag's letter-case twin (`writer`
+beside `Writer`) or a Volume that is a four-digit year (app.nested_left_out). Each dropped nested value is listed
+with the root value kept and why.
 
-Held for Sergei, never planned: the two copies name a different Series or Number; the merge would put a nested
-Month or Day beside a root date that disagrees with the nested one (pure fill-empty would mix two dates); either
-copy cannot be read (removing an unreadable nested copy would lose it).
+Held, never planned: a copy that cannot be read (removing an unreadable nested copy would lose it).
 
 The dry run reads the library with read-only handles that let other programs rename, replace or delete the file
 meanwhile; it skips the app's backup, conversion-staging and YACReader folders and any archive the app is writing
@@ -31,15 +34,30 @@ same library claim as the running app and the same per-archive write lock as its
 archive against the catalog's signature, the nested entry's name, CRC and size and the root fields the plan relies
 on before any backup; keeps a backup; rewrites through a temporary archive; proves every other entry unchanged with
 exactly the nested entry gone; reads the result back; and records history and the write ledger with writer
-'manual', so the app treats the values as Sergei's and never replaces them. The app may keep running: a pause stops
+'automatic' and source 'nested-comicinfo-merge'. Not 'manual' (Sergei 2026-11-18): a manual write marks every value
+in the comic as Sergei's, which would also freeze the in-book values the app wrote there earlier. Recorded as an
+automatic write from a source other than the in-book tier, the merged values count like any other program's existing
+metadata, and the app's own earlier in-book values in that comic stay correctable (provenance.in_book_values). The
+app replaces only values its in-book tier wrote, so the merged values themselves are not replaced by later lookups,
+exactly as for metadata that came with the file. The app may keep running: a pause stops
 only the worker, not the dashboard, so the locks are needed either way, and a comic the worker planned before this
 write is refused by its own signature check and planned again. An archive is written only while it still matches
-the plan (the same fields filled, the same nested values dropped); anything else is skipped and listed. Backups are
-kept. Results go to <out>/results.jsonl and <out>/summary.json.
+the plan (the same fields filled, the same nested values dropped); anything else is skipped and listed.
+
+Backups (Sergei 2026-11-18, Y: is 99% full): each archive's backup is deleted right after its write is verified, as
+the app's own Approve does it: under the comic's write lock, the original's SHA-256 is taken before the write; after
+it, the written archive is re-read in full (every entry decompressed and checked against its CRC, page images
+included), every entry but ComicInfo must equal the backup's in name, CRC, size and order with exactly the nested
+entry gone, and the root copy must hold the merged values and every root value unchanged. Only then are the dropped
+nested values (<out>/dropped-nested-values.csv) and the whole removed nested copy (<out>/removed-nested-copies.jsonl)
+appended and flushed to disk, and app.remove_verified_backup deletes the backup once its SHA-256 equals the
+original's. A failed check keeps the backup and stops the run. Results go to <out>/results.jsonl and
+<out>/summary.json.
 """
 import argparse
 import copy
 import csv
+import hashlib
 import inspect as introspect
 import json
 import os
@@ -53,10 +71,11 @@ from pathlib import Path
 
 CODE = Path(__file__).resolve().parents[1]
 PLAN_KIND = 'nested-comicinfo-merge'
-PLAN_VERSION = 2
+PLAN_VERSION = 4
 SKIP_DIRS = {'.yacreaderlibrary', '.comic-metadata-backups'}
 DATE = ('Year', 'Month', 'Day')
 HISTORY_SOURCE = 'nested-comicinfo-merge'
+WRITER = 'automatic'
 _kernel = None
 
 
@@ -129,11 +148,6 @@ def number_key(value):
         return value.casefold()
 
 
-def date_key(value):
-    value = text(value)
-    return str(int(value)) if value.isdigit() else value
-
-
 def element_key(element):
     """An element's content, spacing collapsed: two copies that say the same thing compare equal."""
     return (element.tag, sorted(element.attrib.items()), text(element.text), [element_key(c) for c in element])
@@ -147,34 +161,34 @@ def describe(elements):
 
 
 def plan_merge(app, root, nested):
-    """(fills, dropped, hold) for one archive, from the app's own merge on a copy of the root.
+    """What the app's own merge does to one archive, on a copy of the root.
 
-    fills: {tag: value} the merge copies into the root copy; dropped: {tag: nested value} both copies fill
-    differently (the root value stays and the nested one goes with the nested entry); hold: a reason the archive is
-    held for Sergei, or ''."""
-    merged = copy.deepcopy(root)
-    tags = app.merge_comicinfo(merged, nested)
-    fills = {tag: describe([e for e in nested if e.tag == tag]) for tag in tags}
+    fills: {tag: value} copied into the root copy. dropped: {tag: {nested, root, why}}, each nested value that goes
+    with the nested entry and is not already in the root: why is the app's own rule from nested_left_out (a nested
+    date, PageCount, a letter-case twin, a Volume that is a year) or 'root wins' (both fill the tag differently).
+    notes: the copies name a different Series or Number (merged anyway; the root's stay). nested_none: tags the
+    nested copy holds as "None" (blank)."""
+    tags = app.merge_comicinfo(copy.deepcopy(root), nested)
+    fills = {tag: describe([e for e in nested if e.tag == tag and app.nested_donor(e)]) for tag in tags}
     dropped = {}
     for tag in dict.fromkeys(child.tag for child in nested):
-        if tag in tags:
+        donors = [e for e in nested if e.tag == tag and app.nested_donor(e)]
+        if tag in tags or not donors:
             continue
-        donors = [e for e in nested if e.tag == tag and app.comicinfo_filled(e)]
         current = [e for e in root if e.tag == tag and app.comicinfo_filled(e)]
-        if donors and current and [element_key(e) for e in donors] != [element_key(e) for e in current]:
-            dropped[tag] = describe(donors)
-    holds = []
+        if current and [element_key(e) for e in donors] == [element_key(e) for e in current]:
+            continue  # The root says the same thing: nothing is lost.
+        why = app.nested_left_out(tag, root, nested) or 'root wins'
+        dropped[tag] = {'nested': describe(donors), 'root': describe(current) if current else '', 'why': why}
+    notes = []
     root_series, nested_series = root.findtext('Series'), nested.findtext('Series')
     root_number, nested_number = root.findtext('Number'), nested.findtext('Number')
-    if text(root_series) and text(nested_series) and series_key(root_series) != series_key(nested_series):
-        holds.append('the copies name a different Series')
-    if text(root_number) and text(nested_number) and number_key(root_number) != number_key(nested_number):
-        holds.append('the copies name a different Number')
-    if any(part in tags for part in DATE):
-        both = [p for p in DATE if text(root.findtext(p)) and text(nested.findtext(p))]
-        if any(date_key(root.findtext(p)) != date_key(nested.findtext(p)) for p in both):
-            holds.append('the merge would add a nested date part to a root date that differs')
-    return fills, dropped, '; '.join(holds)
+    if text(root_series) and text(nested_series) and text(nested_series) != 'None' and series_key(root_series) != series_key(nested_series):
+        notes.append('Series named differently')
+    if text(root_number) and text(nested_number) and text(nested_number) != 'None' and number_key(root_number) != number_key(nested_number):
+        notes.append('Number named differently')
+    nested_none = [e.tag for e in nested if app.comicinfo_filled(e) and not app.nested_donor(e)]
+    return {'fills': fills, 'dropped': dropped, 'notes': notes, 'nested_none': nested_none}
 
 
 def inspect(app, path):
@@ -215,7 +229,8 @@ def inspect(app, path):
                 record['root_is_last_entry'] = bool(roots) and infos[-1].filename == roots[0]
             if record['layout'] == 'nested_only':
                 try:
-                    parse(app, archive, nested[0].filename)
+                    only = parse(app, archive, nested[0].filename)
+                    record['nested_none'] = [e.tag for e in only if not len(e) and not e.attrib and text(e.text) == 'None']
                 except Exception as exc:
                     record['nested_error'] = str(exc)[:200] or type(exc).__name__
             if record['layout'] != 'root_and_nested':
@@ -226,14 +241,15 @@ def inspect(app, path):
             except Exception as exc:
                 record['action'], record['reason'] = 'hold', 'root copy unreadable: ' + (str(exc)[:200] or type(exc).__name__)
                 return record
+            # Futaba F5: recorded before the nested copy is read, so a held archive still names its root.
+            record['root_fields'] = {tag: root_xml.findtext(tag) or '' for tag in ('Series', 'Number') + DATE}
             try:
                 nested_xml = parse(app, archive, nested[0].filename)
             except Exception as exc:
                 record['action'], record['reason'] = 'hold', 'nested copy unreadable: ' + (str(exc)[:200] or type(exc).__name__)
+                record['nested_series'] = record['nested_number'] = '(unreadable)'
                 return record
-    fills, dropped, hold = plan_merge(app, root_xml, nested_xml)
-    record.update(fills=fills, dropped=dropped, action='hold' if hold else 'merge', reason=hold,
-                  root_fields={tag: root_xml.findtext(tag) or '' for tag in ('Series', 'Number') + DATE},
+    record.update(plan_merge(app, root_xml, nested_xml), action='merge', reason='',
                   nested_series=text(nested_xml.findtext('Series')), nested_number=text(nested_xml.findtext('Number')))
     return record
 
@@ -293,14 +309,16 @@ def write_outputs(library, records, report, seconds):
     stem.with_suffix('.json').write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding='utf-8')
     with open(stem.with_suffix('.csv'), 'w', encoding='utf-8-sig', newline='') as handle:
         writer = csv.writer(handle)
-        writer.writerow(['archive', 'action', 'change', 'field', 'value', 'nested entry removed', 'first in ZIP order'])
+        writer.writerow(['archive', 'action', 'change', 'field', 'nested value', 'root value kept', 'nested entry removed',
+                         'first in ZIP order', 'notes'])
         for record in plan['entries']:
             name = relative(library, record['path'])
             removed = (record.get('remove') or {}).get('name', '') if record.get('action') == 'merge' else ''
-            rows = [('fill', f, v) for f, v in (record.get('fills') or {}).items()]
-            rows += [('nested value dropped (root wins)', f, v) for f, v in (record.get('dropped') or {}).items()]
-            for change, field, value in rows or [('nothing to fill', '', '')]:
-                writer.writerow([name, record.get('action'), change, field, value, removed, record.get('first_in_zip')])
+            rows = [('fill', f, v, '') for f, v in (record.get('fills') or {}).items()]
+            rows += [('nested value dropped (%s)' % d['why'], f, d['nested'], d['root']) for f, d in (record.get('dropped') or {}).items()]
+            notes = '; '.join(record.get('notes') or []) or record.get('reason') or ''
+            for change, field, value, kept in rows or [('nothing to fill', '', '', '')]:
+                writer.writerow([name, record.get('action'), change, field, value, kept, removed, record.get('first_in_zip'), notes])
     report.write_text(summary_markdown(library, records, plan, seconds, stem), encoding='utf-8')
 
 
@@ -310,12 +328,17 @@ def summary_markdown(library, records, plan, seconds, stem):
     planned = [r for r in merge if r.get('action') == 'merge']
     holds = [r for r in merge if r.get('action') == 'hold']
     fields = Counter(f for r in planned for f in r['fills'])
-    dropped = Counter(f for r in planned for f in r.get('dropped', {}))
+    dropped = Counter((f, d['why']) for r in planned for f, d in r.get('dropped', {}).items())
     first = Counter((r.get('layout'), r.get('first_in_zip')) for r in records if r.get('first_in_zip'))
     order_split = [r for r in records if r.get('first_in_zip') and r.get('first_in_zip') != r.get('first_by_offset')]
     nested_only = [r for r in records if r.get('layout') == 'nested_only']
     unreadable_nested = [r for r in nested_only if r.get('nested_error')]
-    backup_bytes = sum(r['size'] for r in planned)
+    renamed = [r for r in planned if r.get('notes')]
+    rules = Counter(d['why'] for r in planned for d in r.get('dropped', {}).values() if d['why'] != 'root wins')
+    rule_archives = Counter(why for r in planned for why in {d['why'] for d in r.get('dropped', {}).values()} if why != 'root wins')
+    none_merge = Counter(t for r in merge for t in r.get('nested_none') or [])
+    none_only = Counter(t for r in nested_only for t in r.get('nested_none') or [])
+    largest = max([r['size'] for r in planned] or [0])
     names = {'none': 'No ComicInfo', 'root_only': 'Root copy only',
              'nested_only': 'One nested copy, no root (Part 1: read, moved to the root at the next write)',
              'several_nested': 'Several nested copies, no root (ignored, kept)', 'root_and_nested': 'Root + one nested (this merge)',
@@ -330,7 +353,13 @@ def summary_markdown(library, records, plan, seconds, stem):
              'Beside this file: `%s.csv` (one row per field filled or nested value dropped, with the value, and the nested '
              'entry removed) and `%s.json` (the plan the apply mode takes).' % (stem.name, stem.name), '',
              'Rule: fill-empty from the nested copy into the root copy, element by element (the app\'s `merge_comicinfo`); '
-             'where both copies hold a value the root wins; then the nested entry is removed, so one ComicInfo remains.', '',
+             'where both copies hold a value the root wins; a nested "None" is blank; then the nested entry is removed, so '
+             'one ComicInfo remains. Sergei\'s rulings (2026-11-18): copies naming a different Series or Number are merged '
+             '(the root\'s stay); after Futaba\'s sample the merge never copies a nested Year, Month or Day, PageCount, a '
+             'tag that is another tag\'s letter-case twin (`writer` beside `Writer`) or a Volume that is a four-digit year; '
+             'the merged values are recorded as an automatic write from source `nested-comicinfo-merge`, not as Sergei\'s; '
+             'each backup is deleted once its archive is re-read and verified, after the dropped nested values and the '
+             'whole nested copy are saved in the apply\'s `--out` folder.', '',
              '## Library', '', '| Layout | Archives |', '|---|---:|']
     lines += ['| %s | %d |' % (names[key], layouts[key]) for key in names if layouts.get(key)]
     lines += ['| **CBZ files** | **%d** |' % len(records), '',
@@ -340,15 +369,22 @@ def summary_markdown(library, records, plan, seconds, stem):
               '| Merge, then remove the nested entry | %d |' % len(planned),
               '| - of which fill at least one field | %d |' % sum(1 for r in planned if r['fills']),
               '| - of which fill nothing (the root holds it all; only the nested entry goes) | %d |' % sum(1 for r in planned if not r['fills']),
-              '| Held for Sergei (see below) | %d |' % len(holds), '',
-              'Fields filled in all: %d. Nested values dropped because the root holds another value: %d, in %d archives. '
-              'Backups the apply keeps: %.1f GB (one full copy of each archive written).'
+              '| - of which the copies name a different Series or Number (the root\'s stay) | %d |' % len(renamed),
+              '| Held (see below) | %d |' % len(holds), '',
+              '### Nested values the merge never copies (values / archives)', '', '| Rule | Values | Archives |', '|---|---:|---:|']
+    lines += ['| %s | %d | %d |' % (why, n, rule_archives[why]) for why, n in rules.most_common()] or ['| (none) | 0 | 0 |']
+    lines += ['',
+              'Fields filled in all: %d. Nested values dropped: %d, in %d archives (each saved to the apply\'s '
+              '`dropped-nested-values.csv`, and every removed nested copy whole to `removed-nested-copies.jsonl`, before '
+              'its backup is deleted). Backups: one at a time, deleted after verification; the largest archive is %.2f GB.'
               % (sum(len(r['fills']) for r in planned), sum(len(r.get('dropped', {})) for r in planned),
-                 sum(1 for r in planned if r.get('dropped')), backup_bytes / 1e9), '',
+                 sum(1 for r in planned if r.get('dropped')), largest / 1e9), '',
+              'Nested "None" values (blank): %s in the merge set; %s in nested-only copies (Part 1 reads those as blank '
+              'too).' % (dict(none_merge) or 'none', dict(none_only) or 'none'), '',
               '### Fields filled, per type (archives)', '', '| Field | Archives |', '|---|---:|']
     lines += ['| %s | %d |' % item for item in fields.most_common()] or ['| (none) | 0 |']
-    lines += ['', '### Nested values dropped (the root holds a different value), per type', '', '| Field | Archives |', '|---|---:|']
-    lines += ['| %s | %d |' % item for item in dropped.most_common()] or ['| (none) | 0 |']
+    lines += ['', '### Nested values dropped, per type', '', '| Field | Why | Archives |', '|---|---|---:|']
+    lines += ['| %s | %s | %d |' % (f, why, n) for (f, why), n in dropped.most_common()] or ['| (none) | | 0 |']
     lines += ['', '## ZIP order (YACReader reads the first ComicInfo.xml in ZIP order, at any depth)', '',
               '| Layout | First copy in ZIP order | Archives |', '|---|---|---:|']
     for (layout, which), n in sorted(first.items()):
@@ -356,13 +392,17 @@ def summary_markdown(library, records, plan, seconds, stem):
             lines.append('| %s | %s | %d |' % (names[layout], which, n))
     lines += ['', 'Merge set: the root copy is the last entry of the archive in %d of %d (the app always writes its copy last).'
               % (sum(1 for r in merge if r.get('root_is_last_entry')), len(merge)),
-              'Central-directory order and local-header order disagree on the first copy in %d archive(s).' % len(order_split),
-              '', '## Held archives', '']
-    lines += ['- `%s`: %s. Root: %s #%s, %s; nested: %s #%s.' % (
-        relative(library, r['path']), r.get('reason'), text((r.get('root_fields') or {}).get('Series')) or '-',
-        text((r.get('root_fields') or {}).get('Number')) or '-',
-        '-'.join(text((r.get('root_fields') or {}).get(p)) for p in DATE if text((r.get('root_fields') or {}).get(p))) or 'no date',
-        r.get('nested_series') or '-', r.get('nested_number') or '-') for r in holds] or ['(none)']
+              'Central-directory order and local-header order disagree on the first copy in %d archive(s).' % len(order_split)]
+
+    def identity(r):
+        root = r.get('root_fields') or {}
+        date = '-'.join(text(root.get(p)) for p in DATE if text(root.get(p))) or 'no date'
+        return 'root: %s #%s, %s; nested: %s #%s' % (text(root.get('Series')) or '-', text(root.get('Number')) or '-', date,
+                                                     r.get('nested_series') or '-', r.get('nested_number') or '-')
+    lines += ['', '## Merged although the copies name a different Series or Number (the root\'s stay)', '']
+    lines += ['- `%s`: %s; %s.' % (relative(library, r['path']), ', '.join(r['notes']), identity(r)) for r in renamed] or ['(none)']
+    lines += ['', '## Held archives', '']
+    lines += ['- `%s`: %s; %s.' % (relative(library, r['path']), r.get('reason'), identity(r)) for r in holds] or ['(none)']
     odd = [r for r in records if r.get('layout') in ('unreadable', 'several_root', 'root_and_several_nested', 'several_nested')]
     odd += [r for r in nested_only if r.get('nested_error')]
     lines += ['', '## Other oddities', '']
@@ -379,22 +419,101 @@ def summary_markdown(library, records, plan, seconds, stem):
             cell(', '.join(r.get('dropped') or {}) or '-'),
             cell((r.get('remove') or {}).get('name')) if r.get('action') == 'merge' else '- (held)', r.get('first_in_zip') or '-'))
     lines += ['', '## Apply (only after Futaba\'s sample and Sergei\'s final OK)', '',
-              'Needs the installed app to be a version with the nested merge (the tool refuses an older engine).', '',
+              'Needs the installed app to be a version with the nested merge (the tool refuses an older engine). The '
+              '`--out` folder keeps the record of every dropped nested value and removed nested copy: keep it.', '',
               '```', apply_command(stem), '```', '']
     return '\n'.join(lines)
 
 
 def apply_command(stem):
-    python = default_engine().parent / 'runtime' / 'python' / 'python.exe'
-    return '"%s" -B "%s" --apply "%s" --out "<new empty folder>"' % (python, CODE / 'tools' / 'nested_comicinfo_merge.py', stem.with_suffix('.json'))
+    """From the Comics Meta Organizer checkout, so the line stays right wherever the checkout and the plan live."""
+    return ('"%%LOCALAPPDATA%%\\Programs\\comic-metadata\\resources\\runtime\\python\\python.exe" -B '
+            'tools\\nested_comicinfo_merge.py --apply "Docs\\%s" --out "<new empty folder>"' % stem.with_suffix('.json').name)
 
 
 # Apply ----------------------------------------------------------------------------------------------------------
 
-def merge(app, entry, current):
-    """Option d: the app's write path fills the root copy from the nested one and removes the nested entry.
+PLAN_KEYS = ('fills', 'dropped', 'remove')
+
+
+def sha256(app, path):
+    with open(app.filesystem_path(path), 'rb') as handle:
+        return hashlib.file_digest(handle, 'sha256').hexdigest()
+
+
+def verify_written(app, entry, backup):
+    """None when the written archive passes, else why not. Re-reads the whole archive: every entry is decompressed and
+    checked against its CRC (page images included); every entry but ComicInfo equals the backup's in name, CRC, size
+    and order, with exactly the planned nested entry gone; the one ComicInfo left holds each merged element as the
+    nested copy had it and every value the root copy held before, unchanged."""
+    removed = entry['remove']
+    with zipfile.ZipFile(app.filesystem_path(entry['path'])) as written, zipfile.ZipFile(app.filesystem_path(backup)) as original:
+        bad = written.testzip()
+        if bad is not None:
+            return 'an entry fails its CRC check: ' + bad
+        copies = [i.filename for i in written.infolist() if is_comicinfo(i.filename)]
+        if copies != ['ComicInfo.xml']:
+            return 'ComicInfo entries after the write: ' + ', '.join(copies)
+        entries = [(i.filename, i.CRC, i.file_size) for i in original.infolist() if not is_root(i.filename)]
+        if entries.count((removed['name'], removed['crc'], removed['size'])) != 1:
+            return 'the backup does not hold the planned nested entry'
+        before = [item for item in entries if item[0] != removed['name']]
+        after = [(i.filename, i.CRC, i.file_size) for i in written.infolist() if not is_root(i.filename)]
+        if before != after:
+            return 'entries other than ComicInfo changed'
+        root = app.metadata_xml(written.read('ComicInfo.xml'))
+        nested = app.metadata_xml(original.read(removed['name']))
+        old_root = app.metadata_xml(original.read(next(i.filename for i in original.infolist() if is_root(i.filename))))
+    for tag in entry['fills']:
+        if [element_key(e) for e in root if e.tag == tag] != [element_key(e) for e in nested if e.tag == tag and app.nested_donor(e)]:
+            return 'merged value not as the nested copy had it: ' + tag
+    for tag in dict.fromkeys(e.tag for e in old_root if app.comicinfo_filled(e)):
+        if [element_key(e) for e in root if e.tag == tag] != [element_key(e) for e in old_root if e.tag == tag]:
+            return 'a root value changed: ' + tag
+    return None
+
+
+def save_record(app, out, entry, backup):
+    """Before its backup goes: each dropped nested value, and the whole nested copy as it was, flushed to disk."""
+    import base64
+    with zipfile.ZipFile(app.filesystem_path(backup)) as original:
+        raw = original.read(entry['remove']['name'])
+    values = out / 'dropped-nested-values.csv'
+    new = not values.exists()
+    with open(values, 'a', encoding='utf-8-sig' if new else 'utf-8', newline='') as handle:
+        writer = csv.writer(handle)
+        if new:
+            writer.writerow(['archive', 'nested entry', 'field', 'nested value', 'root value kept', 'why'])
+        for field, dropped in entry['dropped'].items():
+            writer.writerow([entry['path'], entry['remove']['name'], field, dropped['nested'], dropped['root'], dropped['why']])
+        handle.flush()
+        os.fsync(handle.fileno())
+    with open(out / 'removed-nested-copies.jsonl', 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps({'archive': entry['path'], 'entry': entry['remove']['name'], 'crc': entry['remove']['crc'],
+                                 'size': entry['remove']['size'], 'xml_base64': base64.b64encode(raw).decode('ascii'),
+                                 'xml': raw.decode('utf-8', 'replace')}, ensure_ascii=False) + '\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def discard_unused_backup(app, entry, attempt, original):
+    """After a failed write: the backup it made goes only while the archive is still exactly the original."""
+    backup = attempt.get('backup')
+    if not backup:
+        return {}
+    try:
+        if sha256(app, entry['path']) != original:
+            return {'backup': backup, 'backup_removed': False, 'note': 'the archive differs from the original: backup kept'}
+        app.remove_verified_backup(entry['path'], backup, original)
+        return {'backup': backup, 'backup_removed': True}
+    except Exception as exc:
+        return {'backup': backup, 'backup_removed': False, 'note': 'backup kept: ' + (str(exc)[:200] or type(exc).__name__)}
+
+
+def merge(app, entry, current, out):
+    """Option d through the app's write path, then the backup's removal once the result is verified.
     Returns (outcome, details)."""
-    if (current.get('fills'), current.get('dropped'), current.get('remove')) != (entry.get('fills'), entry.get('dropped'), entry.get('remove')):
+    if tuple(current.get(key) for key in PLAN_KEYS) != tuple(entry.get(key) for key in PLAN_KEYS):
         return 'skipped', {'reason': 'changed since the dry run; run the dry run again'}
     with app.db() as con:
         row = con.execute('SELECT * FROM comics WHERE path=?', (entry['path'],)).fetchone()
@@ -404,19 +523,44 @@ def merge(app, entry, current):
     # What the plan relied on in the root copy, checked again under the write lock before any backup.
     expected = dict(entry['root_fields'])
     expected.update({tag: '' for tag in entry['fills'] if tag != 'Pages'})
+    merge_nested = dict(entry['remove'], tags=list(entry['fills']))
     try:
-        backup = app.write_metadata(row, {}, merge_nested=dict(entry['remove'], tags=list(entry['fills'])), expected=expected,
-                                    history_source=HISTORY_SOURCE, writer='manual', verify_readback=True, attempt=attempt)
+        guard = app.comic_write_guard(entry['path'])
+        guard.__enter__()
     except app.ArchiveChanged as exc:
         return 'skipped', {'reason': str(exc)}
-    except Exception as exc:
+    try:
+        # As the app's Approve: under the comic's write lock, the original's hash, then the write, then the checks.
+        original = sha256(app, entry['path'])
         try:
-            stat = os.stat(app.filesystem_path(entry['path']))
-            changed = (stat.st_size, stat.st_mtime_ns) != (row['size'], row['mtime'])
-        except OSError:
-            changed = True
-        return 'stopped' if changed else 'failed', {'reason': str(exc)[:500] or type(exc).__name__, 'backup': attempt.get('backup')}
-    return 'written', {'fields': list(entry['fills']), 'removed': entry['remove']['name'], 'backup': backup}
+            # Writer 'automatic' (Sergei 2026-11-18): not Sergei's values, and the comic's earlier in-book values stay
+            # correctable (a 'manual' write would make every value in the comic his; see the module docstring).
+            backup = app.write_metadata(row, {}, merge_nested=merge_nested, expected=expected, history_source=HISTORY_SOURCE,
+                                        writer=WRITER, verify_readback=True, attempt=attempt, guard_held=True)
+        except app.ArchiveChanged as exc:
+            return 'skipped', dict({'reason': str(exc)}, **discard_unused_backup(app, entry, attempt, original))
+        except Exception as exc:
+            reason = str(exc)[:500] or type(exc).__name__
+            try:
+                unchanged = sha256(app, entry['path']) == original
+            except OSError:
+                unchanged = False
+            if not unchanged:
+                return 'stopped', {'reason': reason, 'backup': attempt.get('backup'), 'backup_removed': False}
+            return 'failed', dict({'reason': reason}, **discard_unused_backup(app, entry, attempt, original))
+        details = {'fields': list(entry['fills']),
+                   'removed': entry['remove']['name'], 'backup': backup, 'backup_removed': False}
+        problem = verify_written(app, entry, backup)
+        if problem:
+            return 'stopped', dict(details, reason='the written archive failed its check: ' + problem)
+        save_record(app, out, entry, backup)
+        try:
+            app.remove_verified_backup(entry['path'], backup, original)
+        except Exception as exc:
+            return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__))
+        return 'written', dict(details, backup_removed=True)
+    finally:
+        guard.__exit__(None, None, None)
 
 
 ACTIONS = {'merge': merge}
@@ -439,7 +583,8 @@ def apply(plan_path, out, engine, live):
     import app
     if Path(os.path.abspath(app.STATE_ROOT)) != Path(os.path.abspath(live)) or Path(app.__file__).resolve().parent != Path(engine).resolve():
         raise SystemExit('The app modules did not load from the engine and live state given.')
-    if not hasattr(app, 'merge_comicinfo') or 'merge_nested' not in introspect.signature(app.write_metadata).parameters:
+    if (not hasattr(app, 'nested_left_out') or not hasattr(app, 'nested_donor')
+            or 'merge_nested' not in introspect.signature(app.write_metadata).parameters):
         raise SystemExit('This app version has no nested merge. Install the version that has it, then apply.')
     import library_lock
     if library_lock.identity(app.live_root() or '') != library_lock.identity(plan['library']):
@@ -462,7 +607,7 @@ def apply(plan_path, out, engine, live):
                 if current.get('layout') != 'root_and_nested' or current.get('action') != entry['action']:
                     outcome, details = 'skipped', {'reason': 'no longer one root and one nested copy, or now held'}
                 else:
-                    outcome, details = action(app, entry, current)
+                    outcome, details = action(app, entry, current, out)
             counts[outcome] += 1
             results.write(json.dumps({'path': entry['path'], 'action': entry['action'], 'outcome': outcome, **details},
                                      ensure_ascii=False) + '\n')
