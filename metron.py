@@ -261,6 +261,12 @@ ONE_ISSUE_TYPES = {'One-Shot', 'Graphic Novel', 'Trade Paperback', 'Hardcover', 
 # A number, volume, book, part or chapter anywhere in the name: the book is not plainly unnumbered. An underscore
 # name ("Vampirella_V3_002_") hides its number from app.parse_name, so it never counts as unnumbered either.
 NUMBERED_NAME = re.compile(r'\d|_|#|\b(?:vol(?:ume)?|book|part|chapter|tome)\b', re.I)
+# Futaba's source sample 2026-11-18 (F2): a bracket that labels the file as one part of something, "(part 2 of 2)",
+# "(1 of 3)", "(Vol. 3)", "(Book II)", "(Chapter 1)", "(of 4)". Brackets are otherwise dropped before NUMBERED_NAME
+# (they hold years, scan groups and formats), so such a file passed as an unnumbered whole book and was asked as
+# issue 1. Reading N as the number was never measured, so the label makes the rule refuse the file.
+BRACKETED_PART = re.compile(r'[(\[][^)\]]*(?:\b(?:part|vol(?:ume)?|book|chapter|tome)\b\.?\s*(?:\d|[ivxlc]+\b|one\b|two\b|three\b|'
+                            r'four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b)|\bof\s*\d)[^)\]]*[)\]]', re.I)
 RULES_VERSION = 3  # Corrected filename identities wake misses once; verification rules stay unchanged.
 # Option 3 (Sergei 2026-11-17, matching.collection_label): Metron series types whose issue N a book labelled
 # "Vol N", "vNN" or "Book N" can be. One-Shot is left out: a one-shot has no volume N.
@@ -310,10 +316,11 @@ def subtitle_agrees(subtitle, title):
 
 
 def unnumbered_book(path):
-    """The filename names no number of any kind outside brackets, and no "(of N)" part (Enrichment C)."""
+    """The filename names no number of any kind outside brackets, and no bracketed part label such as "(of N)" or
+    "(part N of M)" (Enrichment C; BRACKETED_PART)."""
     from pathlib import Path
     stem = Path(path).stem
-    if re.search(r'\(\s*of\s*\d+\s*\)', stem, re.I):
+    if re.search(r'\(\s*of\s*\d+\s*\)', stem, re.I) or BRACKETED_PART.search(stem):
         return False
     return not NUMBERED_NAME.search(re.sub(r'\([^)]*\)|\[[^]]*\]', ' ', stem))
 

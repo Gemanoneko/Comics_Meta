@@ -500,7 +500,8 @@ def metadata_from_issue(issue):
     characters = [p['name'] for p in issue.get('character_credits', [])]
     if characters:
         fields['Characters'] = ', '.join(characters)
-    return {k: str(v) for k, v in fields.items() if v}
+    # Futaba's source sample 2026-11-18 (F3): ComicVine names can end in a space ("Blade: First Bite Infinity Comic ").
+    return {k: str(v).strip() for k, v in fields.items() if v and str(v).strip()}
 
 
 def remove_verified_backup(path, backup, original_sha256):

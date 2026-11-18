@@ -432,7 +432,7 @@ def lookup(row, old, schedule=None):
             'cover_match': dict(accepted, image='primary'),
             # Kept beside match_rule in the evidence and the pass-plan entry, so a wrong write can be traced.
             'name_search': {'query': series, 'number': wanted, 'year': year, 'volume_id': volume_id(candidate),
-                            'volume': volume.get('name'), 'start_year': volume.get('start_year'),
+                            'volume': str(volume.get('name') or '').strip(), 'start_year': volume.get('start_year'),
                             'volumes': len(kept), 'issue_id': issue_id, 'rules': rules_stamp()},
             'fields': fields,
             'sources': [{'url': fields['Web'], 'title': detail.get('name') or series + ' #' + number, 'text': text,
