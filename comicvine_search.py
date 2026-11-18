@@ -23,9 +23,13 @@ covers of other runs with the same name and number were accepted), on Metron's r
 Requests (ComicVine allows 200 per resource per hour): this source's own rolling-hour allowance per resource
 (HOURLY), never more than RESOURCE_CEILING on one resource from both paths together (app.comicvine_requests), and
 SPACING seconds between its own requests. It never enters the ID path's allowance (app.reserve_request: 180 an
-hour, 20 s apart) and never holds its lock, so it cannot delay or use up the ID path; it does wait while the ID
-path's shared cooldown runs. A refusal or failure of its own request pauses only this source (STATUS file), not
-the ID path. Its answers share app.api's 30-day cache.
+hour, 20 s apart) and never holds its lock; it waits while the ID path's shared cooldown runs. The ID path keeps
+priority (code review v0.6.5 S2): on "issue" the 15 here plus the ID path's 180 stay under the limit; on "search"
+and "issues", which only the dashboard's manual search uses on that path, this source steps aside for STEP_ASIDE
+seconds after each manual request, and the ID path itself refuses (locally, no cooldown) before both together
+reach app.COMICVINE_RESOURCE_LIMIT. A refusal or failure of its own request pauses only this source (STATUS file).
+Its answers share app.api's 30-day cache. Waits longer than the discovery pass allows are not slept: the comic is
+asked again shortly (research_runtime.pacing_wait, code review v0.6.5 S3).
 """
 import json
 import re
@@ -37,7 +41,7 @@ import urllib.request
 from html import unescape
 import app
 import storage
-from provider_wait import ProviderDeferred
+from provider_wait import PacingDeferred, ProviderDeferred
 
 NAME = 'ComicVine search'          # The source name in config.json, source_schedule and the evidence.
 PROVIDER = 'comicvine_search'      # ProviderDeferred's provider: never 'comicvine', the ID path's hold key.
@@ -50,6 +54,8 @@ MATCHING = ('filename_year_formats', 'folder_year', 'unnumbered_as_one', 'cover_
 # search. Only an accepted candidate asks "issue" (about 6% of searched comics in the pilot).
 HOURLY = {'search': 150, 'issues': 150, 'issue': 15}
 RESOURCE_CEILING = 190             # Both paths together, per resource and rolling hour.
+STEP_ASIDE = 600                   # Seconds it leaves "search"/"issues" alone after a manual dashboard request.
+MANUAL_RESOURCES = ('search', 'issues')
 SPACING = 10.0                     # Seconds between this source's request starts (the pilot's second run).
 COVER_SPACING = 3.0                # Seconds between cover downloads (not API requests).
 COVER_IMAGES = 3                   # Archive images compared with the ComicVine cover, as Metron.
@@ -186,6 +192,11 @@ def reserve(resource, now=None):
         if every >= RESOURCE_CEILING:
             raise ProviderDeferred('ComicVine ' + family + ' requests are near their hourly limit; the name search waits.',
                                    PROVIDER, every_first + 3600, 'limit')
+        if family in MANUAL_RESOURCES:
+            manual = con.execute("SELECT MAX(timestamp) FROM comicvine_requests WHERE resource=? AND origin='app'", (family,)).fetchone()[0]
+            if manual and now - manual < STEP_ASIDE:
+                raise ProviderDeferred('ComicVine name search steps aside while the dashboard search is in use.',
+                                       PROVIDER, manual + STEP_ASIDE, 'limit')
         last = con.execute('SELECT MAX(timestamp) FROM comicvine_requests WHERE origin=?', (ORIGIN,)).fetchone()[0] or 0
         delay = max(0.0, last + SPACING - now)
         if delay:
@@ -212,7 +223,7 @@ def cached(cache_key):
 
 def request(resource, **params):
     """One ComicVine API answer for the name search, from app.api's cache or one paced request."""
-    import pause_control, qa_runtime, research_runtime
+    import qa_runtime, research_runtime
     params['format'] = 'json'
     cache_key = resource + '?' + urllib.parse.urlencode(sorted(params.items()))  # app.api's key: answers are shared.
     with LOCK:
@@ -229,7 +240,10 @@ def request(resource, **params):
             delay = reserve(resource)
             if not delay:
                 break
-            pause_control.sleep(delay)
+            if not research_runtime.pacing_wait(delay):
+                # S3: the pass may not spend this wait; nothing is asked and the comic comes back shortly.
+                raise PacingDeferred('ComicVine name search waits for its request spacing; the comic is asked again shortly.',
+                                     PROVIDER, time.time() + delay)
         return fetch(resource, params, key, cache_key)
 
 

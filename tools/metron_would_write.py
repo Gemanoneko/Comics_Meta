@@ -83,12 +83,20 @@ def check_out_folder(out, live, library):
     return None
 
 
+def readonly_uri(path):
+    """A read-only SQLite URI for `path` (code review N2, v0.6.4 and v0.6.5). Path.as_uri percent-escapes the path, so a
+    '#', '?' or '%xx' in a folder name cannot end it early or drop '?mode=ro' (SQLite would then open, and create,
+    another file read-write)."""
+    return Path(os.path.abspath(path)).as_uri() + '?mode=ro'
+
+
 def snapshot(live, out):
+    """Copy the live catalog (read-only) and config.json into <out>/state; shared by all three would-write tools."""
     import shutil
     import sqlite3
     state = out / 'state'
     (state / 'data').mkdir(parents=True, exist_ok=False)
-    source = sqlite3.connect('file:' + str(live / 'data' / 'catalog.sqlite').replace('\\', '/') + '?mode=ro', uri=True, timeout=30)
+    source = sqlite3.connect(readonly_uri(live / 'data' / 'catalog.sqlite'), uri=True, timeout=30)
     target = sqlite3.connect(str(state / 'data' / 'catalog.sqlite'))
     try:
         source.backup(target)

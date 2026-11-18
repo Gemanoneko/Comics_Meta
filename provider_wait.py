@@ -14,11 +14,19 @@ class ProviderDeferred(ValueError):
         self.cause = cause if cause in CAUSES else None
 
 
+class PacingDeferred(ProviderDeferred):
+    """Code review v0.6.5 S3: the source's next request would have to wait longer than the discovery pass may spend
+    on pacing (research_runtime.pacing_wait). Nothing was asked; the comic is asked again shortly."""
+    pacing = True
+
+
 def record_failure(errors, waits, provider, exception):
     if isinstance(exception, ProviderDeferred):
         waits[exception.provider] = {'reason': str(exception), 'retry_at': exception.retry_at}
         if exception.cause:
             waits[exception.provider]['cause'] = exception.cause
+        if getattr(exception, 'pacing', False):
+            waits[exception.provider]['pacing'] = True
         return errors
     return (errors + '; ' if errors else '') + provider + ': ' + str(exception)
 

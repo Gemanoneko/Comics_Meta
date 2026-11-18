@@ -30,6 +30,47 @@ def useful(result,old,replaceable=None):
     return not old.get('Summary') and any(len(s.get('text','').split())>=20 for s in result.get('sources',[]))
 
 
+# Metron's looser rules and the matching switch each one needs (Enrichment B/C, options 2 and 3).
+RULE_SWITCHES={'filename_year':'filename_year_formats','folder_year':'folder_year','yearless':'yearless',
+               'unnumbered':'unnumbered_as_one','collection_label':'collection_label'}
+
+
+def source_of(result):
+    """The switchable source a saved result came from, or None (the ComicVine ID path's issue text, web research)."""
+    provider=(result or {}).get('provider')
+    if provider=='ComicVine':return 'ComicVine search' if result.get('name_search') else None
+    return provider if provider in KEYS else None
+
+
+def reusable(result):
+    """Code review v0.6.5 S1: a saved verified result (research_runtime.reuse) is planned again only while its
+    source is switched on and the rules that accepted it still hold. Switching a source off, or changing its rules
+    after a wrong match, must stop every path to a write, not only new requests.
+
+    - Any source switched off in config.json: dropped (Metron, GCD offline, the catalogs and the two fallbacks alike).
+    - GCD offline, the ComicVine name search and VerseDB carry their rules stamp: another stamp is dropped.
+    - Metron's results carry the rule that accepted them, not a stamp: dropped when that rule's switch (or the
+      spelling or revised-cover switch it used) is now off. A stamp change that only adds rules keeps them."""
+    import pipeline_config
+    name=source_of(result)
+    if name is None:return True
+    if not pipeline_config.source_enabled(name):return False
+    if name=='GCD offline':
+        import gcd_offline
+        return result.get('rules')==gcd_offline.rules_stamp()
+    if name in ('ComicVine search','VerseDB'):
+        import comicvine_search,versedb
+        module=comicvine_search if name=='ComicVine search' else versedb
+        return (result.get('name_search') or {}).get('rules')==module.rules_stamp()
+    if name=='Metron':
+        switch=RULE_SWITCHES.get(result.get('match_rule'))
+        if switch and not pipeline_config.matching(switch):return False
+        if result.get('name_spelling') and not pipeline_config.matching('metron_spellings'):return False
+        if (result.get('cover_match') or {}).get('comparison') in ('aligned','wraparound') and not pipeline_config.matching('cover_rule_v2'):
+            return False
+    return True
+
+
 def blocked(status,now):
     return status.get('status')=='human_verification' or status.get('retry_at',0)>now
 

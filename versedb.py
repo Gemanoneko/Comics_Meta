@@ -46,7 +46,7 @@ import urllib.request
 from pathlib import PureWindowsPath
 import app
 import storage
-from provider_wait import ProviderDeferred
+from provider_wait import PacingDeferred, ProviderDeferred
 
 NAME = 'VerseDB'
 PROVIDER = 'versedb'
@@ -202,7 +202,7 @@ def next_hour(now):
 
 def request(path, **params):
     """One VerseDB API answer: from the cache, or one paced GET."""
-    import pause_control, qa_runtime, research_runtime
+    import qa_runtime, research_runtime
     if not PATHS.fullmatch(path):
         raise ValueError('Unsupported VerseDB path.')
     key = cache_key(path, params)
@@ -220,7 +220,10 @@ def request(path, **params):
             delay = reserve()
             if not delay:
                 break
-            pause_control.sleep(delay)
+            if not research_runtime.pacing_wait(delay):
+                # Code review v0.6.5 S3: the pass may not spend this wait; the comic comes back shortly.
+                raise PacingDeferred('VerseDB waits for its request spacing; the comic is asked again shortly.',
+                                     PROVIDER, time.time() + delay)
         return fetch(path, params, secret, key)
 
 

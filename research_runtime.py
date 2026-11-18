@@ -13,6 +13,41 @@ import pause_control
 
 _comic_work = threading.local()
 
+# Code review v0.6.5 S3: the fallback sources (ComicVine name search, VerseDB) pace their requests 10-12 s apart.
+# Slept inline, a 20-comic folder pass could spend 10-17 minutes waiting, and the single discovery worker would
+# sleep most of every hour while thousands of comics are due once. Each pass may now spend at most
+# PACING_PER_PASS seconds on those waits; a longer wait is not slept (pacing_wait returns False) and the comic is
+# asked again after PACING_REVISIT seconds (automatic._discover), resuming from its cached answers.
+PACING_PER_PASS = 30.0
+PACING_REVISIT = 60.0
+_pacing = {'left': None}
+_pacing_lock = threading.Lock()
+
+
+@contextmanager
+def pacing_pass(budget=None):
+    """One discovery pass's allowance for fallback pacing waits."""
+    with _pacing_lock:
+        _pacing['left'] = PACING_PER_PASS if budget is None else budget
+    try:
+        yield
+    finally:
+        with _pacing_lock:
+            _pacing['left'] = None
+
+
+def pacing_wait(delay):
+    """True after sleeping `delay` seconds (pause-aware) while this pass may still spend it; False when it may not,
+    and the caller defers the comic instead. Outside a discovery pass (the read-only tools) it always sleeps."""
+    with _pacing_lock:
+        left = _pacing['left']
+        if left is not None:
+            if delay > left:
+                return False
+            _pacing['left'] = left - delay
+    pause_control.sleep(delay)
+    return True
+
 
 def research_checkpoint():
     """Cooperative cancellation belongs only to the current lookahead thread."""

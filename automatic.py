@@ -305,7 +305,8 @@ def queue_cover_search(row):
 def discover(root,coverage_only=False,refine=False):
     # All speculative readers finish before this returns to the serial writer.
     # refine (Enrichment A): a refinement turn, which researches the folder's written comics only.
-    with research_runtime.ComicLookahead() as lookahead:
+    # Code review v0.6.5 S3: the pass's allowance for fallback pacing waits (research_runtime.pacing_wait).
+    with research_runtime.ComicLookahead() as lookahead, research_runtime.pacing_pass():
         return _discover(root,coverage_only,lookahead,refine)
 
 
@@ -418,9 +419,9 @@ def _discover(root,coverage_only,lookahead,refine=False):
         source_schedule=dict(previous.get('source_schedule',{})) if previous.get('signature')==signature and previous.get('version')==MATCHER_VERSION and not new_cover_leads else {}
         if metron_upgrade:source_schedule.pop('Metron',None)
         external=research_runtime.reuse(path,row,old,saved,MATCHER_VERSION)
-        if external and external.get('provider')=='GCD offline':
-            import gcd_offline
-            if external.get('rules')!=gcd_offline.rules_stamp():external=None
+        # Code review v0.6.5 S1: a saved result from a source now switched off, or accepted under rules no longer in
+        # force (GCD offline's and the fallbacks' stamps, Metron's rule switches), is not planned again.
+        if external and not source_scheduling.reusable(external):external=None
         if external and external.get('provider')=='Metron' and external.get('metadata_version',0)<2:external=None
         reused_evidence=bool(external)
         issue=saved.get('verified_evidence',{}).get('issue') if external else None
@@ -552,6 +553,10 @@ def _discover(root,coverage_only,lookahead,refine=False):
                     try:external=research_runtime.first_verified(fallback,row,old,completed,accept=useful)
                     except pause_control.PauseRequested:return True
                 else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})
+                if source_schedule.get(name,{}).get('result') not in source_scheduling.FINAL_RESULTS+('verified',):
+                    # This fallback has no answer yet (paced, waiting or failed): the later ones wait for it rather than
+                    # record an hour-long wait of their own (code review v0.6.5 S3); the comic comes back for both.
+                    break
             if external:
                 research.save_evidence(path,external)
                 outcome='web_issue_found'
@@ -717,6 +722,10 @@ def _discover(root,coverage_only,lookahead,refine=False):
                 # Notice installation promptly instead of caching the unavailable model for a day.
                 retry = min(retry,time.time()+600)
         retry = retry_time(retry,lookup_error,time.time())
+        for pending in provider_waits.values():
+            if pending.get('pacing'):
+                # S3: a fallback skipped its request instead of sleeping in this pass; ask again shortly, from its cache.
+                retry = min(retry,max(pending.get('retry_at',0),time.time()+research_runtime.PACING_REVISIT))
         comicvine_wait = provider_waits.get('comicvine') or {}
         if hold:
             # F17: a ComicVine wait (cooldown, budget, rate limit, outage) ends at a

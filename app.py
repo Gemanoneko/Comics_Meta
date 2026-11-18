@@ -314,12 +314,21 @@ def comicvine_resource(resource):
     return str(resource).split('/', 1)[0]
 
 
+# ComicVine allows 200 requests per resource per hour. Code review v0.6.5 S2: both paths together stay under it, so
+# ComicVine never refuses an ID-path request (a refusal sets the shared cooldown that stops every lookup).
+COMICVINE_RESOURCE_LIMIT = 198
+
+
 def reserve_request(now=None, resource=None):
     """Persist a conservative global allowance, including failed attempts.
 
     resource (ComicVine name search, 2026-11-18): the request is also entered in the per-resource ledger
     `comicvine_requests`, so the name search can see this path's use of each resource. This path's own allowance
-    (180 an hour, 20 s apart) is unchanged and never counts name-search requests."""
+    (180 an hour, 20 s apart) is unchanged and never counts name-search requests. Code review v0.6.5 S2: it does
+    count them toward ComicVine's per-resource limit, and refuses one of its own requests (a local wait, no shared
+    cooldown) before both paths together reach COMICVINE_RESOURCE_LIMIT on that resource. The name search stops
+    earlier (comicvine_search: 190 in all, its own shares, and stepping aside after manual searches), so this path
+    keeps the last of the headroom."""
     now = time.time() if now is None else now
     with db() as con:
         con.execute('BEGIN IMMEDIATE')
@@ -332,6 +341,13 @@ def reserve_request(now=None, resource=None):
         count = con.execute('SELECT COUNT(*) FROM api_requests').fetchone()[0]
         if count >= 180:
             raise ProviderDeferred('Local hourly request budget reached. Pause and retry later; cached results remain available.','comicvine',con.execute('SELECT MIN(timestamp) FROM api_requests').fetchone()[0]+3600,'limit')
+        if resource:
+            family = comicvine_resource(resource)
+            every, first = con.execute('SELECT COUNT(*),MIN(timestamp) FROM comicvine_requests WHERE resource=?', (family,)).fetchone()
+            if every >= COMICVINE_RESOURCE_LIMIT:
+                minutes = max(1, int((first + 3600 - now + 59) // 60))
+                raise ProviderDeferred(f'ComicVine {family} requests reached their hourly limit; retry in about {minutes} minutes. Cached results remain available.',
+                                       'comicvine', first + 3600, 'limit')
         delay = max(0, 20 - (now - state['last_attempt']))
         if delay:
             return delay
