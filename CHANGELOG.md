@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.6.7] - 2026-11-18
+
+### Fixed
+
+- Quit always closes the app. If part of the engine is still finishing a disk operation, the next start waits for it ("The previous session is still closing").
+- Engine stopped from outside: the broker's own failure is told apart from an outside stop, a Quit during Retry cancels Retry, and claims are judged by their lock.
+- Worker messages, including restore lines, now reach `engine.log`.
+- ComicInfo stored in a subfolder is read as the comic's metadata, and it is merged into the top-level copy on the next write.
+- Sign-out and shutdown always close the app.
+
+### Added
+
+- New tool, `tools/nested_comicinfo_merge.py`, for a one-time merge of nested ComicInfo (not run).
+
 ## [v0.6.6] - 2026-11-18
 
 ### Fixed

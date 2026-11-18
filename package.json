@@ -1,7 +1,7 @@
 {
   "name": "comic-metadata",
   "productName": "Comic Metadata",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Personal comic metadata organizer",
   "main": "desktop/main.cjs",
   "private": true,
