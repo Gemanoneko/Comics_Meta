@@ -10,11 +10,20 @@ The state files a lost record stops the app for (progress.json, folders.json, br
 keep_previous: the record being replaced, if it reads, is kept as <name>.bak. read_json() puts that copy back when the
 file cannot be read, instead of waiting for someone to remove the file (0.6.2's behaviour, kept for a file with no
 readable copy).
+
+Any process may be the one that reads a damaged file first: the dashboard's poll as well as the worker that owns the
+file. Putting the copy back and every keep_previous save of the same file therefore run one at a time, across threads
+and processes (exclusive()). Before 0.6.6 the re-check and the put-back were apart (the .unreadable evidence write sat
+between them), so a worker that restored and saved its next step in that window had the step overwritten by the
+older copy (code review v0.6.4 N1).
 """
+import contextlib
 import ctypes
+import hashlib
 import json
 import os
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -23,7 +32,12 @@ MOVEFILE_REPLACE_EXISTING = 0x1
 MOVEFILE_WRITE_THROUGH = 0x8
 BACKUP = '.bak'             # The previous good record, beside the file.
 UNREADABLE = '.unreadable'  # The last file read_json() could not read, kept as evidence when it put the copy back.
+SAVE_LOCK_WAIT = 30.0       # Seconds a keep_previous save or a restore waits for another holder of the file's lock.
+WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x0, 0x80, 0x102
 _move_file = None
+_mutex_api = None
+_local_locks = {}
+_local_locks_guard = threading.Lock()
 
 
 def _move(source, destination):
@@ -62,6 +76,62 @@ def _write(path, data):
             temporary.unlink()
 
 
+def _lock_name(path):
+    """One name per file whatever its spelling (letter case, short names, junctions): its real path, case-folded."""
+    try:
+        real = os.path.realpath(path)
+    except OSError:
+        real = os.path.abspath(path)
+    return 'Local\\ComicMetadata.save.' + hashlib.sha256(os.path.normcase(real).encode('utf-8')).hexdigest()
+
+
+def _mutexes():
+    global _mutex_api
+    if _mutex_api is None:
+        from ctypes import wintypes
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.CreateMutexW.argtypes, api.CreateMutexW.restype = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR], wintypes.HANDLE
+        api.WaitForSingleObject.argtypes, api.WaitForSingleObject.restype = [wintypes.HANDLE, wintypes.DWORD], wintypes.DWORD
+        api.ReleaseMutex.argtypes, api.ReleaseMutex.restype = [wintypes.HANDLE], wintypes.BOOL
+        api.CloseHandle.argtypes, api.CloseHandle.restype = [wintypes.HANDLE], wintypes.BOOL
+        _mutex_api = api
+    return _mutex_api
+
+
+@contextlib.contextmanager
+def exclusive(path):
+    """Hold the save lock of one state file: keep_previous saves and read_json's restore of that file run one at a
+    time across threads and processes. A named Windows mutex, so nothing is left on disk and a holder that dies
+    releases it (an abandoned mutex is acquired normally). TimeoutError after SAVE_LOCK_WAIT seconds; nothing written."""
+    name = _lock_name(path)
+    if os.name != 'nt':  # The app runs on Windows; elsewhere one process's threads are kept apart.
+        with _local_locks_guard:
+            lock = _local_locks.setdefault(name, threading.Lock())
+        if not lock.acquire(timeout=SAVE_LOCK_WAIT):
+            raise TimeoutError('Another save of ' + Path(path).name + ' did not finish.')
+        try:
+            yield
+        finally:
+            lock.release()
+        return
+    api = _mutexes()
+    handle = api.CreateMutexW(None, False, name)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        result = api.WaitForSingleObject(handle, int(SAVE_LOCK_WAIT * 1000))
+        if result == WAIT_TIMEOUT:
+            raise TimeoutError('Another save of ' + Path(path).name + ' did not finish.')
+        if result not in (WAIT_OBJECT_0, WAIT_ABANDONED):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            yield
+        finally:
+            api.ReleaseMutex(handle)
+    finally:
+        api.CloseHandle(handle)
+
+
 def is_object(value):
     return isinstance(value, dict)
 
@@ -85,14 +155,17 @@ def save(path, value, *, keep_previous=False, valid=is_object):
     path = Path(path)
     # Text-mode line ends, as Path.write_text wrote them before.
     data = json.dumps(value, ensure_ascii=False, indent=2).replace('\n', os.linesep).encode('utf-8')
-    if keep_previous:
+    if not keep_previous:
+        _write(path, data)
+        return
+    with exclusive(path):  # Never inside another process's restore of this file (read_json).
         try:
             current = _read_bytes(path)
         except FileNotFoundError:
             current = None
         if current is not None and _parse(current, valid)[0]:
             _write(backup(path), current)  # A file that does not read never replaces the good copy.
-    _write(path, data)
+        _write(path, data)
 
 
 def read_json(path, *, valid=is_object):
@@ -101,24 +174,28 @@ def read_json(path, *, valid=is_object):
     A file that cannot be read (all zeros, cut off, not JSON, or not the record valid() expects) is replaced by its
     previous good copy: the unreadable file is kept as <name>.unreadable, the copy is put back, and one line is
     logged. Raises FileNotFoundError when the file is missing (a missing file is never restored) and ValueError when
-    neither the file nor its copy reads: nothing is guessed."""
+    neither the file nor its copy reads: nothing is guessed.
+
+    The re-check, the evidence and the put-back hold the file's save lock (exclusive), so no keep_previous save of
+    the file lands between them: whoever reads the damage first restores it, and every other reader finds it good."""
     path = Path(path)
     good, value = _parse(_read_bytes(path), valid)
     if good:
         return value
-    try:
-        saved = _read_bytes(backup(path))
-    except FileNotFoundError:
-        saved = None
-    good, previous = _parse(saved, valid) if saved is not None else (False, None)
-    if not good:
-        raise ValueError('Saved ' + path.name + ' cannot be read and has no readable previous copy.')
-    raw = _read_bytes(path)  # Another process may have put it back, or saved a new record, meanwhile.
-    good, value = _parse(raw, valid)
-    if good:
-        return value
-    _write(path.with_name(path.name + UNREADABLE), raw)
-    _write(path, saved)
+    with exclusive(path):
+        raw = _read_bytes(path)  # Another process may have put it back, or saved a new record, meanwhile.
+        good, value = _parse(raw, valid)
+        if good:
+            return value
+        try:
+            saved = _read_bytes(backup(path))
+        except FileNotFoundError:
+            saved = None
+        good, previous = _parse(saved, valid) if saved is not None else (False, None)
+        if not good:
+            raise ValueError('Saved ' + path.name + ' cannot be read and has no readable previous copy.')
+        _write(path.with_name(path.name + UNREADABLE), raw)
+        _write(path, saved)
     print('Saved ' + path.name + ' could not be read; its previous copy was put back. The unreadable file was kept '
           'as ' + path.name + UNREADABLE + '.', file=sys.stderr, flush=True)
     return previous
