@@ -10,14 +10,27 @@ const fs=require('node:fs'),path=require('node:path'),net=require('node:net'),{s
 const OWNER='a'.repeat(64),OTHER='b'.repeat(64);
 function deadPid(){const result=spawnSync(process.execPath,['-e',''],{windowsHide:true});assert.equal(result.status,0);return result.pid;}
 function freePort(){return new Promise(resolve=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const {port}=server.address();server.close(()=>resolve(port));});});}
-async function deadBroker(t,claims){
+async function deadBroker(t,claims,exitCode=1){
   const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);
   const locks=fs.mkdtempSync(path.join(scratch,'engine-closure-'));t.after(()=>fs.rmSync(locks,{recursive:true,force:true}));
   fs.mkdirSync(path.join(locks,'claims'));
   for(const [owner,pid] of claims)for(const suffix of ['.lock','.json'])fs.writeFileSync(path.join(locks,'claims','engine-'+owner+'-'+pid+'-0123456789ab'+suffix),'');
-  const {engine,child}=fixture(1);Object.assign(engine,{locks,port:await freePort(),owner:OWNER,closureWaitMs:400});
+  const {engine,child}=fixture(exitCode);Object.assign(engine,{locks,port:await freePort(),owner:OWNER,closureWaitMs:400});
   return {engine,child};
 }
+// Code review v0.6.6 T1: exit code 1 also meant the broker's own "descendants remain" failure, which the shell's
+// weaker check then overruled. The broker now reports that failure as 124, and nothing the shell sees confirms it.
+test('a broker that reported its own closure failure stays unconfirmed even with its port free and no claim holder',async t=>{
+  const {engine,child}=await deadBroker(t,[[OWNER,deadPid()]],124);
+  await assert.rejects(engine.forceStop(),/closure/);
+  assert.deepEqual(child.commands,[]);
+  child.exitCode=1;await engine.forceStop();  // Positive control: the same tree after an outside end is confirmed.
+});
+test('tray Quit after the broker reported its own closure failure fails closed',async t=>{
+  const {GracefulStop}=require('../graceful-stop.cjs');
+  const {engine}=await deadBroker(t,[],124);
+  await assert.rejects(new GracefulStop(engine).run('quit'),/closure/);
+});
 test('a broker that ended on its own is closed once its port is free and its claim holders have ended',async t=>{
   const {engine,child}=await deadBroker(t,[[OWNER,deadPid()],[OTHER,process.pid]]);  // Another engine's live claim is not this one's.
   await engine.forceStop();

@@ -8,6 +8,9 @@ const {EventEmitter}=require('node:events');
 // Broker exit codes that report its whole Job empty (engine_host.py): the engine's own 0/75, 126 for any other
 // engine exit, 125 for a forced stop.
 const CONFIRMED_EXIT=[0,75,125,126];
+// The broker's own closure check failed (engine_host.py CLOSURE_UNCONFIRMED): its Job still counted a member after
+// termination. That is evidence, so the shell never confirms closure over it (code review v0.6.6 T1).
+const UNCONFIRMED_EXIT=124;
 class Engine extends EventEmitter {
   constructor({resources,state,locks,port,log}) {super();Object.assign(this,{resources,state,locks,port,log});this.token=crypto.randomBytes(32).toString('hex');this.child=null;this.owner=null;this.ready=false;this.starting=null;this.stopping=null;this.stopGeneration=0;this.closureWaitMs=10000;}
   async call(endpoint,body) {
@@ -91,10 +94,13 @@ class Engine extends EventEmitter {
       await new Promise((resolve,reject)=>{if(child.exitCode!==null)return resolve();const timer=setTimeout(()=>reject(Error('Owned engine closure unconfirmed')),45000);child.once('exit',()=>{clearTimeout(timer);resolve();});child.once('error',error=>{clearTimeout(timer);reject(error);});});
     }
     if(CONFIRMED_EXIT.includes(child.exitCode))return;
-    // The broker ended without reporting its Job empty: ended from outside (exit code 1), or its own closure check
-    // failed. Before 0.6.6 only its exit code could confirm closure, so Retry and tray Quit stayed refused for good
-    // (TrayQA v0.6.4 finding 2). Its Job is kill-on-close and only the broker held a handle to it, so Windows ends
-    // the whole tree with the broker; closure is claimed only once the shell sees that itself (treeEnded).
+    // The broker reported that its own closure check failed: refused, whatever the shell could observe.
+    if(child.exitCode===UNCONFIRMED_EXIT)throw Error('Owned engine closure was not confirmed');
+    // The broker ended without reporting: ended from outside (exit code 1, as Task Manager and taskkill end it), a
+    // crash, or a failure before its Job held anything or after it proved the Job empty (exit code 1 too). Before
+    // 0.6.6 only its exit code could confirm closure, so Retry and tray Quit stayed refused for good (TrayQA v0.6.4
+    // finding 2). Its Job is kill-on-close and only the broker held a handle to it, so Windows ends the whole tree
+    // with the broker; closure is claimed only once the shell sees that itself (treeEnded).
     if(child.signalCode==null&&await this.treeEnded())return;
     throw Error('Owned engine closure was not confirmed');
   }

@@ -11,6 +11,12 @@ import time
 
 PRODUCTION_DEADLINE_MS = 600000
 CONTRACT_ID = 'guard-safety-selftests'
+# The broker's own closure check failed: its Job still counted a member after it was terminated (twice for a forced
+# stop), or the count could not be read. desktop/engine.cjs never confirms closure over this code. Before 0.6.7 this
+# failure was an uncaught RuntimeError, exit code 1, the same code Task Manager and taskkill give a process they end,
+# so the shell's own closure check (0.6.6) could overrule the broker's evidence (code review v0.6.6 T1).
+CLOSURE_UNCONFIRMED = 124
+CLOSURE_WAIT = 5.0  # Seconds the Job is given to empty after each termination.
 STARTED = globals().get('BOOTSTRAP_STARTED', time.monotonic())
 if os.name != 'nt' or C.sizeof(C.c_void_p) != 8:
     raise RuntimeError('Only reviewed Windows x64 is supported')
@@ -134,7 +140,7 @@ def main():
         # polling leaves no buffered-stdin daemon alive during clean shutdown.
         return available_owner_bytes()!=0
     job=create_job(None,None); require(job,'Create engine job')
-    proc=ProcessInfo(); attributes=None
+    proc=ProcessInfo(); attributes=None; result=None; failure=None
     try:
         limits=Limits();limits.basic.flags=0x2000
         require(set_job(job,9,C.byref(limits),C.sizeof(limits)),'Engine kill-on-close')
@@ -164,28 +170,52 @@ def main():
                 require(terminate_job(job,125),'Shell exit closes only owned engine tree')
                 break
         if forced:
-            until=time.monotonic()+5
-            while active_engine(job) and time.monotonic()<until:time.sleep(.01)
-            if active_engine(job):raise RuntimeError('Owned engine descendants remain')
-            return 125
-        exit_value=W.DWORD();require(exit_code(proc.process,C.byref(exit_value)),'Owned engine exit')
-        return exit_value.value if exit_value.value in (0,75) else 126
-    finally:
-        closed=True
-        if job:
-            terminate_job(job,125)
-            until=time.monotonic()+5
-            while active_engine(job) and time.monotonic()<until:time.sleep(.01)
-            closed=active_engine(job)==0
-            if closed:
-                import library_lock
-                library_lock.retire_engine_claims(os.environ.get('COMICS_META_CLAIM_OWNER',''))
-            close(job)
-        if proc.thread:close(proc.thread)
-        if proc.process:close(proc.process)
-        if attributes is not None:delete_attributes(attributes)
-        close(parent)
-        if not closed:raise RuntimeError('Engine descendant closure unconfirmed')
+            # A member still counted here is terminated once more below; closure is decided there, not here.
+            if not job_emptied(job):note('Owned engine descendants remain after termination; terminating again.')
+            result=125
+        else:
+            exit_value=W.DWORD();require(exit_code(proc.process,C.byref(exit_value)),'Owned engine exit')
+            result=exit_value.value if exit_value.value in (0,75) else 126
+    except BaseException as error:
+        failure=error
+    # Every path ends here: whatever happened above, the Job is terminated and its own count decides closure.
+    terminate_job(job,125)
+    try:closed=job_emptied(job)
+    except OSError:closed=False  # A count that cannot be read is not proof.
+    if closed:
+        try:
+            import library_lock
+            library_lock.retire_engine_claims(os.environ.get('COMICS_META_CLAIM_OWNER',''))
+        except Exception as error:
+            # The Job is proven empty, so these claims are unlocked and the next claimant sweeps them. A retirement
+            # failure must not hide the closure the broker proved (code review M3: it raised, exit code 1).
+            note('Engine claims were not retired: '+type(error).__name__+' '+str(error))
+    close(job)
+    if proc.thread:close(proc.thread)
+    if proc.process:close(proc.process)
+    if attributes is not None:delete_attributes(attributes)
+    close(parent)
+    if not closed:
+        if failure is not None:
+            import traceback
+            note(''.join(traceback.format_exception(failure)).rstrip())
+        note('Engine descendant closure unconfirmed')
+        return CLOSURE_UNCONFIRMED
+    if failure is not None:raise failure  # The Job is empty: exit code 1 with the cause in engine.log, as before.
+    return result
+
+def note(line):
+    """One line to engine.log (stderr). A log that cannot be written must not change the exit code."""
+    try:print(line,file=sys.stderr,flush=True)
+    except (OSError,ValueError,AttributeError):pass
+
+def job_emptied(job):
+    """True once the Job counts no active process, within CLOSURE_WAIT seconds; raises OSError if it cannot be read."""
+    until=time.monotonic()+CLOSURE_WAIT
+    while active_engine(job):
+        if time.monotonic()>=until:return False
+        time.sleep(.01)
+    return True
 
 def active_engine(job):
     counts=Accounting()
