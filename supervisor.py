@@ -7,6 +7,20 @@ import threading
 import pause_control
 
 
+def _error_stream():
+    """Where a worker's stderr goes: this process's own (engine.log under the app), else nowhere.
+
+    Before 0.6.7 workers were launched with no standard handles at all: on Windows a child given none gets none
+    (close_fds), so its sys.stderr was None and every line it printed there was dropped without an error: the
+    state-file restore line (storage.read_json), its own error lines and the traceback of a crash (TrayQA v0.6.4
+    finding 1, v0.6.6 finding 3). Standard output stays out of the log (batch.apply prints a line per comic)."""
+    try:
+        sys.stderr.fileno()
+        return sys.stderr
+    except (AttributeError, OSError, ValueError):  # None, closed or not a file (a test's StringIO).
+        return subprocess.DEVNULL
+
+
 def supervise(base, stop, launch=None, script='worker.py', baseline=None):
     launch = launch or subprocess.Popen
     baseline = baseline or pause_control.stop_generation
@@ -22,6 +36,7 @@ def supervise(base, stop, launch=None, script='worker.py', baseline=None):
                     break
                 # -B: no __pycache__ in the installed runtime; the next update verifies its closure.
                 child = launch([sys.executable, '-B', str(base / script)], cwd=base, env=env,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=_error_stream(),
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 reported = None
             except (OSError, sqlite3.Error, ValueError) as exc:

@@ -1,9 +1,44 @@
 import contextlib
 import io
+import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
 import supervisor
+from test_worker import scratch_directory
+
+CODE = Path(supervisor.__file__).resolve().parent
+# Stands in for app.py: its stderr is the log file (the broker gives app.py engine.log), and the real supervisor
+# launches the worker once with the real Popen.
+APP = r'''
+import subprocess, sys, threading
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import supervisor
+base, stop, started = Path(sys.argv[2]), threading.Event(), []
+def launch(*args, **kwargs):
+    try:
+        started.append(subprocess.Popen(*args, **kwargs)); return started[-1]
+    finally:
+        stop.set()  # One supervisor pass.
+supervisor.supervise(base, stop, launch, 'worker.py', baseline=lambda: 0)
+print('worker exit', started[0].wait(60), file=sys.stderr, flush=True)
+'''
+# Stands in for the metadata worker: it reads a damaged progress.json and puts its previous copy back, as
+# batch.progress does through storage.read_json, then prints the record to stdout.
+WORKER = r'''
+import os, sys
+from pathlib import Path
+sys.path.insert(0, os.environ['SUPERVISOR_TEST_CODE'])
+import storage
+path = Path(__file__).with_name('progress.json')
+storage.save(path, {'step': 'first'}, keep_previous=True)
+storage.save(path, {'step': 'second'}, keep_previous=True)
+path.write_bytes(bytes(64))
+print('record', storage.read_json(path), flush=True)
+'''
 
 
 class StopAfter:
@@ -67,3 +102,23 @@ class SupervisorTests(unittest.TestCase):
         # -B: a worker writes no __pycache__ into the installed runtime (0.2.2->0.2.3 update failure).
         self.assertEqual(launch.call_args.args[0][1:], ['-B', str(Path('project') / 'browser_worker.py')])
         self.assertEqual(stop.waits, [30, 30, 30])
+
+
+class WorkerLogTests(unittest.TestCase):
+    """TrayQA v0.6.4 finding 1 / v0.6.6 finding 3: a worker's restore line never reached engine.log. Workers were
+    launched with no standard handles, so on Windows their sys.stderr was None and the line was dropped silently."""
+
+    def test_a_workers_restore_line_reaches_the_app_log_and_its_stdout_does_not(self):
+        base = Path(self.enterContext(scratch_directory()))
+        (base / 'worker.py').write_text(WORKER, encoding='utf-8')
+        log = base / 'engine.log'
+        env = dict(os.environ, SUPERVISOR_TEST_CODE=str(CODE), PYTHONDONTWRITEBYTECODE='1')
+        with open(log, 'ab') as handle:
+            app = subprocess.run([sys.executable, '-I', '-B', '-c', APP, str(CODE), str(base)], cwd=base, env=env,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=handle, timeout=120)
+        text = log.read_text(encoding='utf-8', errors='replace')
+        self.assertEqual(app.returncode, 0, text)
+        self.assertIn('worker exit 0', text)  # The worker ran and its parent's own line is in the log.
+        self.assertEqual(text.count('Saved progress.json could not be read; its previous copy was put back'), 1, text)
+        self.assertNotIn('record', text)  # Standard output stays out (batch.apply prints a line per comic).
+        self.assertEqual((base / 'progress.json.unreadable').read_bytes(), bytes(64))  # The restore did happen.
