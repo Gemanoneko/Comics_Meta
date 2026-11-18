@@ -38,3 +38,26 @@ test('Retry after the broker ended on its own starts a new broker (TrayQA v0.6.4
     assert.notEqual(calls.at(-1).options.env.COMICS_META_CLAIM_OWNER,owner);  // ... with its own claim identity.
   }finally{assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
+// Code review v0.6.6 t1 (seen by Futaba): Retry read the stop generation only after its own closure wait, so a tray
+// Quit inside that wait did not cancel it, and a broker was started 14 ms before the shell exited.
+test('tray Quit during Retry\'s closure wait cancels Retry: no broker is started',async()=>{
+  const net=require('node:net'),{GracefulStop}=require('../graceful-stop.cjs');
+  const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-quit-retry-'));
+  const holder=net.createServer();await new Promise(resolve=>holder.listen(0,'127.0.0.1',resolve));let held=true;
+  try{
+    const resources=path.join(root,'resources');await fs.mkdir(path.join(resources,'runtime','python'),{recursive:true});await fs.mkdir(path.join(resources,'engine'));
+    await fs.writeFile(path.join(resources,'runtime','python','python.exe'),'');await fs.writeFile(path.join(resources,'engine','engine_host.py'),'');
+    const engine=new Engine({resources,state:path.join(root,'state'),locks:path.join(root,'locks'),port:holder.address().port,log:path.join(root,'logs','engine.log')});
+    // A broker ended from outside whose engine port is still bound: Retry waits for closure (no claims folder: none held).
+    const dead=new EventEmitter();dead.exitCode=1;dead.signalCode=null;dead.stdin={writable:false};
+    Object.assign(engine,{child:dead,owner:'e'.repeat(64),closureWaitMs:5000});
+    const before=calls.length;
+    const retry=engine.start();
+    await new Promise(resolve=>setTimeout(resolve,300));  // Retry is inside its closure wait.
+    const quit=new GracefulStop(engine).run('quit');  // Tray Quit: the engine is not ready, so it shares the wait.
+    await new Promise(resolve=>holder.close(resolve));held=false;  // The port frees: closure is confirmed.
+    assert.equal(await quit,true);
+    await assert.rejects(retry,error=>error.code==='START_CANCELLED');
+    assert.equal(calls.length,before);  // No broker was started for a shell that is exiting.
+  }finally{if(held)await new Promise(resolve=>holder.close(resolve));assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
+});

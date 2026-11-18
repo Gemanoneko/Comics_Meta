@@ -27,11 +27,14 @@ class Engine extends EventEmitter {
     try{return await this.starting;}finally{this.starting=null;}
   }
   async startOwned() {
+    let generation=this.stopGeneration;
     if(this.child){
       if(this.ready)return this.call('/api/shell/status');
-      await this.forceStop();
+      // The generation is read as soon as this start's own forceStop has begun, not after it ends: a tray Quit during
+      // its closure wait (up to 10 s since 0.6.6) shares that promise and moves the generation on, and must cancel
+      // this start. Read afterwards, it let Retry start a broker as the shell exited (code review v0.6.6 t1).
+      const pending=this.forceStop();generation=this.stopGeneration;await pending;
     }
-    const generation=this.stopGeneration;
     this.ready=false;
     await new Promise((resolve,reject)=>{const probe=net.createServer();probe.once('error',()=>reject(Object.assign(Error('Port occupied'),{code:'PORT_BUSY'})));probe.listen(this.port,'127.0.0.1',()=>probe.close(resolve));});
     if(generation!==this.stopGeneration)throw Object.assign(Error('Engine start cancelled'),{code:'START_CANCELLED'});
