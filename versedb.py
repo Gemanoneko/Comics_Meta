@@ -45,6 +45,7 @@ import urllib.parse
 import urllib.request
 from pathlib import PureWindowsPath
 import app
+import comicvine_search
 import storage
 from provider_wait import PacingDeferred, ProviderDeferred
 
@@ -76,7 +77,7 @@ TIMEOUT = 25
 MAX_ANSWER = 5 * 1024 * 1024
 MAX_COVER = 20 * 1024 * 1024
 USER_AGENT = 'ComicMetadata/0.6 (personal catalog)'
-CITES = re.compile(r'metron|comics\.org|grand comics database|comic\s*vine|cvdb|versedb', re.I)
+CITES = comicvine_search.CITES          # One cite list for both fallbacks.
 PATHS = re.compile(r'series|series/\d+/issues')
 
 LOCK = threading.Lock()
@@ -107,7 +108,7 @@ def set_status(status, retry_at=0, **details):
 
 
 def cites(old):
-    return bool(CITES.search(str(old.get('Web') or '') + ' ' + str(old.get('Notes') or '')))
+    return comicvine_search.cites(old)
 
 
 def in_bd(path):

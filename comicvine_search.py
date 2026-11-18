@@ -68,9 +68,10 @@ MAX_COVER = 20 * 1024 * 1024
 USER_AGENT = 'LocalComicMetadataPilot/0.1'  # The ID path's.
 VOLUME_FIELDS = 'id,name,start_year,publisher,count_of_issues'
 ISSUE_FIELDS = 'id,name,issue_number,cover_date,image,volume,site_detail_url'
-# A comic whose ComicInfo already cites Metron, GCD or ComicVine is outside the measured pool; ComicVine-linked
-# comics belong to the ID path.
-CITES = re.compile(r'metron|comics\.org|grand comics database|comic\s*vine|cvdb', re.I)
+# A comic whose ComicInfo already cites Metron, GCD, ComicVine or VerseDB is outside the measured pool; ComicVine-linked
+# comics belong to the ID path. One list for both fallbacks (versedb.cites reads it): the name search runs before
+# VerseDB, so a VerseDB-credited comic left off this list was asked here although VerseDB skips it (QA 0.6.5 finding 1).
+CITES = re.compile(r'metron|comics\.org|grand comics database|comic\s*vine|cvdb|versedb', re.I)
 AFTER = ('Metron', 'GCD offline')
 MISS = 'no_verified_match'
 FOUND = ('verified', 'verified_no_new_data')

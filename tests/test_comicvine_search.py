@@ -16,6 +16,7 @@ import app
 import comicvine_search
 import pipeline_config
 import source_scheduling
+import versedb
 from provider_wait import ProviderDeferred
 from test_worker import scratch_directory
 
@@ -220,10 +221,19 @@ class ScopeTests(Lookup):
     def test_comics_citing_a_source_are_left_to_it(self):
         fake = FakeComicVine([LUMINAE], [LUMINAE_3])
         for old in ({'Web': 'https://comicvine.gamespot.com/x/4000-1/'}, {'Notes': 'Tagged with ComicTagger using info from Comic Vine'},
-                    {'Notes': '[CVDB123]'}, {'Web': 'https://metron.cloud/issue/1/'}, {'Web': 'https://www.comics.org/issue/1/'}):
+                    {'Notes': '[CVDB123]'}, {'Web': 'https://metron.cloud/issue/1/'}, {'Web': 'https://www.comics.org/issue/1/'},
+                    {'Web': 'https://versedb.com/issue/7/luminae-3'}, {'Notes': versedb.ATTRIBUTION}):
             self.assertIsNone(self.lookup(fake, r'Y:\Comix\Luminae\Luminae 003 (2016).cbz', old=old), old)
+            self.assertFalse(comicvine_search.can_search(row_for(r'Y:\Comix\Luminae\Luminae 003 (2016).cbz'), old), old)
         self.assertEqual(fake.asked, [])
         self.assertIsNotNone(self.lookup(fake, r'Y:\Comix\Luminae\Luminae 003 (2016).cbz', old={'Web': 'https://example.com/'}))
+
+    def test_both_fallbacks_skip_the_same_citations(self):
+        # QA 0.6.5 finding 1: the name search runs before VerseDB, so its list must name every source VerseDB's does.
+        for text in ('metron.cloud', 'www.comics.org', 'Grand Comics Database', 'Comic Vine', 'comicvine', '[CVDB1]',
+                     'versedb.com', versedb.ATTRIBUTION, 'https://example.com/', 'Scanned by someone'):
+            for old in ({'Web': text}, {'Notes': text}):
+                self.assertEqual(comicvine_search.cites(old), versedb.cites(old), old)
 
     def test_runs_only_after_metron_and_gcd_offline_missed(self):
         path = r'Y:\Comix\Luminae\Luminae 003 (2016).cbz'
