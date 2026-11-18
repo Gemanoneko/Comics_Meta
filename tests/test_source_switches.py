@@ -83,7 +83,8 @@ class SourceSwitchTests(unittest.TestCase):
         (self.root / 'config.json').write_text(json.dumps(value))
 
     def test_default_list_and_reversible_config(self):
-        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index'}  # Enrichment E (2026-10-26).
+        # Enrichment E (2026-10-26), plus the opt-in ComicVine name search (2026-11-18): off unless "enabled" names them.
+        retired = {'GCD', 'Dark Horse', 'Google Books', 'Open Library local index', 'ComicVine search'}
         self.assertEqual(pipeline_config.disabled_sources(), {'General free web', 'Wikipedia/wiki', 'Saved lead re-checks', 'GetComics', 'PREVIEWSworld'} | retired)
         self.assertTrue(pipeline_config.source_enabled('Metron'))
         self.config({'sources': {'disabled': []}})

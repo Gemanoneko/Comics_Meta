@@ -8,8 +8,13 @@ from provider_wait import ProviderDeferred
 KEYS={'Metron':'metron','GCD':'gcd','Google Books':'google_books','Open Library local index':'open_library',
       'GCD offline':'gcd_offline',
       'Dark Horse':'darkhorse_catalog','Image Comics':'image_catalog','PREVIEWSworld':'previews_catalog','GetComics':'getcomics',
-      'General free web':'free_web','Wikipedia/wiki':'wikipedia'}
+      'General free web':'free_web','Wikipedia/wiki':'wikipedia',
+      'ComicVine search':'comicvine_search'}
 FREE_SOURCES={'General free web','Wikipedia/wiki'}
+# ComicVine name search (2026-11-18): every miss waits scheduling.long_miss_days from the first one. Its ComicVine
+# answers are cached 30 days (app.api's cache), so a sooner re-ask gives the same answer, and short re-asks of about
+# 11,800 comics would hold its hourly allowance for good (pilot 2026-11-17, recommendation 4).
+LONG_MISS_SOURCES={'ComicVine search'}
 
 
 def useful(result,old,replaceable=None):
@@ -69,6 +74,9 @@ def can_search(name,row,old,schedule=None):
     if name=='Metron':
         import metron
         return metron.identity(row,old) is not None
+    if name=='ComicVine search':
+        import comicvine_search
+        return comicvine_search.can_search(row,old)
     if name=='GCD offline':
         import gcd_offline
         if gcd_offline_settled((schedule or {}).get('GCD offline')):return False
@@ -105,7 +113,12 @@ def search_fingerprint():
     import gcd_offline
     key=(pipeline_config.config_key(),gcd_offline.rules_stamp())
     if _fingerprint[0]==key:return dict(_fingerprint[1])
-    value={'rules':metron.rules_stamp(),'gcd_rules':gcd_offline.rules_stamp(),'sources':sorted(name for name in KEYS if pipeline_config.source_enabled(name)),
+    sources=sorted(name for name in KEYS if pipeline_config.source_enabled(name))
+    if 'Metron' in sources and 'ComicVine search' in sources:
+        # The ComicVine name search can ask only comics Metron's own rules can (comicvine_search.can_search), so
+        # with Metron on, switching it either way leaves every marker true and must not wake the marked comics.
+        sources.remove('ComicVine search')
+    value={'rules':metron.rules_stamp(),'gcd_rules':gcd_offline.rules_stamp(),'sources':sources,
            'lens':bool(browser_search.settings().get('enabled'))}
     if not pipeline_config.scheduling('gcd_offline_miss_final'):
         # Option 5 switched off: markers set while it was on (a settled GCD miss counted as nothing left to ask)
@@ -160,6 +173,9 @@ def ready(name,attempt,statuses,now):
     if name=='Metron' and attempt.get('result')=='no_verified_match':
         import metron
         if attempt.get('rules')!=metron.rules_stamp():return True  # Enrichment B/C/D: new rules ask once more.
+    if name=='ComicVine search' and attempt.get('result')=='no_verified_match':
+        import comicvine_search
+        if attempt.get('rules')!=comicvine_search.rules_stamp():return True  # Its identity or cover rules changed.
     if available_free_alternative(name,attempt,statuses,now):return True
     if attempt.get('result')=='unavailable' and blocked(attempt_status(name,attempt,statuses),now):return False
     if attempt.get('result')=='unavailable' and attempt_status(name,attempt,statuses).get('status') in ('available','offline_index_ready'):return True
@@ -169,22 +185,24 @@ def ready(name,attempt,statuses,now):
 SPREAD=random.random  # Option 5's random stretch; tests replace it.
 
 
-def miss_delay(failures):
+def miss_delay(failures,long=False):
     """Seconds until a comic whose source answered nothing new is asked again (option 5, Sergei 2026-11-17).
 
     1, 2, 4, then 7 days as before; after scheduling.long_miss_after misses in a row, scheduling.long_miss_days.
+    long (LONG_MISS_SOURCES): scheduling.long_miss_days from the first miss.
     Each wait is stretched by a random 0 to scheduling.retry_spread of itself: after the 0.6.1 re-ask, about 33,000
     comics all came due within three days, a week later and every week after (diagnosis 2026-11-17 §2.5)."""
     import pipeline_config
     delay=min(86400*2**min(failures-1,3),7*86400)
     after=pipeline_config.scheduling('long_miss_after')
-    if after and failures>=after:delay=max(delay,pipeline_config.scheduling('long_miss_days')*86400)
+    if long or (after and failures>=after):delay=max(delay,pipeline_config.scheduling('long_miss_days')*86400)
     return delay*(1+pipeline_config.scheduling('retry_spread')*SPREAD())
 
 
-def record(previous,result,error,old,now,replaceable=None,rules=None):
-    """rules: the source's matching-rules stamp (Metron, GCD offline). Misses are counted under the rules in force:
-    a miss under other rules starts the count again, so new rules get the short waits first."""
+def record(previous,result,error,old,now,replaceable=None,rules=None,long_miss=False):
+    """rules: the source's matching-rules stamp (Metron, GCD offline, ComicVine search). Misses are counted under the
+    rules in force: a miss under other rules starts the count again, so new rules get the short waits first.
+    long_miss: a miss waits scheduling.long_miss_days from the first one (LONG_MISS_SOURCES)."""
     if isinstance(error,ProviderDeferred):
         value={'result':'unavailable','failures':0,'next_at':error.retry_at if error.retry_at>now else now+3600}
         if getattr(error,'engine',None) in ('ddg','bing','yandex'):value['engine']=error.engine
@@ -194,7 +212,7 @@ def record(previous,result,error,old,now,replaceable=None,rules=None):
     if useful(result,old,replaceable):return {'result':'verified','failures':0,'next_at':now+86400}
     if rules is not None and previous.get('rules') not in (None,rules):failures=1
     return {'result':'verified_no_new_data' if result else 'no_verified_match','failures':failures,
-            'next_at':now+miss_delay(failures)}
+            'next_at':now+miss_delay(failures,long_miss)}
 
 
 def order(sources,row,old):

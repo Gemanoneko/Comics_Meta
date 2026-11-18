@@ -439,8 +439,12 @@ def _discover(root,coverage_only,lookahead,refine=False):
             if name=='GCD offline':
                 import gcd_offline
                 rules=gcd_offline.rules_stamp()
+            if name=='ComicVine search':
+                import comicvine_search
+                rules=comicvine_search.rules_stamp()
             # Option 5: misses are counted under the rules in force (source_scheduling.record).
-            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable,rules=rules)
+            source_schedule[name]=source_scheduling.record(source_schedule.get(name,{}),result,exc,old,time.time(),replaceable,rules=rules,
+                                                           long_miss=name in source_scheduling.LONG_MISS_SOURCES)
             if rules is not None:source_schedule[name]['rules']=rules
             attempts.append({'provider':name,'result':source_schedule[name]['result']})
             if exc:lookup_error=record_failure(lookup_error,provider_waits,name,exc)
@@ -532,6 +536,17 @@ def _discover(root,coverage_only,lookahead,refine=False):
             batch.progress(phase='Automatic metadata lookup',detail='Researching up to two sources for '+path.name)
             try:external=research_runtime.first_verified(ready,row,old,completed,accept=useful)
             except pause_control.PauseRequested:return True
+            if not external and pipeline_config.source_enabled('ComicVine search'):
+                # ComicVine name search (Sergei 2026-11-18, off by default): only after Metron and GCD offline answered
+                # this comic with no match, so it is asked on its own once they have, never beside them. Its own gate
+                # (comicvine_search.lookup) reads their results from source_schedule, recorded above.
+                import comicvine_search
+                name=comicvine_search.NAME
+                if source_scheduling.ready(name,source_schedule.get(name,{}),source_statuses,time.time()):
+                    fallback=[(name,lambda row,old:comicvine_search.lookup(row,old,source_schedule))]
+                    try:external=research_runtime.first_verified(fallback,row,old,completed,accept=useful)
+                    except pause_control.PauseRequested:return True
+                else:attempts.append({'provider':name,'result':'scheduled_wait','next_at':source_schedule[name]['next_at']})
             if external:
                 research.save_evidence(path,external)
                 outcome='web_issue_found'
@@ -652,6 +667,7 @@ def _discover(root,coverage_only,lookahead,refine=False):
                 extra,note=replacement_record(external.get('provider','web research'),replaced)
                 if external.get('match_rule'):extra=dict(extra,match_rule=external['match_rule'])  # Enrichment B/C provenance.
                 if external.get('name_spelling'):extra=dict(extra,name_spelling=external['name_spelling'])  # Option 2 (2026-11-17).
+                if external.get('name_search'):extra=dict(extra,name_search=external['name_search'])  # ComicVine name search (2026-11-18).
                 if external.get('cover_match'):extra=dict(extra,cover_match=external['cover_match'])  # Which cover check accepted it (review F4).
                 fields['Notes']='Automatic verified lookup: '+external.get('provider','web research')+'. Issue or edition identity checked against the source. Sources: '+', '.join(s['url'] for s in external['sources'])+('\n'+note if note else '')
                 if external.get('attribution'):fields['Notes']+='\n'+external['attribution']

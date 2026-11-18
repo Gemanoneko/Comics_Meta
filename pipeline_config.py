@@ -12,6 +12,10 @@ DEFAULT_DISABLED_SOURCES = ('General free web', 'Wikipedia/wiki', 'Saved lead re
 # "disabled" list (one written before this change would otherwise keep them on); "sources": {"enabled": [...]}
 # turns one back on. Their code is kept.
 RETIRED_SOURCES = ('GCD', 'Dark Horse', 'Google Books', 'Open Library local index')
+# New sources that start switched off (Sergei 2026-11-17: a new source goes on after its results are checked). Like
+# the retired ones they stay off whatever "disabled" lists; "sources": {"enabled": [...]} switches one on.
+# 'ComicVine search': comicvine_search.py, the name search after Metron and GCD offline find nothing.
+OPT_IN_SOURCES = ('ComicVine search',)
 
 
 def load():
@@ -29,7 +33,7 @@ def disabled_sources():
     disabled = set(DEFAULT_DISABLED_SOURCES) if not isinstance(value, list) else {str(item) for item in value}
     enabled = sources.get('enabled')
     enabled = {str(item) for item in enabled} if isinstance(enabled, list) else set()
-    return (disabled | set(RETIRED_SOURCES)) - enabled
+    return (disabled | set(RETIRED_SOURCES) | set(OPT_IN_SOURCES)) - enabled
 
 
 # Enrichment B, C and D (Sergei 2026-10-26). Looser Metron matching rules. Each default follows the precision

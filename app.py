@@ -103,6 +103,10 @@ def db():
             CREATE TABLE IF NOT EXISTS api_requests(timestamp REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS api_state(id INTEGER PRIMARY KEY, last_attempt REAL, blocked_until REAL);
             INSERT OR IGNORE INTO api_state VALUES(1,0,0);
+            -- ComicVine name search (2026-11-18): every ComicVine request of the last hour by resource ("search",
+            -- "issues", "issue", "volume") and origin ("app": reserve_request, "name_search": comicvine_search),
+            -- because ComicVine counts 200 requests per resource per hour. Pruned to one hour by both reservations.
+            CREATE TABLE IF NOT EXISTS comicvine_requests(timestamp REAL NOT NULL, resource TEXT NOT NULL, origin TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS catalog_migrations(name TEXT PRIMARY KEY);
         ''')
         refresh_fractional_numbers(con)
@@ -303,8 +307,17 @@ def comic(comic_id):
     return dict(row)
 
 
-def reserve_request(now=None):
-    """Persist a conservative global allowance, including failed attempts."""
+def comicvine_resource(resource):
+    """The resource ComicVine counts a request against: "issue/4000-1" -> "issue", "search" -> "search"."""
+    return str(resource).split('/', 1)[0]
+
+
+def reserve_request(now=None, resource=None):
+    """Persist a conservative global allowance, including failed attempts.
+
+    resource (ComicVine name search, 2026-11-18): the request is also entered in the per-resource ledger
+    `comicvine_requests`, so the name search can see this path's use of each resource. This path's own allowance
+    (180 an hour, 20 s apart) is unchanged and never counts name-search requests."""
     now = time.time() if now is None else now
     with db() as con:
         con.execute('BEGIN IMMEDIATE')
@@ -313,6 +326,7 @@ def reserve_request(now=None):
             minutes = max(1, int((state['blocked_until'] - now + 59) // 60))
             raise ProviderDeferred(f'Metadata lookup is cooling down; retry in about {minutes} minutes.','comicvine',state['blocked_until'],'cooldown')
         con.execute('DELETE FROM api_requests WHERE timestamp<=?', (now - 3600,))
+        con.execute('DELETE FROM comicvine_requests WHERE timestamp<=?', (now - 3600,))
         count = con.execute('SELECT COUNT(*) FROM api_requests').fetchone()[0]
         if count >= 180:
             raise ProviderDeferred('Local hourly request budget reached. Pause and retry later; cached results remain available.','comicvine',con.execute('SELECT MIN(timestamp) FROM api_requests').fetchone()[0]+3600,'limit')
@@ -320,6 +334,8 @@ def reserve_request(now=None):
         if delay:
             return delay
         con.execute('INSERT INTO api_requests VALUES(?)', (now,))
+        if resource:
+            con.execute('INSERT INTO comicvine_requests VALUES(?,?,?)', (now, comicvine_resource(resource), 'app'))
         con.execute('UPDATE api_state SET last_attempt=? WHERE id=1', (now,))
         return 0
 
@@ -381,10 +397,10 @@ def api(resource, **params):
         if not key:
             raise ProviderDeferred('Set COMICVINE_API_KEY to enable online lookup.','comicvine',0,'no_key')
         # Shared SQLite reservations survive restarts and coordinate app processes.
-        delay = reserve_request()
+        delay = reserve_request(resource=resource)
         while delay:
             time.sleep(min(delay, 20))
-            delay = reserve_request()
+            delay = reserve_request(resource=resource)
         query = dict(params, api_key=key)
         comicvine_event('requesting')
         request = urllib.request.Request('https://comicvine.gamespot.com/api/' + resource + '/?' +
