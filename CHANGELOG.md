@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.6.5] - 2026-11-18
+
+### Added
+
+- ComicVine name search, a fallback after a Metron and GCD offline miss. It uses the same acceptance rules as Metron: a single candidate, detail checks and cover agreement. Off by default (`sources.enabled`).
+- VerseDB source (needs `VERSEDB_TOKEN`), a fallback after ComicVine name search. It prefers French under `!BD` and English elsewhere, and credits VerseDB in Notes. Off by default.
+
+### Changed
+
+- A saved result is no longer written once its source is switched off or the rule that accepted it no longer applies.
+- Metron's unnumbered rule (C) is stricter: a part label such as "(2 of 3)" or "(Book 14)" now blocks it.
+
+### Fixed
+
+- ComicVine values are trimmed, so Series no longer has trailing spaces.
+
 ## [v0.6.4] - 2026-11-18
 
 ### Changed
