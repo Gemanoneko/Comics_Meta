@@ -5,18 +5,21 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
 
 PRODUCTION_DEADLINE_MS = 600000
 CONTRACT_ID = 'guard-safety-selftests'
-# The broker's own closure check failed: its Job still counted a member after it was terminated (twice for a forced
-# stop), or the count could not be read. desktop/engine.cjs never confirms closure over this code. Before 0.6.7 this
-# failure was an uncaught RuntimeError, exit code 1, the same code Task Manager and taskkill give a process they end,
-# so the shell's own closure check (0.6.6) could overrule the broker's evidence (code review v0.6.6 T1).
-CLOSURE_UNCONFIRMED = 124
-CLOSURE_WAIT = 5.0  # Seconds the Job is given to empty after each termination.
+# Quit always closes the app (Sergei 2026-11-18). When the broker ends its Job it terminates it again every
+# RETERMINATE_EVERY seconds for up to the closure wait the shell passes (--closure-wait, desktop/engine.cjs
+# CLOSURE_WAIT_S: the one constant the quit dialog names too). A part that is still finishing a disk operation after
+# that is named in locks/leftover-<owner>.json and the broker exits with CLOSURE_LEFTOVER; the shell exits anyway, and
+# the next broker re-checks the record before it starts anything (previous_session_closing).
+# Until 0.6.7 this code meant a refused closure (code review v0.6.6 T1), and the shell refused Quit and Retry over it.
+CLOSURE_LEFTOVER = 124
+RETERMINATE_EVERY = 5.0  # Seconds the Job is given to empty after each termination.
 STARTED = globals().get('BOOTSTRAP_STARTED', time.monotonic())
 if os.name != 'nt' or C.sizeof(C.c_void_p) != 8:
     raise RuntimeError('Only reviewed Windows x64 is supported')
@@ -65,6 +68,13 @@ create_process = api('CreateProcessW', W.BOOL, W.LPCWSTR, W.LPWSTR, C.c_void_p, 
 write_file = api('WriteFile', W.BOOL, HANDLE, C.c_void_p, W.DWORD, C.POINTER(W.DWORD), C.c_void_p)
 seek_file = api('SetFilePointerEx', W.BOOL, HANDLE, C.c_longlong, C.c_void_p, W.DWORD)
 truncate_file = api('SetEndOfFile', W.BOOL, HANDLE)
+open_process = api('OpenProcess', HANDLE, W.DWORD, W.BOOL, W.DWORD)
+process_times = api('GetProcessTimes', W.BOOL, HANDLE, C.POINTER(W.FILETIME), C.POINTER(W.FILETIME), C.POINTER(W.FILETIME), C.POINTER(W.FILETIME))
+QUERY_LIMITED, SYNCHRONIZE, TERMINATE = 0x1000, 0x100000, 0x0001
+MAX_MEMBERS = 1024
+
+class ProcessIds(C.Structure):
+    _fields_ = [('assigned', W.DWORD), ('listed', W.DWORD), ('ids', C.c_size_t * MAX_MEMBERS)]
 
 def handle_write(handle, raw):
     wrote = W.DWORD()
@@ -99,8 +109,10 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--parent-pid',type=int,required=True)
     parser.add_argument('--port',type=int,default=8765)
+    parser.add_argument('--closure-wait',type=float,required=True)  # Seconds; desktop/engine.cjs CLOSURE_WAIT_S.
     options=parser.parse_args()
     if not 1<=options.port<=65535 or options.parent_pid<=0:raise ValueError('Invalid owner')
+    if not 0<options.closure_wait<=600:raise ValueError('Invalid closure wait')
     if not os.environ.get('COMICS_META_STATE_ROOT') or not os.environ.get('COMICS_META_SHELL_TOKEN'):
         raise ValueError('A selected state root and shell identity are required')
     token=os.environ['COMICS_META_SHELL_TOKEN']
@@ -166,12 +178,9 @@ def main():
         forced=False
         while wait_process(proc.process,100)==0x102:
             if owner_stopped() or wait_process(parent,0)!=0x102:
-                forced=True
-                require(terminate_job(job,125),'Shell exit closes only owned engine tree')
+                forced=True  # The Job is terminated below, with every other path.
                 break
         if forced:
-            # A member still counted here is terminated once more below; closure is decided there, not here.
-            if not job_emptied(job):note('Owned engine descendants remain after termination; terminating again.')
             result=125
         else:
             exit_value=W.DWORD();require(exit_code(proc.process,C.byref(exit_value)),'Owned engine exit')
@@ -179,17 +188,20 @@ def main():
     except BaseException as error:
         failure=error
     # Every path ends here: whatever happened above, the Job is terminated and its own count decides closure.
-    terminate_job(job,125)
-    try:closed=job_emptied(job)
+    owner=os.environ.get('COMICS_META_CLAIM_OWNER','')
+    try:closed=close_job(job,options.closure_wait)
     except OSError:closed=False  # A count that cannot be read is not proof.
     if closed:
+        forget_leftover(owner)
         try:
             import library_lock
-            library_lock.retire_engine_claims(os.environ.get('COMICS_META_CLAIM_OWNER',''))
+            library_lock.retire_engine_claims(owner)
         except Exception as error:
             # The Job is proven empty, so these claims are unlocked and the next claimant sweeps them. A retirement
             # failure must not hide the closure the broker proved (code review M3: it raised, exit code 1).
             note('Engine claims were not retired: '+type(error).__name__+' '+str(error))
+    else:
+        record_leftover(job,owner,options.closure_wait)  # Before the Job handle closes: its member list is read here.
     close(job)
     if proc.thread:close(proc.thread)
     if proc.process:close(proc.process)
@@ -199,8 +211,7 @@ def main():
         if failure is not None:
             import traceback
             note(''.join(traceback.format_exception(failure)).rstrip())
-        note('Engine descendant closure unconfirmed')
-        return CLOSURE_UNCONFIRMED
+        return CLOSURE_LEFTOVER
     if failure is not None:raise failure  # The Job is empty: exit code 1 with the cause in engine.log, as before.
     return result
 
@@ -209,9 +220,21 @@ def note(line):
     try:print(line,file=sys.stderr,flush=True)
     except (OSError,ValueError,AttributeError):pass
 
-def job_emptied(job):
-    """True once the Job counts no active process, within CLOSURE_WAIT seconds; raises OSError if it cannot be read."""
-    until=time.monotonic()+CLOSURE_WAIT
+def close_job(job,wait):
+    """Terminate the Job, and again every RETERMINATE_EVERY seconds, until it counts no member or `wait` seconds have
+    passed. True once it is empty; raises OSError if the count cannot be read."""
+    deadline=time.monotonic()+wait
+    while True:
+        if not terminate_job(job,125):
+            # The count below still decides closure; until 0.6.7 a failed termination went unnoticed.
+            note('Engine Job termination failed (Windows error '+str(C.get_last_error())+').')
+        if job_emptied(job,min(RETERMINATE_EVERY,max(0.0,deadline-time.monotonic()))):return True
+        if time.monotonic()>=deadline:return False
+        note('Owned engine descendants remain after termination; terminating again.')
+
+def job_emptied(job,seconds):
+    """True once the Job counts no active process, within `seconds`; raises OSError if it cannot be read."""
+    until=time.monotonic()+seconds
     while active_engine(job):
         if time.monotonic()>=until:return False
         time.sleep(.01)
@@ -221,5 +244,68 @@ def active_engine(job):
     counts=Accounting()
     require(query_job(job,1,C.byref(counts),C.sizeof(counts),None),'Engine descendants')
     return counts.active
+
+def lock_dir():
+    """The library claims' lock folder (library_lock.lock_dir), read without importing the engine."""
+    value=os.environ.get('COMICS_META_LOCK_DIR','').strip()
+    if value:return Path(value)
+    local=os.environ.get('LOCALAPPDATA')
+    return (Path(local) if local else Path.home()/'.local'/'state')/'ComicsMeta'/'locks'
+
+def leftover_path(owner):
+    return lock_dir()/('leftover-'+owner+'.json')
+
+def open_member(pid,rights):
+    """A handle on process `pid`, or None when no such process exists; raises OSError when it cannot be opened."""
+    handle=open_process(rights,False,pid)
+    if handle:return handle
+    error=C.get_last_error()
+    if error==87:return None  # ERROR_INVALID_PARAMETER: no process has this ID.
+    raise OSError(error,'Open process '+str(pid))
+
+def created(handle):
+    """The process's creation time (FILETIME, 100 ns units): with its PID, it names one process for good."""
+    times=[W.FILETIME() for _ in range(4)]
+    require(process_times(handle,*[C.byref(value) for value in times]),'Process creation time')
+    return (times[0].dwHighDateTime<<32)|times[0].dwLowDateTime
+
+def job_members(job):
+    """[[pid, creation time]] of the Job's members, or None when the list cannot be read whole."""
+    ids=ProcessIds()
+    if not query_job(job,3,C.byref(ids),C.sizeof(ids),None) or ids.listed!=ids.assigned:return None
+    members=[]
+    for pid in ids.ids[:ids.listed]:
+        try:handle=open_member(int(pid),QUERY_LIMITED)
+        except OSError:return None
+        if handle is None:continue  # Ended since it was listed.
+        try:members.append([int(pid),created(handle)])
+        except OSError:return None
+        finally:close(handle)
+    return members
+
+def record_leftover(job,owner,wait):
+    """Name the parts still running in locks/leftover-<owner>.json. The shell exits anyway; the next broker re-checks
+    the record before it starts anything. Without a member list the next check falls back to the engine's claims."""
+    try:members=job_members(job)
+    except OSError:members=None
+    if not re.fullmatch('[0-9a-f]{64}',owner or ''):
+        import secrets
+        owner=secrets.token_hex(32)
+    described='no member list' if members is None else ', '.join('pid '+str(pid) for pid,_ in members) or 'none listed'
+    note('Engine parts still running after the '+format(wait,'g')+' s closure wait ('+described+'); recorded for the next start.')
+    path=leftover_path(owner)
+    try:
+        path.parent.mkdir(parents=True,exist_ok=True)
+        temporary=path.with_suffix('.tmp')
+        temporary.write_text(json.dumps({'schema':1,'owner':owner,'written':time.time(),'members':members}),encoding='utf-8')
+        os.replace(temporary,path)
+    except OSError as error:
+        note('Leftover record not written: '+type(error).__name__+' '+str(error))
+
+def forget_leftover(owner):
+    """A Job proven empty leaves no record: remove the provisional one the shell writes when it stops waiting."""
+    if not re.fullmatch('[0-9a-f]{64}',owner or ''):return
+    try:leftover_path(owner).unlink(missing_ok=True)
+    except OSError as error:note('Leftover record not removed: '+type(error).__name__+' '+str(error))
 
 if __name__=='__main__':raise SystemExit(main())

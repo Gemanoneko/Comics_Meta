@@ -8,11 +8,14 @@ const {EventEmitter}=require('node:events');
 // Broker exit codes that report its whole Job empty (engine_host.py): the engine's own 0/75, 126 for any other
 // engine exit, 125 for a forced stop.
 const CONFIRMED_EXIT=[0,75,125,126];
-// The broker's own closure check failed (engine_host.py CLOSURE_UNCONFIRMED): its Job still counted a member after
+// The broker's own closure check failed (engine_host.py CLOSURE_LEFTOVER): its Job still counted a member after
 // termination. That is evidence, so the shell never confirms closure over it (code review v0.6.6 T1).
 const UNCONFIRMED_EXIT=124;
+// One wait for a forced stop, in seconds (Sergei 2026-11-18; Judy's Quit spec rev 2, R4 item 2): the broker
+// re-terminates its Job for up to this long before it records what is left (engine_host.py --closure-wait).
+const CLOSURE_WAIT_S=30;
 class Engine extends EventEmitter {
-  constructor({resources,state,locks,port,log}) {super();Object.assign(this,{resources,state,locks,port,log});this.token=crypto.randomBytes(32).toString('hex');this.child=null;this.owner=null;this.ready=false;this.starting=null;this.stopping=null;this.stopGeneration=0;this.closureWaitMs=10000;}
+  constructor({resources,state,locks,port,log}) {super();Object.assign(this,{resources,state,locks,port,log});this.token=crypto.randomBytes(32).toString('hex');this.child=null;this.owner=null;this.ready=false;this.starting=null;this.stopping=null;this.stopGeneration=0;this.closureWaitMs=10000;this.closureWaitS=CLOSURE_WAIT_S;}
   async call(endpoint,body) {
     if(!this.child || this.child.exitCode!==null)throw Error('Owned engine unavailable');
     const url='http://127.0.0.1:'+this.port;
@@ -46,7 +49,7 @@ class Engine extends EventEmitter {
     // PYTHONDONTWRITEBYTECODE reaches every descendant (supervisor workers too): no __pycache__ may
     // appear in the installed runtime, whose closure the next update verifies (0.2.2->0.2.3 failure).
     const owner=this.owner=crypto.randomBytes(32).toString('hex');
-    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_CLAIM_OWNER:owner,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
+    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port),'--closure-wait',String(this.closureWaitS)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_CLAIM_OWNER:owner,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
     // A private authenticated owner stream supplements the held PID handle.
     // EOF proves this exact shell is gone even if Windows reuses its PID.
     this.child.once('exit',(code)=>{const wasReady=this.ready;this.ready=false;this.emit('exit',code,wasReady);});
@@ -153,4 +156,4 @@ function lockState(file) {
 function pidAlive(pid) {
   try{process.kill(pid,0);return true;}catch(error){return error.code!=='ESRCH';}  // Only "no such process" is proof.
 }
-module.exports={Engine};
+module.exports={Engine,CLOSURE_WAIT_S};

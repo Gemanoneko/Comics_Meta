@@ -17,6 +17,9 @@ test('engine and all its descendants run with bytecode writing off',async()=>{
     assert.equal(calls.length,1);
     const [{args,options}]=calls;
     assert.equal(args[0],'-B');
+    // Quit always closes (Sergei 2026-11-18): the broker's closure wait is the shell's one constant (R4 item 2).
+    assert.equal(require('../engine.cjs').CLOSURE_WAIT_S,30);
+    assert.deepEqual(args.slice(-2),['--closure-wait','30']);
     assert.equal(options.env.PYTHONDONTWRITEBYTECODE,'1');  // Inherited by the supervisor's workers.
     assert.equal(options.windowsHide,true);
   }finally{assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
