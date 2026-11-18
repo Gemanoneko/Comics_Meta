@@ -226,8 +226,9 @@ def comicinfo_entry(archive):
     The root ComicInfo.xml when there is one: several root copies, or one that cannot be read, raise as before.
     Nested ComicInfo, Sergei 2026-11-18 (option c): with no root copy, exactly one ComicInfo.xml inside a folder
     (for example a Comixology scrape kept beside the pages) is the comic's existing metadata, so the root copy a
-    write adds starts from it. The nested copy itself is never changed. Several nested copies, or a single one that
-    cannot be read, are ignored, as they were before: the comic reads as having no ComicInfo."""
+    write adds starts from it, and that write removes the nested copy (option d), so the archive keeps one ComicInfo
+    holding all of it. Several nested copies, or a single one that cannot be read, are ignored and kept, as they were
+    before: the comic reads as having no ComicInfo."""
     names = archive.namelist()
     root = [n for n in names if n.lower() == 'comicinfo.xml']
     if len(root) > 1:
@@ -241,6 +242,38 @@ def comicinfo_entry(archive):
         return nested[0], _comicinfo_xml(archive, nested[0])
     except Exception:
         return None, None  # Unreadable, oversized or not ComicInfo: ignored, as before.
+
+
+def comicinfo_filled(element):
+    """An element that says something: text, child elements (Pages) or attributes."""
+    return bool((element.text or '').strip()) or len(element) > 0 or bool(element.attrib)
+
+
+def merge_comicinfo(root, nested):
+    """Fill-empty from a nested ComicInfo into the root copy, element by element (Sergei 2026-11-18, option d).
+
+    Every tag the nested copy fills and the root copy does not is copied, all of its elements in order (a repeated
+    tag, Pages and other structured elements included); where both fill a tag, the root copy wins. A blank root
+    element of that tag is replaced. Changes `root` in place and returns the tags filled, in the nested copy's order."""
+    import copy
+    filled = []
+    for tag in dict.fromkeys(child.tag for child in nested):
+        donors = [e for e in nested if e.tag == tag and comicinfo_filled(e)]
+        current = [e for e in root if e.tag == tag]
+        if not donors or any(comicinfo_filled(e) for e in current):
+            continue
+        for element in current:
+            root.remove(element)
+        for element in donors:
+            element = copy.deepcopy(element)
+            element.tail = None
+            root.append(element)
+        filled.append(tag)
+    return filled
+
+
+def _element_key(element):
+    return (element.tag, sorted(element.attrib.items()), element.text or '', [_element_key(c) for c in element])
 
 
 def read_metadata(path):
@@ -657,7 +690,7 @@ def write_guard_held(path):
 
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
                    expected=None, history_source=None, attempt=None, writer='manual',
-                   expected_snapshot=None, verify_readback=False, guard_held=False):
+                   expected_snapshot=None, verify_readback=False, guard_held=False, merge_nested=None):
     import library_lock
     try:scanned_root=row['root']
     except (KeyError,IndexError):scanned_root=None
@@ -665,7 +698,8 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
     options=dict(append_notes=append_notes,overwrite_fields=overwrite_fields,
                  remove_verified_backups=remove_verified_backups,expected=expected,
                  history_source=history_source,attempt=attempt,writer=writer,
-                 expected_snapshot=expected_snapshot,verify_readback=verify_readback)
+                 expected_snapshot=expected_snapshot,verify_readback=verify_readback,
+                 merge_nested=merge_nested)
     if guard_held:
         if library_lock.identity(filesystem_path(row['path'])) not in getattr(_write_guard_state,'held',set()):
             raise ArchiveChanged('Metadata write guard was not held; nothing written.')
@@ -675,7 +709,8 @@ def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remo
 
 
 def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
-                   expected=None, history_source=None, attempt=None, writer='manual', expected_snapshot=None, verify_readback=False):
+                   expected=None, history_source=None, attempt=None, writer='manual', expected_snapshot=None, verify_readback=False,
+                   merge_nested=None):
     """Write fields into a CBZ's ComicInfo.xml with a backup, temporary-archive checks and readback.
 
     expected: {field: value} the archive's ComicInfo must still hold, checked on the
@@ -688,6 +723,11 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     stored in attempt['backup'], so a caller whose write then fails knows exactly which
     backup this call made (v0.1.3 review F29). A backup name already in use is never
     reused, so that path always names a file this call created.
+    merge_nested (Sergei 2026-11-18, option d): {'name', 'crc', 'size', 'tags'} for an archive with a root and
+    exactly one nested ComicInfo. The nested entry must still be that one (name, CRC, size); merge_comicinfo fills
+    the root copy from it (fill-empty, the root wins), refusing to fill a tag outside 'tags', and the write removes
+    it. A nested-only comic's nested copy (the one the new root copy started from) is removed the same way without
+    being asked. The entry check then allows exactly that one removal.
     writer: 'automatic' for the service's own plans, 'manual' (default) for anything Sergei
     starts. The write ledger records it with the fields this call set and the archive
     signature before and after, in the history transaction (provenance.py)."""
@@ -723,13 +763,34 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             stale = sorted(key for key, value in expected.items() if (present.get(key) or '').strip() != (value or '').strip())
             if stale:
                 raise ArchiveChanged('ComicInfo changed since planning (' + ', '.join(stale) + '); nothing written.')
-        # The copy read_metadata read: the root one, else a single nested one (Sergei 2026-11-18, option c),
-        # which the copy loop below keeps unchanged; the archive check after it proves that.
-        _, xml = comicinfo_entry(source)
+        # The copy read_metadata read: the root one, else a single nested one (Sergei 2026-11-18).
+        source_name, xml = comicinfo_entry(source)
         if xml is None:
             xml = ET.Element('ComicInfo')
         expected_fields = {}
         written = {}  # Fields this call sets (not Notes, not values it leaves in place).
+        # Nested ComicInfo, Sergei 2026-11-18 (option d): the one nested entry this write removes, as
+        # (name, CRC, size). The new root copy carries all of it, so the archive keeps one ComicInfo.
+        drop, merged = None, []
+        if merge_nested is not None:
+            nested = [i for i in infos if nested_comicinfo(i.filename)]
+            if (source_name is None or nested_comicinfo(source_name) or len(nested) != 1
+                    or nested[0].filename != merge_nested['name']
+                    or (nested[0].CRC, nested[0].file_size) != (merge_nested['crc'], merge_nested['size'])):
+                raise ArchiveChanged('Nested ComicInfo changed since planning; nothing written.')
+            merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename))
+            unplanned = sorted(set(merged) - set(merge_nested['tags']))
+            if unplanned:
+                raise ArchiveChanged('The merge would fill fields not planned (' + ', '.join(unplanned) + '); nothing written.')
+            drop = (nested[0].filename, nested[0].CRC, nested[0].file_size)
+            for tag in merged:
+                elements = [e for e in xml if e.tag == tag]
+                if tag not in ('Notes', 'Pages') and len(elements) == 1 and not len(elements[0]):
+                    written[tag] = elements[0].text or ''
+        elif source_name is not None and nested_comicinfo(source_name):
+            # A nested-only comic: the new root copy started from all of it, so it goes.
+            info = source.getinfo(source_name)
+            drop = (info.filename, info.CRC, info.file_size)
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -757,7 +818,7 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as target:
             target.comment = source.comment
             for info in source.infolist():
-                if info.filename.lower() == 'comicinfo.xml':
+                if info.filename.lower() == 'comicinfo.xml' or (drop and info.filename == drop[0]):
                     continue
                 with source.open(info) as src, target.open(info, 'w') as dst:
                     shutil.copyfileobj(src, dst, length=1024 * 1024)
@@ -765,14 +826,20 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         with zipfile.ZipFile(temporary) as check, zipfile.ZipFile(backup) as original:
             if check.testzip() is not None:
                 raise ValueError('Archive validation failed.')
-            before = [(i.filename, i.CRC, i.file_size) for i in original.infolist() if i.filename.lower() != 'comicinfo.xml']
+            # Every other entry is unchanged, in order. The one exception is the nested ComicInfo this write
+            # merged (drop): the original held exactly that entry, unchanged, and the result does not.
+            entries = [(i.filename, i.CRC, i.file_size) for i in original.infolist() if i.filename.lower() != 'comicinfo.xml']
+            before = [entry for entry in entries if not (drop and entry[0] == drop[0])]
             after = [(i.filename, i.CRC, i.file_size) for i in check.infolist() if i.filename.lower() != 'comicinfo.xml']
-            if before != after:
+            if before != after or (drop and len(entries) - len(before) != 1) or (drop and drop not in entries):
                 raise ValueError('Archive contents changed unexpectedly.')
             readback = metadata_xml(check.read('ComicInfo.xml'))
             for key,value in expected_fields.items():
                 if readback.findtext(key,default='') != value:
                     raise ValueError('Temporary archive metadata verification failed for '+key)
+            for tag in merged:
+                if [_element_key(e) for e in readback if e.tag == tag] != [_element_key(e) for e in xml if e.tag == tag]:
+                    raise ValueError('Temporary archive metadata verification failed for '+tag)
         current = path.stat()
         if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
             raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
