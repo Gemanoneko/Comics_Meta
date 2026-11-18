@@ -21,3 +21,20 @@ test('engine and all its descendants run with bytecode writing off',async()=>{
     assert.equal(options.windowsHide,true);
   }finally{assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
+test('Retry after the broker ended on its own starts a new broker (TrayQA v0.6.4 finding 2)',async()=>{
+  const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-retry-'));
+  try{
+    const resources=path.join(root,'resources');await fs.mkdir(path.join(resources,'runtime','python'),{recursive:true});await fs.mkdir(path.join(resources,'engine'));
+    await fs.writeFile(path.join(resources,'runtime','python','python.exe'),'');await fs.writeFile(path.join(resources,'engine','engine_host.py'),'');
+    const engine=new Engine({resources,state:path.join(root,'state'),locks:path.join(root,'locks'),port:0,log:path.join(root,'logs','engine.log')});
+    engine.closureWaitMs=400;
+    await assert.rejects(engine.start(),/Engine exited/);  // The first broker, as spawned.
+    const first=engine.child,owner=calls.at(-1).options.env.COMICS_META_CLAIM_OWNER;
+    first.exitCode=1;  // Ended from outside: no confirmed closure code.
+    const before=calls.length;
+    await assert.rejects(engine.start(),/Engine exited/);  // Retry.
+    assert.equal(calls.length,before+1);  // A new broker was started ...
+    assert.notEqual(engine.child,first);
+    assert.notEqual(calls.at(-1).options.env.COMICS_META_CLAIM_OWNER,owner);  // ... with its own claim identity.
+  }finally{assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
+});
