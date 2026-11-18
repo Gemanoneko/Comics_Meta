@@ -12,7 +12,7 @@ if(qa){for(const folder of [qaPolicy.profile,qaPolicy.cache,path.join(qaPolicy.p
 const locked=app.requestSingleInstanceLock();
 if(!locked){app.exit(0);}else{
   nativeTheme.themeSource='dark';app.setAppUserModelId('studio.illuminati.comicmetadata');
-  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,firstMiss=null,restarts=[],starting=null,quitting=false;const quitTimers=[];
+  let window=null,tray=null,dialog=null,engine=null,stopper=null,updates=null,finalExit=false,polling=false,misses=0,firstMiss=null,restarts=[],starting=null,quitting=false;const quitTimers=[];const SESSION_END_WAIT_MS=2000;  // At sign-out or shutdown, after the 2.5 s pause request.
   let state={loadedShellVersion:app.getVersion(),service:'starting',control:null,update:{phase:'idle',check:'idle'},stopping:null};let trayPause=false;
   const profile=app.getPath('userData');const boundsFile=path.join(profile,'window.json');
   const local=process.env.LOCALAPPDATA;if(!qa && !local)throw Error('Local app state is unavailable');
@@ -147,7 +147,13 @@ if(!locked){app.exit(0);}else{
     if(bounds.maximized)window.maximize();secure(window,url=>url==='http://127.0.0.1:'+engine?.port+'/'||shellFile(url));
     let timer;for(const name of ['move','resize','maximize','unmaximize'])window.on(name,()=>{clearTimeout(timer);timer=setTimeout(saveBounds,400);});window.on('show',()=>window.webContents.send('shell-refresh'));window.on('focus',()=>window.webContents.send('shell-refresh'));
     window.on('close',event=>{if(finalExit)return;event.preventDefault();if(!tray){quit();return;}window.hide();const marker=path.join(profile,'tray-notice-shown');if(!fs.existsSync(marker))notify('Comic Metadata is still running','Processing continues in the tray. Right-click the icon to pause or quit.',()=>fs.writeFileSync(marker,'shown'));});
-    window.on('query-session-end',()=>{engine?.call('/api/shell/pause',{}).catch(log);setTimeout(async()=>{await engine?.forceStop();exit();},2500);});
+    // Windows sign-out or shutdown (Judy's Quit spec rev 2, R6 item 4). The shell always exits, and does so before
+    // Windows ends it (about 5 s after it asks): a forced stop that threw skipped exit(), and the forced stop may now
+    // take the broker's whole closure wait. Unanswered by then, the broker goes on without the shell (it watches it)
+    // and a leftover record makes the next start check what is left.
+    window.on('query-session-end',()=>{engine?.call('/api/shell/pause',{}).catch(log);setTimeout(async()=>{let settled=false;
+      try{await Promise.race([Promise.resolve(engine?.forceStop()).then(()=>{settled=true;}),new Promise(resolve=>setTimeout(resolve,SESSION_END_WAIT_MS))]);}catch(error){log(error);}
+      finally{if(!settled){try{engine?.recordLeftover();}catch(error){log(error);}}exit();}},2500);});
     window.once('ready-to-show',()=>{if(!qa)window.show();});window.loadFile(path.join(__dirname,'startup.html'));
     Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&File',submenu:[{label:'&Exit',accelerator:'Ctrl+Q',click:()=>quit()}]},{label:'&Edit',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'&View',submenu:[{role:'reload'},{role:'forceReload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]}]));
     try{const icon=trayImage('processing');if(icon.isEmpty())throw Error('Tray image missing');tray=new Tray(icon);tray.on('click',show);tray.on('double-click',show);}catch(error){log(error);tray=null;}
