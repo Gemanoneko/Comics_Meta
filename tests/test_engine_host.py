@@ -363,6 +363,26 @@ class PreviousSessionTests(unittest.TestCase):
         self.assertEqual(code, 125, err)
         self.assertIsNone(run.leftover())
 
+    def test_futabas_harness_holds_a_part_and_writes_its_record(self):
+        """tests/debug_hold.py --write-record, as Futaba runs it for the startup screen's checks."""
+        run = self.broker()
+        part, _ = dummy(self)
+        harness = subprocess.Popen([sys.executable, '-B', '-I', str(CODE / 'tests' / 'debug_hold.py'), '--pid', str(part.pid),
+                                    '--write-record', str(run.locks), '--age', '180', '--seconds', '60'],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, creationflags=0x08000000)
+        self.addCleanup(lambda: (harness.kill(), harness.wait(30), harness.stdin.close(), harness.stdout.close()))
+        self.assertEqual(harness.stdout.readline().strip(), b'held %d' % part.pid)
+        record = Path(harness.stdout.readline().decode().strip().split(' ', 1)[1])
+        code, err, _, _ = run.refused(every='0.3')
+        self.assertEqual(code, 123, err)
+        self.assertRegex(err, r'\(age 18[0-9] s\): pid %d alive, terminated again' % part.pid)
+        harness.stdin.close()  # Release: the part ends.
+        self.assertEqual(harness.stdout.readline().strip(), b'released %d' % part.pid)
+        part.wait(10)
+        code, err, _, _ = run.run()
+        self.assertEqual(code, 125, err)
+        self.assertFalse(record.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

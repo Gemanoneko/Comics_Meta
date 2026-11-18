@@ -13,6 +13,7 @@ const CONFIRMED_EXIT=[0,75,123,125,126];
 // locks/leftover-<owner>.json; the shell never confirms closure over this code (code review v0.6.6 T1), but it no
 // longer refuses Quit or Retry over it either: the next broker re-checks the record before it starts anything.
 const LEFTOVER_EXIT=124;
+const PREVIOUS_CLOSING_EXIT=123;
 // One wait for a forced stop, in seconds (Sergei 2026-11-18; Judy's Quit spec rev 2, R4 item 2): the broker
 // re-terminates its Job for up to this long before it records what is left (engine_host.py --closure-wait), the shell
 // waits one second more for its answer (R4 item 3), and the quit dialog names the number.
@@ -67,6 +68,8 @@ class Engine extends EventEmitter {
     let lastResponse=started,lastPhase='';
     try{
       while(performance.now()-started<budgetMs){
+        // 123: the broker started nothing because a previous session's part still runs (Judy's Quit spec rev 2, R2).
+        if(this.child.exitCode===PREVIOUS_CLOSING_EXIT&&this.child.signalCode==null)throw Object.assign(Error('The previous session is still closing'),{code:'PREVIOUS_CLOSING',leftoverSince:this.leftoverSince()});
         if(this.child.exitCode!==null||this.child.signalCode!=null)throw Object.assign(Error('Engine exited'),{code:this.child.exitCode===75?'LIBRARY_BUSY':'ENGINE_EXIT'});
         let status;try{status=await this.call('/api/shell/startup');}catch{}
         if(status?.owned&&['starting','catalog','control','library','service','ready','failed'].includes(status.phase)){lastResponse=performance.now();if(status.phase!==lastPhase){lastPhase=status.phase;this.emit('startup-phase',status.phase);}if(status.phase==='failed')throw Object.assign(Error('Engine initialization failed'),{code:status.error==='LIBRARY_BUSY'?'LIBRARY_BUSY':'STARTUP_FAILED'});if(status.phase==='ready'){this.ready=true;return status;}}
@@ -78,7 +81,7 @@ class Engine extends EventEmitter {
       // The start's own failure is what the screen reports. A part left running is recorded by this forced stop,
       // and the next start's broker re-checks it (Sergei 2026-11-18); until 0.6.7 an unconfirmed closure here became
       // its own failure and blocked every later start.
-      this.emit('startup-phase','stopping');
+      if(error.code!=='PREVIOUS_CLOSING')this.emit('startup-phase','stopping');  // 123: nothing was started, so nothing to stop.
       await this.forceStop();
       throw error;
     }
@@ -125,6 +128,19 @@ class Engine extends EventEmitter {
     if(!/^[0-9a-f]{64}$/.test(owner||''))return;
     try{fs.mkdirSync(this.locks,{recursive:true});fs.writeFileSync(path.join(this.locks,'leftover-'+owner+'.json'),JSON.stringify({schema:1,owner,written:Date.now()/1000,members:null,source:'shell'}),{flag:'wx'});}
     catch(error){if(error.code!=='EEXIST')this.emit('engine-error',error);}
+  }
+  leftoverSince() {
+    // The oldest leftover record's own write time (ms), else its file time; null when none can be read. The startup
+    // screen's "restart your PC" line counts from it (R4 item 4).
+    let names;try{names=fs.readdirSync(this.locks);}catch{return null;}
+    let oldest=null;
+    for(const name of names){
+      if(!/^leftover-.*.json$/.test(name))continue;const file=path.join(this.locks,name);let time=null;
+      try{const written=JSON.parse(fs.readFileSync(file,'utf8'))?.written;if(Number.isFinite(written)&&written>0)time=written*1000;}catch{}
+      if(time===null)try{time=fs.statSync(file).mtimeMs;}catch{}
+      if(time!==null&&(oldest===null||time<oldest))oldest=time;
+    }
+    return oldest;
   }
   async treeEnded(waitMs=this.closureWaitMs) {
     // Seen within waitMs: the engine port is free (the dashboard server is gone) and none of this engine's

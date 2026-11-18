@@ -79,3 +79,22 @@ test('a start whose cleanup leaves a part running reports its own failure and le
     assert.equal(record.owner,engine.owner);
   }finally{brokerExit=126;assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
+// Judy's Quit spec rev 2, R2 and R4 items 4-5: a broker that refused to start because the previous session's part
+// still runs (exit 123) is PREVIOUS_CLOSING, carries the oldest leftover record's own time, and shows no "Stopping".
+test('broker exit 123 is PREVIOUS_CLOSING with the leftover record\'s time and no stopping phase',async()=>{
+  const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-previous-'));
+  try{
+    const locks=path.join(root,'locks');await fs.mkdir(locks);
+    await fs.writeFile(path.join(locks,'leftover-'+'a'.repeat(64)+'.json'),JSON.stringify({schema:1,owner:'a'.repeat(64),written:1763476000.5,members:[[4242,1]]}));
+    await fs.writeFile(path.join(locks,'leftover-'+'b'.repeat(64)+'.json'),JSON.stringify({schema:1,owner:'b'.repeat(64),written:1763476900,members:null}));
+    const engine=new Engine({resources:await resourcesIn(root),state:path.join(root,'state'),locks,port:0,log:path.join(root,'logs','engine.log')});
+    const phases=[];engine.on('startup-phase',phase=>phases.push(phase));engine.closureWaitMs=60000;
+    brokerExit=123;
+    const began=Date.now();
+    await assert.rejects(engine.start(),error=>error.code==='PREVIOUS_CLOSING'&&error.leftoverSince===1763476000500);
+    assert.ok(Date.now()-began<1000);assert.deepEqual(phases,[]);
+    await fs.writeFile(path.join(locks,'leftover-'+'a'.repeat(64)+'.json'),'not json');  // Unreadable: its file time counts.
+    const stat=await fs.stat(path.join(locks,'leftover-'+'a'.repeat(64)+'.json'));
+    assert.equal(engine.leftoverSince(),Math.min(stat.mtimeMs,1763476900000));
+  }finally{brokerExit=126;assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
+});

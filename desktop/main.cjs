@@ -40,7 +40,7 @@ if(!locked){app.exit(0);}else{
     else if(installPending())label='Installing update…';
     else if(state.service==='setup')label='Setup required';
     else if(state.update.phase==='installer-uncertain'){label='Installation outcome unconfirmed. Processing stays stopped.';icon='error';}
-    else if(state.service==='failed'){label='Local service not responding. Open the window for details.';icon='error';}
+    else if(state.service==='failed'){label=state.failure==='PREVIOUS_CLOSING'?'Previous session still closing. Open the window for details.':'Local service not responding. Open the window for details.';icon='error';}
     else if(c?.requested){icon='paused';label=c.phase==='pausing'?'Pausing. Finishing the current operation.':c.error?'Paused. GPU release not confirmed.':c.gpu_released?'Paused. Gemma released from GPU.':'Paused. Releasing Gemma from GPU…';}
     else if(state.verification){icon='verification';label='Needs your verification: '+(state.verification_engines||['Google Lens']).join(' and ');}else if(state.service==='ready')label='Processing enabled';
     if(!state.update.dismissed&&['available','ready','confirm'].includes(state.update.phase))label+=' · Update available';
@@ -112,12 +112,26 @@ if(!locked){app.exit(0);}else{
   }catch(error){log(error);if(firstMiss===null)firstMiss=performance.now();if(++misses>=3&&performance.now()-firstMiss>=60000)state.service='failed';}finally{polling=false;broadcast();}}
   let updateTimer=null;
   function beginUpdateCadence(){if(updateTimer||!app.isPackaged||state.service!=='ready')return;setTimeout(()=>updates.check(false),5000);updateTimer=setInterval(()=>updates.check(false),86400000);}
+  // "The previous session is still closing." (Judy's Quit spec rev 2, R2 and R4 item 4). Try again there re-checks
+  // that session: startupPhase 'previous' (P2) shows for at least 0.5 s before any result, and a failure shown from the
+  // startup page reuses it (no reload, so no blank frame). checkedAt is this check; leftoverSince the record's own write
+  // time, else the time this shell first saw it (that only delays the restart-PC line).
+  let previousUntil=0,firstLeftoverSeen=null,heldPhase=null,heldPhaseTimer=null;
+  const startupPage=pathToFileURL(path.join(__dirname,'startup.html')).href;
+  async function holdPrevious(){const wait=previousUntil-performance.now();if(wait>0)await new Promise(resolve=>setTimeout(resolve,wait));}
+  function startupPhase(phase){if(state.service!=='starting'||quitting)return;
+    if(state.startupPhase==='previous'){const wait=previousUntil-performance.now();if(wait>0){heldPhase=phase;heldPhaseTimer??=setTimeout(()=>{heldPhaseTimer=null;const held=heldPhase;heldPhase=null;if(held)startupPhase(held);},wait);return;}}
+    state.startupPhase=phase;broadcast();}
   async function start(){
     if(starting)return starting;
     if(quitting||stopper?.busy||updates?.state.phase==='installer-uncertain')return;
-    starting=(async()=>{state.service='starting';state.failure=null;state.startupPhase='starting';state.startupAttempt=Date.now();broadcast();
-      try{const initial=await engine.start();if(quitting||finalExit||stopper?.busy)return;state.service=initial.setup?.configured?'ready':'setup';state.startupPhase=state.service==='setup'?'opening-setup':'opening-dashboard';broadcast();if(state.service==='setup')await window.loadFile(path.join(__dirname,'setup.html'));else await window.loadURL('http://127.0.0.1:'+engine.port);if(!quitting&&!finalExit)await poll();}
-      catch(error){if(quitting||finalExit)return;log(error);state.service='failed';state.failure=error.code||'ENGINE_EXIT';state.startupBudgetMs=error.budgetMs;await window.loadFile(path.join(__dirname,'startup.html'));broadcast();}
+    const recheck=state.service==='failed'&&state.failure==='PREVIOUS_CLOSING';
+    starting=(async()=>{clearTimeout(heldPhaseTimer);heldPhaseTimer=null;heldPhase=null;previousUntil=recheck?performance.now()+500:0;
+      state.service='starting';state.failure=null;state.startupPhase=recheck?'previous':'starting';state.startupAttempt=Date.now();broadcast();
+      try{const initial=await engine.start();if(quitting||finalExit||stopper?.busy)return;await holdPrevious();if(quitting||finalExit||stopper?.busy)return;state.service=initial.setup?.configured?'ready':'setup';state.startupPhase=state.service==='setup'?'opening-setup':'opening-dashboard';broadcast();if(state.service==='setup')await window.loadFile(path.join(__dirname,'setup.html'));else await window.loadURL('http://127.0.0.1:'+engine.port);if(!quitting&&!finalExit)await poll();}
+      catch(error){if(quitting||finalExit)return;log(error);await holdPrevious();if(quitting||finalExit)return;state.service='failed';state.failure=error.code||'ENGINE_EXIT';state.startupBudgetMs=error.budgetMs;
+        if(state.failure==='PREVIOUS_CLOSING'){state.checkedAt=Date.now();firstLeftoverSeen??=state.checkedAt;state.leftoverSince=error.leftoverSince??firstLeftoverSeen;}
+        if(window.webContents.getURL()!==startupPage)await window.loadFile(path.join(__dirname,'startup.html'));broadcast();}
     })();try{return await starting;}finally{starting=null;}
   }
   app.on('second-instance',show);app.on('before-quit',event=>{if(!finalExit){event.preventDefault();quit();}});app.on('window-all-closed',()=>{});
@@ -143,7 +157,7 @@ if(!locked){app.exit(0);}else{
     if(qa){Object.defineProperty(autoUpdater.app,'baseCachePath',{value:qaPolicy.cache});autoUpdater.logger=null;if(autoUpdater.netSession!==session.defaultSession)autoUpdater.netSession.webRequest.onBeforeRequest({urls:['<all_urls>']},(details,callback)=>callback({cancel:!requestAllowed(qaPolicy,details.url,{feedOnly:true})}));autoUpdater.setFeedURL({provider:'generic',url:qaPolicy.feedURL,requestHeaders:{Authorization:'Bearer '+qaPolicy.feedToken}});autoUpdater.requestHeaders={Authorization:'Bearer '+qaPolicy.feedToken};}
     fs.mkdirSync(path.join(stateRoot,'work'),{recursive:true});
     updates=new Updates({updater:autoUpdater,stopper,engine,log,exit,workRoot:path.join(stateRoot,'work','update-launch'),qaInstallDirectory:qaPolicy?.installDirectory,qaArtifact:qaPolicy?.artifact,record:value=>{fs.writeFileSync(path.join(logFolder,'update-attempt-'+crypto.randomUUID()+'.json'),JSON.stringify({...value,loadedShellVersion:app.getVersion(),installedVersionVerified:false},null,2),{flag:'wx'});}});updates.on('state',value=>{const entering=value.phase==='installer-uncertain'&&state.update.phase!=='installer-uncertain';state.update={...value};if(entering){state.service='held';state.failure=null;window.loadFile(path.join(__dirname,'startup.html'));}broadcast();});
-    engine.on('startup-phase',phase=>{if(state.service==='starting'&&!quitting){state.startupPhase=phase;broadcast();}});
+    engine.on('startup-phase',startupPhase);
     engine.on('exit',(_code,wasReady)=>{if(!wasReady||stopper.busy||quitting||finalExit)return;restarts=restarts.filter(time=>Date.now()-time<60000);if(restarts.length<3){restarts.push(Date.now());setTimeout(()=>{const previous=starting;if(previous)previous.then(()=>{if(!quitting&&!finalExit)start();});else start();},500);}else{state.service='failed';state.failure='RESTART_EXHAUSTED';broadcast();}});engine.on('engine-error',log);
     start().then(beginUpdateCadence);setInterval(poll,3000);
   }).catch(error=>{console.error(error);app.exit(1);});
