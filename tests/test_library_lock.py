@@ -206,9 +206,10 @@ class WriteGuardTests(LockFixture):
     def test_conversion_stops_the_folder_pass_instead_of_recording_a_failure(self):
         path = self.library / 'Example 001.cbr'
         path.write_bytes(b'Rar!fixture')
+        stat = path.stat()  # The scan's signature: one() skips a row whose size or mtime the file no longer has.
         with app.db() as con:
             con.execute("INSERT INTO comics(path,root,size,mtime,status) VALUES(?,?,?,?,'unsupported')",
-                        (str(path), str(self.library), 11, 1))
+                        (str(path), str(self.library), stat.st_size, stat.st_mtime_ns))
         self.other_copy_claims()
         with patch.object(archive_conversion, 'SEVEN_ZIP', Mock(**{'is_file.return_value': True})), \
                 patch.object(archive_conversion, 'signature', side_effect=AssertionError('Read after refusal')):
