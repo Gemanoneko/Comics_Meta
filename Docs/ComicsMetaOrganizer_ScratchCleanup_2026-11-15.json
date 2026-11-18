@@ -1,0 +1,209 @@
+{
+  "date": "2026-11-15",
+  "target": "I:\\AI Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch",
+  "authorization": "User requested keep only open-task needs and remove the rest",
+  "status": "completed with three Git safety holds",
+  "before": [
+    {
+      "name": "conversion-reconcile-20261114",
+      "files": 11,
+      "bytes": 91360
+    },
+    {
+      "name": "futaba-naming-20261110",
+      "files": 435,
+      "bytes": 50656765
+    },
+    {
+      "name": "futaba-naming-final-20261110",
+      "files": 337,
+      "bytes": 9049465
+    },
+    {
+      "name": "geometry-fix-061-20261110",
+      "files": 11068,
+      "bytes": 975062161
+    },
+    {
+      "name": "install-update-061-20261110",
+      "files": 18616,
+      "bytes": 3941105392
+    },
+    {
+      "name": "naming-fixes-20261110",
+      "files": 0,
+      "bytes": 0
+    },
+    {
+      "name": "native-failure-abort-061-20261110",
+      "files": 4,
+      "bytes": 2917
+    },
+    {
+      "name": "native-tray-516c812-20261110",
+      "files": 55,
+      "bytes": 2056702
+    },
+    {
+      "name": "promotion-061-516c812-20261110",
+      "files": 25,
+      "bytes": 53625
+    },
+    {
+      "name": "publisher-061-516c812-20261110",
+      "files": 4,
+      "bytes": 14156
+    },
+    {
+      "name": "qa-repair-061-20261110",
+      "files": 10927,
+      "bytes": 979945434
+    },
+    {
+      "name": "release-061-20261110",
+      "files": 22831,
+      "bytes": 2137385517
+    },
+    {
+      "name": "release-062-20261114",
+      "files": 439,
+      "bytes": 158704635
+    },
+    {
+      "name": "release-062-qa",
+      "files": 17,
+      "bytes": 188984
+    },
+    {
+      "name": "release-063-20261114",
+      "files": 467,
+      "bytes": 164778420
+    },
+    {
+      "name": "release-063-no-vm-ender",
+      "files": 11,
+      "bytes": 64813
+    },
+    {
+      "name": "release-063-qa",
+      "files": 3,
+      "bytes": 12875
+    },
+    {
+      "name": "startup-20261114-ender",
+      "files": 62,
+      "bytes": 253816
+    },
+    {
+      "name": "startup-20261114-live",
+      "files": 15,
+      "bytes": 46260
+    },
+    {
+      "name": "startup-20261114-qa",
+      "files": 22,
+      "bytes": 583807
+    },
+    {
+      "name": "tray-icon-20261114",
+      "files": 6,
+      "bytes": 48127
+    }
+  ],
+  "beforeFiles": 65355.0,
+  "beforeBytes": 8420105231.0,
+  "freeBytesBefore": 193320087552,
+  "openTaskNeeds": [],
+  "disposition": "All task work closed; no live scratch process or tracked outer-repo files. Approved dry run identified three protected nested Git entry-repo roots and one dead private-profile INetCache link. Nested repos will remain; link is unlinked by sanctioned sweep, never followed.",
+  "sourceVerification": "All 13 source/candidate/entry snapshots compared to all reachable Git objects. Every non-generated source file matched raw or CRLF-normalized Git blob; zero unmatched. Generated dist/build/node_modules/__pycache__ excluded.",
+  "sourceSnapshotMatchedCounts": [
+    331,
+    333,
+    378,
+    378,
+    378,
+    345,
+    345,
+    345,
+    334,
+    334,
+    334,
+    418,
+    418
+  ],
+  "release063": {
+    "draft": false,
+    "verification": "Local hashes and sizes matched GitHub asset digests and sizes on 2026-11-15; no independent remote download",
+    "semanticPass": true,
+    "assets": [
+      {
+        "bytes": 150050097,
+        "name": "Comic-Metadata-Setup-0.6.3.exe",
+        "sha256": "16ebde67294f756cd9ef8d2501686b0c8980f712210e9bc937b514a390832d1d"
+      },
+      {
+        "bytes": 157619,
+        "name": "Comic-Metadata-Setup-0.6.3.exe.blockmap",
+        "sha256": "e7117becb7abe39a95277fe7a4c1e5ad790b9cc75d7421e80968ac56deeca2a8"
+      },
+      {
+        "bytes": 357,
+        "name": "latest.yml",
+        "sha256": "e82d60177ada27a5917bf3cb3a6b28933e549853692d822b30e51fbcd0beb13c"
+      }
+    ],
+    "url": "https://github.com/Gemanoneko/Comics_Meta/releases/tag/v0.6.3",
+    "canonicalResult": {
+      "published": "https://github.com/Gemanoneko/Comics_Meta/releases/tag/v0.6.3",
+      "version": "0.6.3",
+      "artifacts": 3,
+      "rebuild": false,
+      "owned_commands": 4
+    },
+    "source": "61a3507a605afa4cb6e96320d7b42c4a2f137cd0"
+  },
+  "startupQA": "# Comic Metadata startup QA · 2026-11-14\n\n**Verdict:** GO for the bounded private startup scenarios below. Unreleased candidate 0.6.1 from Ender's frozen pack2 win-unpacked. Installer SHA-256 f8eb301838edb8ae360ccdbf6d6e01775d0225af537ee62c4e1b1f2a1e1c2a09. Executable SHA-256 cec7e99b188bf8ed5ec20ff0fa8513ed5af9f9eae71ffa94874e4718845a86a4. app.asar SHA-256 5bfec9e893b8577e4edbd8c531f7c07eeef92d9e98d05a5fd074e9e1b4567bc8. Installed baseline 0.6.1 is release tag 516c812. Pack2 candidate engine app.py SHA-256 5f05673da49b5088fc11d3808e60f0d55631675cc4c44fe398a41cbb420b0954 and engine_host.py SHA-256 0d772d25642ec3008bfd61c473faedcb724c4559ce4c02a6235abbc55e2d5b24.\n\n- **Installed baseline, measured timeout.** Actual packaged shell started the native broker and showed START_TIMEOUT about 30.15 s later. 154/154 answered full-status samples were HTTP 400 with the all-NUL state. 154/154 answered dashboard HTML samples were HTTP 200, first at about 0.62 s. Broker exit 125 preceded failure presentation. Actual tray Quit exited code 0 and the private Job reported zero active processes. Separate baseline handler absence/valid/corrupt positive controls were supplied by the observation agent.\n- **Installed baseline, nominal.** The same sanitized full-size catalog first answered owned full status 646 ms alone and 633 ms with a private Books loader running. Those two single measurements were collected in overlapping QA work without per-process CPU-rate sampling and support functional overlap only. The 45,000-row Books fixture finished loader work in 10.734 s according to its own took_ms field. With a distinct synthetic 120,000-row Books fixture, the Comic engine first answered at 758 ms while the Books loader was genuinely in catalog and remained active through Comic exit.\n- **Pack2, small overlap.** Actual shell and dashboard, synthetic Comic state with the three NUL files plus the published Books Arranger 0.28.5 backend and 45,000 synthetic audiobook rows. Comic broker-to-first-owned-startup 600 ms, full status 621 ms. The Books catalog phase response bracket was t=2.372–3.194 s, with progress_age_ms 1,516 and took_ms unset, putting the beginning of observable loader work before Comic's t=2.384 s full status. Same owned Books PID throughout and active catalog continued during ready-state sampling.\n- **Pack2, full-size overlap.** Same packed bytes and 45,000-row Books fixture, plus a per-run copy of the 267,956,224-byte sanitized Comic catalog with 40,583 comics. First owned startup 615 ms after native broker spawn, owned full status at 636 ms. Authenticated Books samples were already in catalog at t=5.712 s before Comic full status t=5.974 s and still in catalog on the next confirmed sample at t=6.487 s. Comic dashboard rendered and showed 40,583 total. Twelve subsequent owned status HTTP 200 responses, unauthenticated startup 403, and exactly one Comic broker generation. /api/state, /api/progress and /api/browser-verification all HTTP 200. Progress had explicit browser, progress and folder unavailability. All three initially 100% NUL file hashes matched after launch. Books received authenticated shutdown and exited code 0; this run stopped its loader after measuring Comic readiness.\n- **Writer lock control.** Installed broker after a 27.98 s acknowledged SQLite BEGIN IMMEDIATE hold reached full status about 28.22 s after spawn. With a 34.98 s hold it exited 1 about 33.25 s after spawn with sqlite3.OperationalError: database is locked, and no listener. Pack2 held the same private database locked for a measured lower bound of 34.98 s (lock acquired before the shell launch). First owned phase catalog 586 ms after broker spawn, startup remained catalog until the lock cleared, then dashboard and full status at 34.37 s with one generation and 12 owned 200 responses. Invalid startup token returned 403. Comic state and renderer were private, with no credential fixtures.\n- **Retry and ownership.** One actual private OS-backed library claim from a distinct fixture state identity blocked the candidate. Native broker PID 76788 exited code 75 and shell showed LIBRARY_BUSY. Before retry the only claim files were the external holder's pair. Holder release removed both. Two calls to the actual Retry button in the same renderer event produced exactly one new broker PID 91300, starting 687 ms after the first exited. The new broker opened the dashboard and gave 12 owned full status HTTP 200 samples. Tray Quit exited shell code 0, HTTP listener refused connections afterward, claims folder was empty and the private Job reported zero active processes.\n- **Geometry.** Private BrowserWindow screenshots and DOM measurements at requested 640×480 and 1280×860 gave actual offscreen viewports of 642×481 and 1282×861 on this host. Neither page scrolled beyond its viewport. Candidate startup displayed “Opening the comic catalog…” and, after a separate 14.97 s writer hold, “This is taking longer than usual.” Maximum visible content bottom was 117 px initially, 138 px with the late sentence and 195 px in the retry failure. Retry, logs and Quit rectangles were bounded and separated by about 8 px horizontally. No physical focus test. Candidate captured 35 s initial progress and 15 s dedicated elapsed-copy screenshots. Jane should review captures before reporting a visual verdict.\n- **Isolation and method.** All timing used Node performance.now() relative to each run, with shell broker spawn translated from wall-clock samples for actual shell runs. Raw HTTP responses paired with authenticated state samples by exact child and private endpoint. The Books source was unchanged installed web_server.py, loaded with bundled Python through a scratch runpy wrapper that adds the installed backend import directory and passes --roots-json and --database to private paths on a free loopback port. Comic inspector identity validated exact PID, executable, policy hash and profile before installing no-focus/native-spawn guards and resuming main. All final package runs closed normally via actual tray Quit with private Job ActiveProcesses=0, retaining native handles until signaled. No installer was run and no production catalog, library or live app was used in the launch harness. The sanitized catalog has matched file size and realistic row counts with neutralized content and free-list padding. The workload does not reproduce production shares, jobs or exact IO contention.\n- **Harness exception and cleanup.** Two superseded source preview runs encountered the generic Electron ESM bootstrap, so the pre-main guard could not install. Inspector recovery verified exact private PID, executable, QA flag, profile and offscreen condition. PID 83988 accepted app.quit, and its owner reported closed with zero active processes. PID 73768 did not complete its app quit, so PID 4452, the exact outer Job owner confirmed by start time, executable, parent and command line, was terminated to close its kill-on-close Job. CIM then found zero matching processes/descendants. Final packaged runs used the separate verified guard path. Existing installed app PIDs were observed at task start and later absent. No QA command was directed to either installed app process.\n\nPattern alerts: none.\n\nEvidence filenames under evidence/ contain selected receipts for the above scenarios. Screenshots preserve the original filename with case prefix. The remaining illuminati-cmo-qa-* runtime roots are all throwaway inputs and launch output once the evidence copies are checked.\r\n\r\n",
+  "preservedExistingDocs": [
+    "ComicsMetaOrganizer_Release_v0.6.1_2026-11-10.md",
+    "ComicsMetaOrganizer_ReleaseEvidence_v0.6.1_2026-11-10.json",
+    "ComicsMetaOrganizer_StartupEvidence_2026-11-14.md",
+    "ComicsMetaOrganizer_TrayQA_v0.6.3_2026-11-14.md",
+    "ComicsMetaOrganizer_LocalReleaseToolingReview_v0.6.3_2026-11-14.md"
+  ],
+  "limitations": "Historical scratch links and screenshots will cease to exist; compact recorded measurements/verdicts remain. Installed app, real library, state, Git and docs remain untouched.",
+  "protectedGitRoots": [
+    "release-061-20261110/entry-repo",
+    "qa-repair-061-20261110/entry-repo",
+    "geometry-fix-061-20261110/entry-repo"
+  ],
+  "after": [
+    {
+      "path": "I:\\AI Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\geometry-fix-061-20261110/entry-repo",
+      "files": 944,
+      "bytes": 10365257,
+      "reason": "Approved sweep protects standalone nested Git repo roots; no bypass attempted",
+      "gitState": "Clean detached HEAD, no stash, HEAD commit and all source content also present in outer repo"
+    },
+    {
+      "path": "I:\\AI Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\qa-repair-061-20261110/entry-repo",
+      "files": 830,
+      "bytes": 9150980,
+      "reason": "Approved sweep protects standalone nested Git repo roots; no bypass attempted",
+      "gitState": "Clean detached HEAD, no stash, HEAD commit and all source content also present in outer repo"
+    },
+    {
+      "path": "I:\\AI Projects\\Studio Illuminati\\WIP\\Comics Meta Organizer\\scratch\\release-061-20261110/entry-repo",
+      "files": 785,
+      "bytes": 8502428,
+      "reason": "Approved sweep protects standalone nested Git repo roots; no bypass attempted",
+      "gitState": "Clean detached HEAD, no stash, HEAD commit and all source content also present in outer repo"
+    }
+  ],
+  "afterFiles": 2559.0,
+  "afterBytes": 28018665.0,
+  "removedFiles": 62796.0,
+  "removedBytes": 8392086566.0,
+  "freeBytesAfter": 202609221632,
+  "sweepFreeSpace": "180.77 GiB -> 188.69 GiB (+7.92 GiB), includes concurrent disk activity and allocation effects",
+  "verified": "Only three protected entry-repo roots remain; no worktree-removal route because these are standalone main Git roots, not linked worktrees. Original Docs and outer Git retained; unrelated existing CodeReview v0.6.2 remains untracked."
+}
