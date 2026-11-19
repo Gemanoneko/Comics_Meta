@@ -147,9 +147,9 @@ class InterruptedWriteTests(Library):
         its temporary archive left on the disk as a kill leaves it."""
         real = storage.replace_durably
 
-        def killed(source, destination):
+        def killed(source, destination, check=None):
             if after:
-                real(source, destination)
+                real(source, destination, check=check)
             else:
                 os.replace(source, str(source) + '.kept')
             raise Killed()

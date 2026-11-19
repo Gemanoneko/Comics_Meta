@@ -319,7 +319,8 @@ class ApplyTests(Applied):
         def remove(path, backup, original):
             at_removal.append((Path(path).name, os.stat(app.filesystem_path(path)).st_ino in disk.durable))
             return real(path, backup, original)
-        with patch.object(storage, 'replace_durably', os.replace), patch.object(storage.os, 'fsync', disk.fsync), \
+        unflushed = lambda source, destination, check=None: os.replace(source, destination)  # As 0.6.7's writer.
+        with patch.object(storage, 'replace_durably', unflushed), patch.object(storage.os, 'fsync', disk.fsync), \
                 patch.object(app, 'remove_verified_backup', remove):
             self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
         # Before: [(..., False), (..., False)].
@@ -416,6 +417,29 @@ class ApplyTests(Applied):
         holders[0].release()
         self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})  # Nothing stopped: no refusal.
 
+    def test_w1_an_edit_made_during_the_rename_wait_is_kept_with_its_backup_and_the_run_carries_on(self):
+        # Code review v0.6.9 W1, Senua's probe P1b: the engine's rename wait put the merged archive over a tagger's
+        # edit, the tool reported 'written' and deleted the backup: the edit was gone from the comic and the backup.
+        from test_review_068_fixes import Editor
+        import storage
+        real, editors, original = storage.flush_file, [], tool.sha256(app, str(self.merge))
+        self.addCleanup(lambda: [editor.finish() for editor in editors])
+
+        def flush_file(path):
+            result = real(path)
+            if Path(str(path)).name == self.merge.name + '.metadata-tmp':
+                editors.append(Editor(app.filesystem_path(self.merge), .4))
+            return result
+        with patch.object(storage, 'flush_file', flush_file):
+            counts = self.apply('run1')
+        self.assertEqual(counts, {'written': 1, 'skipped': 1, 'held': 1})  # Before: {'written': 2, 'held': 1}.
+        self.assertEqual(self.merge.read_bytes(), editors[0].edited)  # As the other program left it.
+        results = {r['path']: r for r in map(json.loads, (self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8').splitlines())}
+        refused = results[str(self.merge)]
+        self.assertEqual((refused['outcome'], refused['backup_removed']), ('skipped', False))
+        self.assertEqual(tool.sha256(app, refused['backup']), original)  # Its backup kept.
+        self.assertEqual(results[str(self.renamed)]['outcome'], 'written')  # The run carried on.
+
     def test_a_backup_held_for_another_reason_still_stops_the_run(self):
         # Only a sharing violation is waited for; a refusal of another kind stops the run as before.
         with patch.object(app, 'remove_verified_backup', side_effect=PermissionError(13, 'Access is denied')):
@@ -478,11 +502,11 @@ class ResumeTests(Applied):
         real_replace, real_verify, real_remove, real_durable = (storage.replace_durably, tool.verify_written,
                                                                 app.remove_verified_backup, tool.make_durable)
 
-        def replace(source, destination):
+        def replace(source, destination, check=None):
             if where == 'before rename':
                 os.replace(source, str(source) + '.kept')  # A kill leaves the temporary archive on the disk.
                 raise Killed()
-            real_replace(source, destination)
+            real_replace(source, destination, check=check)
             if where == 'after rename':
                 raise Killed()
 

@@ -63,7 +63,7 @@ def _move(source, destination):
         raise ctypes.WinError(ctypes.get_last_error())  # Access denied or a sharing violation is a PermissionError.
 
 
-def replace_durably(source, destination):
+def replace_durably(source, destination, check=None):
     """Rename a finished file over another so that both the bytes and the rename are on the disk when this returns:
     flush_file(source), then the write-through rename. Code review v0.6.7 Q1: a comic rewritten through a temporary
     archive and os.replace() was verified from the OS cache only, then its backup was deleted; a power loss in that
@@ -71,10 +71,17 @@ def replace_durably(source, destination):
 
     Sergei 2026-11-19 (r2 follow-up): Windows refuses to replace a file another program has open, and the write failed
     at once. A refusal because the destination is held is retried for RENAME_HELD_WAIT seconds (_held_open); any other
-    error is raised at once, and a lasting refusal leaves the destination unchanged."""
+    error is raised at once, and a lasting refusal leaves the destination unchanged.
+
+    check, when given, is called after the flush and before every rename attempt, and raises to refuse the rename
+    (code review v0.6.9 W1): a program that holds the destination may be editing it, and both waits (the flush's and
+    the rename's) gave it up to 10 s each. Before, nothing compared the destination again, and the rename put a file
+    built from it as it was over that edit."""
     flush_file(source)
     deadline, pause = time.monotonic() + RENAME_HELD_WAIT, .05
     while True:
+        if check is not None:
+            check()
         try:
             _move(source, destination)
             return

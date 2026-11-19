@@ -272,7 +272,7 @@ class MergeTests(Isolated):
         app.scan([str(self.folder)], recursive=False)
         seen = []
 
-        def stopped(source, destination):
+        def stopped(source, destination, check=None):
             seen.append((app.DATA / 'removed-nested-copies.jsonl').exists())  # On the disk before the rename?
             raise KeyboardInterrupt()  # The process stops at the rename.
         with patch.object(storage, 'replace_durably', stopped), self.assertRaises(KeyboardInterrupt):

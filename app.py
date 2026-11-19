@@ -1139,7 +1139,18 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             # Code review v0.6.7 Q1: the new archive's bytes reach the disk before the rename, and the rename before
             # this returns (storage.replace_durably, as storage's durable save). Every caller that then deletes the
             # backup (Approve, the worker's batch, remove_verified_backups, the nested merge tool) deletes it only after.
-            storage.replace_durably(temporary, path)
+            def unchanged():
+                # Code review v0.6.9 W1: the flush and the rename may each wait up to 10 s for a program that holds
+                # the comic or the temporary archive (r2), and that program may be editing the comic. Compared again
+                # before every rename attempt, as above: a change refuses the rename, the comic stays as the other
+                # program left it, and the caller keeps the backup (ArchiveChanged).
+                try:
+                    now = path.stat()
+                except FileNotFoundError:
+                    raise ArchiveChanged('Comic changed while preparing metadata. Original retained.') from None
+                if (now.st_size, now.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
+                    raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
+            storage.replace_durably(temporary, path, check=unchanged)
             replaced = True
         finally:
             temporary.unlink(missing_ok=True)

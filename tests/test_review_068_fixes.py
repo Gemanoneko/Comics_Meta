@@ -70,6 +70,40 @@ class Holder:
         return self
 
 
+def edited(path):
+    """The comic as another program (a tagger) leaves it: its own ComicInfo and one more entry."""
+    import io as io_module
+    buffer = io_module.BytesIO()
+    with zipfile.ZipFile(path) as source, zipfile.ZipFile(buffer, 'w') as target:
+        for info in source.infolist():
+            if info.filename != 'ComicInfo.xml':
+                target.writestr(info, source.read(info))
+        target.writestr('ComicInfo.xml', '<?xml version="1.0"?><ComicInfo><Series>Edited elsewhere</Series></ComicInfo>')
+        target.writestr('tagger.txt', 'written by another program')
+    return buffer.getvalue()
+
+
+class Editor:
+    """Senua's probe P1 (code review v0.6.9 W1): another program opens the comic read-write (Python's open shares read
+    and write, not delete, so Windows refuses to replace it), rewrites it and closes it `after` seconds later."""
+
+    def __init__(self, path, after):
+        self.edited, self._guard = edited(path), threading.Lock()
+        self._handle = open(path, 'r+b')
+        timer = threading.Timer(after, self.finish)
+        timer.daemon = True
+        timer.start()
+
+    def finish(self):
+        with self._guard:
+            handle, self._handle = self._handle, None
+            if handle is not None:
+                handle.seek(0)
+                handle.write(self.edited)
+                handle.truncate()
+                handle.close()
+
+
 def make_comic(path):
     with zipfile.ZipFile(path, 'w') as archive:
         archive.writestr('001.jpg', b'cover' * 200)
@@ -161,9 +195,9 @@ class HeldWriteTests(unittest.TestCase):
     def test_r2_the_worker_waits_out_a_reader_holding_its_temporary_archive(self):
         real = storage.replace_durably
 
-        def replace_durably(source, destination):
+        def replace_durably(source, destination, check=None):
             self.holders.append(Holder(source).release_after(.4))  # Held between its last write and its flush.
-            return real(source, destination)
+            return real(source, destination, check=check)
         with patch.object(storage, 'replace_durably', replace_durably):
             # The worker's call (batch.apply with remove_verified_backups): the writer deletes the backup itself.
             app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, remove_verified_backups=True)
@@ -210,6 +244,50 @@ class HeldWriteTests(unittest.TestCase):
             app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, attempt=attempt, verify_readback=True)
         self.assertGreaterEqual(time.monotonic() - started, .3)  # It waited.
         self.assert_unchanged_after_a_refused_rename(before, started, 5)
+
+    def edited_at_the_rename(self, after=None):
+        """At the writer's rename (right after the temporary archive's flush), another program edits the comic: within
+        the rename wait (after=seconds, holding it open until then) or at once (after=None, not held)."""
+        real, editors = storage.flush_file, []
+        self.addCleanup(lambda: [editor.finish() for editor in editors])
+
+        def flush_file(path):
+            result = real(path)
+            if str(path).endswith('.metadata-tmp'):
+                if after is None:
+                    editor = Editor(app.filesystem_path(self.path), 0)
+                    editor.finish()
+                else:
+                    editor = Editor(app.filesystem_path(self.path), after)
+                editors.append(editor)
+            return result
+        return editors, patch.object(storage, 'flush_file', flush_file)
+
+    def assert_the_edit_and_the_backup_are_kept(self, editors, attempt):
+        self.assertEqual(self.path.read_bytes(), editors[0].edited)  # As the other program left it.
+        self.assertEqual(Path(attempt['backup']).read_bytes(), self.original)  # The backup kept, for the caller.
+        self.assertFalse(self.path.with_name(self.path.name + '.metadata-tmp').exists())
+        self.assertFalse(app.pending_write_path(str(self.path)).exists())
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM history').fetchone()[0], 0)
+
+    def test_w1_an_edit_made_during_the_rename_wait_is_never_overwritten(self):
+        # Code review v0.6.9 W1, Senua's probe P1: nothing compared the comic again after the wait, so the rename put
+        # an archive built from the comic as it was over the edit; Approve, the worker and the merge tool then deleted
+        # the backup (equal to the original), and the edit existed nowhere.
+        self.original, attempt = self.path.read_bytes(), {}
+        editors, edit = self.edited_at_the_rename(after=.4)
+        with edit, self.assertRaises(app.ArchiveChanged):  # Before: no error, the edit overwritten.
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, attempt=attempt, verify_readback=True)
+        self.assert_the_edit_and_the_backup_are_kept(editors, attempt)
+
+    def test_w1_an_edit_made_while_the_temporary_archive_was_flushed_is_never_overwritten(self):
+        # The flush itself may wait up to 10 s for a held temporary archive (r2): the comic is compared after it too.
+        self.original, attempt = self.path.read_bytes(), {}
+        editors, edit = self.edited_at_the_rename()
+        with edit, self.assertRaises(app.ArchiveChanged):  # Before: no error, the edit overwritten.
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, attempt=attempt, remove_verified_backups=True)
+        self.assert_the_edit_and_the_backup_are_kept(editors, attempt)
 
     def test_r2_a_read_only_comic_is_still_refused_at_once(self):
         # Error 5 is also what a read-only comic gives; that is never waited for (code review v0.6.8 R1 keeps its outcome).
