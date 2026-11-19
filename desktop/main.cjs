@@ -97,7 +97,14 @@ if(!locked){app.exit(0);}else{
     dialog.on('close',event=>{if(finalExit)return;event.preventDefault();if(state.stopping?.stage!=='ending')stopper.cancel();});
   }
   function closeDialog(){if(!dialog)return;dialog.removeAllListeners('close');if(!dialog.isDestroyed())dialog.close();dialog=null;}
-  function stoppingDialog(value){if(value.stage==='ending')return beginEnding();state.stopping=value;openDialog(false);broadcast();}
+  // Quit's Closing stage (Judy's Quit spec rev 3, C2-C3): the shell sends the closure wait with it, as with the ending
+  // state, and marks it late once Closing has lasted 5 s; the dialog then states 2 x that wait as the time left.
+  function stoppingDialog(value){if(value.stage==='ending')return beginEnding();
+    if(value.stage==='closing'&&value.mode==='quit'){const first=state.stopping?.stage!=='closing';
+      state.stopping={...value,waitSeconds:engine.closureWaitS,late:first?false:Boolean(state.stopping.late)};
+      if(first)quitTimers.push(setTimeout(()=>{if(state.stopping?.stage==='closing'){state.stopping={...state.stopping,late:true};broadcast();}},5000));
+      openDialog(false);broadcast();return;}
+    state.stopping=value;openDialog(false);broadcast();}
   // The ending state (forced termination, any path): an open dialog switches in this frame; a dialog first made in it
   // (at 1.5 s) takes no focus. The detail gains its second sentence at 10 s. The number is the engine's closure wait,
   // and the shell exits by that wait + 1 s even if the broker never answers.

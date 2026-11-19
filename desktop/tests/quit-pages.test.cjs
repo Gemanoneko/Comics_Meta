@@ -44,12 +44,53 @@ test('in the ending state Escape does nothing, and no later stage brings the but
   assert.equal(p.el('actions').hidden,true);assert.equal(p.el('status').textContent,'Stopping the local service…');
 });
 
-test('the existing stages are unchanged',()=>{
-  const p=page('stopping');p.push({stopping:{...pausing,stage:'closing',control:{phase:'paused',gpu_released:true}},update:{phase:'idle'}});
-  assert.equal(p.el('status').textContent,'Gemma released from GPU. Closing…');
+// Judy's Quit spec rev 3 (copy fix, Sergei 2026-11-19): the Closing stage states the time left, 2 x the closure wait,
+// from 5 s in (the shell's late flag); its disabled buttons say why they are off; nothing else is in its detail.
+const closingState=(extra={},control={phase:'paused',gpu_released:true})=>({stopping:{mode:'quit',stage:'closing',control,elapsed:2000,waitSeconds:30,late:false,...extra},update:{phase:'idle'}});
+const ROW1='This can take up to 60 seconds.',ROW2='Cannot cancel: the app is already closing.',ROW3='The app is already closing and exits by itself.';
+
+test('rev 3 Closing: status unchanged, buttons disabled with rows 2 and 3, detail empty until 5 s, then row 1',()=>{
+  const p=page('stopping');p.push({stopping:pausing,update:{phase:'idle'}});p.push(closingState());
+  assert.equal(p.el('status').textContent,'Gemma released from GPU. Closing…');  // Row 5: unchanged.
   assert.equal(p.el('cancel').disabled,true);assert.equal(p.el('force').disabled,true);assert.equal(p.el('actions').hidden,false);
+  assert.equal(p.el('cancel').title,ROW2);assert.equal(p.el('force').title,ROW3);  // Before: the promising pausing tooltips.
+  assert.equal(p.el('detail').textContent,'');  // A healthy quit leaves Closing before 5 s: no number flashes.
+  assert.equal(p.el('detail').getAttribute('role'),'status');  // Live before its text is set: announced once.
+  p.push(closingState({late:true,elapsed:7000}));
+  assert.equal(p.el('detail').textContent,ROW1);
+  p.push(closingState({late:true},{phase:'paused',error:'nvidia-smi failed'}));
+  assert.equal(p.el('status').textContent,'GPU release not confirmed. Closing…');assert.equal(p.el('detail').textContent,ROW1);
+});
+
+test('rev 3 Closing suppresses "Waiting for" and the Quit now line (C7 check 5)',()=>{
+  const p=page('stopping');
+  p.push(closingState({elapsed:70000,late:true},{phase:'paused',gpu_released:true,waiting_for:['metadata']}));
+  assert.equal(p.el('detail').textContent,ROW1);  // Exactly row 1. Before: "Waiting for: comic processing Quit now exits ...".
+  p.push(closingState({elapsed:70000,late:false},{phase:'paused',gpu_released:true,waiting_for:['metadata','browser']}));
+  assert.equal(p.el('detail').textContent,'');
+  assert.doesNotMatch(p.el('detail').textContent,/Waiting for|Quit now exits without waiting/);
+});
+
+test('rev 3: the numbers are the shell\'s (policy 12 gives 24, then 12), and 1 reads "1 second"',()=>{
+  const p=page('stopping');p.push(closingState({waitSeconds:12,late:true}));
+  assert.equal(p.el('detail').textContent,'This can take up to 24 seconds.');
+  p.push(ending({waitSeconds:12}));assert.equal(p.el('detail').textContent,'This can take up to 12 seconds.');
+  const q=page('stopping');q.push(ending({waitSeconds:1}));assert.equal(q.el('detail').textContent,'This can take up to 1 second.');
+  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','stopping.js'),'utf8');
+  assert.doesNotMatch(source,/\b(30|60)\b/);  // No literal 30 or 60 seconds (C7 check 3); 30000/60000 ms thresholds are not numbers shown.
+});
+
+test('rev 3 leaves the pausing and GPU stages and install mode as they were',()=>{
+  const p=page('stopping');p.push({stopping:{...pausing,elapsed:70000},update:{phase:'idle'}});
+  assert.equal(p.el('detail').textContent,'Waiting for: comic processing Quit now exits without waiting. An interrupted write keeps its recovery backup.');
   assert.equal(p.el('cancel').title,'Stop quitting. Processing resumes unless you had paused it.');
   assert.equal(p.el('force').title,'Exit without waiting. An interrupted write keeps its recovery backup.');
+  assert.equal(p.el('cancel').disabled,false);
+  const i=page('stopping');
+  i.push({stopping:{mode:'install',stage:'closing',control:{phase:'paused',gpu_released:true},elapsed:2000,late:true,waitSeconds:30},update:{phase:'idle',version:'0.6.8'}});
+  assert.equal(i.el('status').textContent,'Gemma released from GPU. The app restarts to install.');
+  assert.equal(i.el('detail').textContent,'');  // No time sentence in install mode (C6 item 1).
+  assert.equal(i.el('cancel').title,'Stop the install. Processing resumes unless you had paused it.');
 });
 
 // The startup screen's "previous session still closing" states (Judy's Quit spec rev 2, R2): P1, P2 (checking), P3.

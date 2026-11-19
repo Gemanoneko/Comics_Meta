@@ -1,7 +1,95 @@
-# Comics Meta Organizer — Quit wait and "previous session still closing" (UX spec), rev 2
+# Comics Meta Organizer — Quit wait and "previous session still closing" (UX spec), rev 3
 
-Author: Judy. Date: 2026-11-18. Branch: `ender/0.6.7-fixes`. Status: rev 2 draft for Sergei, uncommitted (Sully commits it before Ender is briefed).
-Rev 2 replaces rev 1 (the refused-Quit banner and startup screen). Sergei approved a design change today that removes the refused Quit. Rev 1 stays at the bottom as history. **Where the two differ, rev 2 wins, and nothing under "History" is built.**
+Author: Judy. Date: 2026-11-18 (rev 3: 2026-11-19). Branch: `ender/0.6.7-fixes`. Status: rev 2 draft for Sergei, uncommitted (Sully commits it before Ender is briefed). Rev 3 (copy fix for 0.6.8) is the first section below; uncommitted.
+Rev 2 replaces rev 1 (the refused-Quit banner and startup screen). Sergei approved a design change today that removes the refused Quit. Rev 1 stays at the bottom as history. **Where the two differ, rev 2 wins, and nothing under "History" is built.** **Rev 3 changes only the quit dialog's wording; where it differs from rev 2, rev 3 wins.**
+
+## Rev 3 (copy fix), 2026-11-19
+
+**Source.** Futaba's TrayQA v0.6.7 finding 1: with the engine frozen, Quit takes about 65 s from the click. The Closing stage waits up to 30 s with both buttons disabled and no time shown; then the ending state says `This can take up to 30 seconds.` and waits up to 31 s more. **Sergei's ruling:** fix the wording; the waits stay as they are. Nothing in this section changes timing, controls, sizes or colors.
+
+### C1. What happens, what the user read (default wait, measured in TrayQA v0.6.7 §1)
+
+| From the click | Dialog showed | What was true |
+|---|---|---|
+| 1.6 s | Pausing text | Pause and GPU stages, about 3.4 s here; no time limit stated (unchanged, C6 item 2). |
+| 3.4 s | `Gemma released from GPU. Closing…`, both buttons disabled, no time | Up to 30 s more, then the ending state. Nothing said so. |
+| 33.4 s | `Stopping the local service…` / `This can take up to 30 seconds.` | True: up to 30 s more (31.2 s measured). But a user who had waited 30 s already read it as the whole wait. |
+| 64.6 s | Process ends | Closing 30 s plus ending 31 s: about 61 s after Closing began. |
+
+**The gap is the Closing stage.** The ending text is a true remaining time; the Closing stage states no time, and the 30 s it holds is never accounted for. Rev 2 R4 item 3 and R5 item 1 also read as one 30 s / 31 s wait from the click (corrected in C5).
+
+### C2. The rule
+
+**Every stage that waits states the longest time remaining from the moment it appears.** Not time elapsed, not time from the click. Each string then stands alone and the numbers count down: 60, then 30.
+
+- **Ending state:** `closureWaitSeconds` (the broker's wait). Unchanged.
+- **Closing stage:** `2 × closureWaitSeconds`: the Closing wait, then the ending wait.
+- **The source of the number** is the policy field `closureWaitSeconds` (default 30; `CLOSURE_WAIT_S` in `engine.cjs`, overridden by `qaPolicy.closureWaitSeconds`; the shell's `engine.closureWaitS`). The shell sends `waitSeconds` with the closing state, as it already does with the ending state; the dialog shows `2 × waitSeconds` in Closing and `waitSeconds` in the ending state. No literal `30` or `60` appears in any string. With the policy at 12 the dialog says 24, then 12. Ender comments the `2` in code: it is the two waits of `graceful-stop.cjs`.
+- **The shell's extra second** (`wait + 1 s`, R4 item 3) is a backstop for a broker that never answers. It is not shown, as in rev 2: the text states the broker's wait, and the 1 s is under what a person can tell. Futaba allows 2 s (C7).
+- **Singular:** the number 1 reads `1 second`. Only a QA policy of 1 can produce it; the default never does.
+
+### C3. Exact strings, before → after (quit mode)
+
+| # | Where | Before | After |
+|---|---|---|---|
+| 1 | Closing, detail (`#detail`) | empty | empty for the first 5 s of the Closing stage; from 5 s: `This can take up to 60 seconds.` |
+| 2 | Closing, `Cancel quit` tooltip (button disabled) | `Stop quitting. Processing resumes unless you had paused it.` | `Cannot cancel: the app is already closing.` |
+| 3 | Closing, `Quit now` tooltip (button disabled) | `Exit without waiting. An interrupted write keeps its recovery backup.` | `The app is already closing and exits by itself.` |
+| 4 | Ending state, status and detail | `Stopping the local service…` / `This can take up to 30 seconds.` | **Unchanged.** The 10 s sentence and everything else in rev 2 R1 stay. |
+| 5 | Closing, status line | `Gemma released from GPU. Closing…` or `GPU release not confirmed. Closing…` | **Unchanged.** |
+
+**In the Closing stage the detail is only row 1.** Today `stopping.js` can add `Waiting for: …` (from 5 s) and, when the quit has run 60 s or more, `Quit now exits without waiting. An interrupted write keeps its recovery backup.` to the Closing detail: the second is false there, because Quit now is disabled. In Closing neither is shown. The Pausing and GPU stages keep their detail lines exactly.
+
+**Why 5 s.** It is the dialog's own threshold for `Waiting for` (`elapsed >= 5000`). A healthy quit leaves Closing quickly, so the number never flashes there; a stuck one shows it at 5 s, which is early in a 30 s wait. The sentence appears by the same mechanism as the ending state's 10 s sentence (shell-driven, so the QA clock controls it). It is announced once: the detail is a live region before its text is set (`role="status"`, as the ending state does).
+
+**Tooltips.** Rows 2 and 3 replace tooltips that promise actions a disabled button cannot do; they say why the button is off. Native `title`, set in the commit that changes the dialog. A disabled button is skipped by Tab, so the detail line, not the tooltip, carries the time.
+
+**How it reads, default wait:**
+
+| From Closing's start | Dialog |
+|---|---|
+| 0 s | `Gemma released from GPU. Closing…`, buttons disabled |
+| 5 s | + `This can take up to 60 seconds.` |
+| 30 s | `Stopping the local service…` / `This can take up to 30 seconds.`, buttons hidden |
+| 40 s | + ` An interrupted write keeps its recovery backup.` |
+| up to about 61 s | Process ends |
+
+### C4. Not chosen, and why
+
+| Option | Verdict | Reason |
+|---|---|---|
+| Ending says `up to 60 seconds` or `30 more seconds` | No | False when the ending state comes first (Quit now, the error path, engine not ready): no earlier wait exists. `more` also refers back to a state the string does not show. |
+| Closing shows the number at once | No | A healthy quit passes through Closing and would flash a 60 s warning it does not need. |
+| Closing says only `This may take a while.` | No | Not specific; the user cannot decide anything from it. |
+
+### C5. Rev 2 lines this corrects
+
+- **R4 item 3:** the shell exits within `wait + 1 s` of the *ending state* beginning, not of the click. From the click, a silent broker gives: pause stages + `wait` (Closing) + `wait + 1 s` (ending): 64.6 s measured at the default.
+- **R5 item 1** "the time the process ends (at most 31 s)": at most `wait + 1 s` after the ending state begins; at most `2 × wait + 1 s` after Closing begins (about 61 s at the default). From the click, add the pause stages.
+- **R1 table, row "Pausing, GPU, closing stages | Unchanged":** Closing now carries rows 1 to 3 above; Pausing and GPU are unchanged.
+- **R6 item 1** (end Closing after one wait) is built (`graceful-stop.cjs`); this section is what makes it visible.
+
+### C6. Not specified here (offered, not started)
+
+1. **Install mode.** Its Closing stage ends only at the pause cap, with no forced path, so no number is true there; its text is unchanged. Its disabled `Cancel install` carries the same promising tooltip as row 2. Not specified.
+2. **Pausing and GPU stages** state no time because they can last up to the 10-minute cap; `Quit now` is live there and says what it does. Unchanged.
+3. **Exact-to-the-second text** (`31`) would cost a number that looks like a bug. Not recommended.
+
+### C7. Checks for Futaba (measured)
+
+Harness as in 0.6.7: freeze the broker (`tests/debug_hold.py --pid <broker python.exe> --mode freeze`), hold at least `2 × wait + 40` s (100 s at the default), sample the dialog's text and tooltips from inside the app every 100 ms (no OS key, mouse or focus). Times in ms from the click. A string check run with `closureWaitSeconds` below 5 never shows row 1 (Closing ends first): use 30 or 12.
+
+1. **Default wait, tray Quit.** The Closing status shows with the detail empty; the detail becomes exactly `This can take up to 60 seconds.` 5.0 s after Closing began (±0.5 s); the ending state shows `Stopping the local service…` / `This can take up to 30 seconds.` about 30 s after Closing began; the 10 s sentence 10.0 s after that.
+2. **Stated-remaining test, the measure that fails if the copy lies.** For every sampled text with a number N at time t: `exit time − t ≤ N + 2 s`. 0.6.7's own run (Closing at 3.4 s, ending at 33.4 s, exit at 64.6 s) is the input: with the new text it must pass; with the 0.6.7 text there is no number in Closing, so the check has nothing to hold there, which is the defect.
+3. **Policy 12.** Closing detail `This can take up to 24 seconds.`, ending `This can take up to 12 seconds.`; exit within `2 × 12 + 1 + 2` s of Closing beginning. No literal 30 or 60 in `desktop/stopping.js` or the shell's stage state.
+4. **Healthy quit, five runs** (tray Quit from the ready dashboard): the Closing detail is empty in every sample; row 1 never shows. Positive control: check 1 shows it.
+5. **Tooltips in Closing:** read `title` on both disabled buttons: rows 2 and 3 character for character; both buttons disabled; no `Quit now exits without waiting` and no `Waiting for` in the detail. Feed the DOM test a closing state with `elapsed: 70000`, `waiting_for: ['metadata']` and the late flag set, and confirm the detail is exactly row 1. **Positive control:** the same feed on the 0.6.7 dialog shows the old suffix.
+6. **Quit now during Pausing** (no Closing stage): the ending state reads `up to 30 seconds`; process ends within 31 s + 2 s of the ending beginning.
+7. **Ending-state regression:** buttons hidden, Escape and the window's close button do nothing, the 10 s sentence appears once (rev 2 R5 items 2 and 4 still pass).
+8. **Install mode regression:** Closing reads `Gemma released from GPU. The app restarts to install.`, no time sentence, `Cancel install` tooltip unchanged.
+9. **Rects at 440 px, before and after the sentence appears:** detail and buttons do not overlap, both buttons at least 40 px high and fully inside the window, nothing scrolls. Strings and rects are measured offscreen; because a line is added to a visible dialog, one visible run is needed before Sergei sees it (focus checks need his permission, as in rev 2 R5).
+10. **Number 1:** DOM feed with `waitSeconds: 1` in the ending state reads `This can take up to 1 second.`
+11. Compare the shipped strings in rows 1 to 3 with this section character by character.
 
 ## Current spec (rev 2)
 

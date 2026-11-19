@@ -110,3 +110,31 @@ test('Cancel quit before 1.5 s leaves no dialog behind',async()=>{
   await f.tick(500);f.stopper.settle.resolve(false);await flush();
   await f.tick(5000);assert.equal(f.windows.length,1);assert.equal(f.state().stopping,null);
 });
+
+// Judy's Quit spec rev 3 (copy fix, Sergei 2026-11-19): the shell sends the closure wait with Quit's Closing stage
+// and marks it late at 5 s, by the same timers as the ending's 10 s sentence; install mode is unchanged.
+test('Quit\'s Closing stage carries the closure wait and turns late at 5 s; the ending still follows',async()=>{
+  const f=await quitting({engine:{closureWaitS:12}});
+  f.stopper.emit('stage',{stage:'closing',mode:'quit',control:{phase:'paused',gpu_released:true},elapsed:3400});await flush();
+  assert.equal(f.state().stopping.stage,'closing');
+  assert.equal(f.state().stopping.waitSeconds,12);assert.equal(f.state().stopping.late,false);  // Before: no waitSeconds.
+  await f.tick(4999);assert.equal(f.state().stopping.late,false);
+  await f.tick(1);assert.equal(f.state().stopping.late,true);assert.equal(f.dialog.lastState.stopping.late,true);
+  f.stopper.emit('stage',{stage:'ending',mode:'quit'});
+  assert.deepEqual([f.state().stopping.stage,f.state().stopping.waitSeconds,f.state().stopping.late],['ending',12,false]);
+});
+
+test('a healthy Closing that ends within 5 s never turns late',async()=>{
+  const f=await quitting();
+  f.stopper.emit('stage',{stage:'closing',mode:'quit',control:{phase:'paused',gpu_released:true},elapsed:2000});await flush();
+  await f.tick(1000);f.stopper.settle.resolve(true);await flush();
+  assert.equal(f.quits,1);assert.equal(f.dialog.lastState.stopping.late,false);
+});
+
+test('install mode\'s Closing is passed on as the stopper reports it',async()=>{
+  const f=mainFixture();f.stopper.busy=true;
+  const closing={stage:'closing',mode:'install',control:{phase:'paused',gpu_released:true},elapsed:2000};
+  f.stopper.emit('stage',closing);await flush();
+  assert.deepEqual(f.state().stopping,closing);
+  await f.tick(6000);assert.deepEqual(f.state().stopping,closing);
+});
