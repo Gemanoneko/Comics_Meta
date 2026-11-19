@@ -59,7 +59,10 @@ v0.6.7 Q1: the checks may have read it from the OS cache), and app.remove_verifi
 SHA-256 equals the original's. A failed check keeps the backup and stops the run. A flush that another program
 refuses by holding the archive open without sharing write (Windows error 32) is retried for FLUSH_HELD_WAIT seconds
 (code review v0.6.8 r2); an archive that still cannot be flushed is skipped and reported with its backup kept (listed
-in Kept backups as "Save not verified"), and the run carries on (Sergei 2026-11-19). Results go to <out>/results.jsonl and <out>/summary.json (all runs of the --out folder). <out>/run.json names
+in Kept backups as "Save not verified"), and the run carries on (Sergei 2026-11-19). A backup another program holds
+open without sharing delete is waited out the same way (BACKUP_HELD_WAIT); still held, the archive is reported
+'written' with its backup kept (listed as "Saved; backup could not be deleted"), and the run carries on. Results go
+to <out>/results.jsonl and <out>/summary.json (all runs of the --out folder). <out>/run.json names
 the plan (its SHA-256); <out>/journal.jsonl records, on the disk before each step, an archive's start (with its
 original's SHA-256), its write (with the backup) and its verification, which is how --resume finds and finishes or
 undoes an archive an interrupted run was writing (RECOVERY).
@@ -87,6 +90,7 @@ DATE = ('Year', 'Month', 'Day')
 HISTORY_SOURCE = 'nested-comicinfo-merge'
 WRITER = 'automatic'
 FLUSH_HELD_WAIT = 30  # Seconds make_durable waits out another program holding the archive without sharing write (r2).
+BACKUP_HELD_WAIT = 30  # Seconds remove_backup waits out another program holding the backup without sharing delete.
 SHARING_VIOLATION = 32  # Windows ERROR_SHARING_VIOLATION.
 _kernel = None
 
@@ -612,11 +616,35 @@ def finish(app, entry, backup, original, out, details):
             + ': ' + (str(exc)[:200] or type(exc).__name__)))
     journal(out, {'event': 'verified', 'path': entry['path'], 'backup': backup})
     try:
-        app.remove_verified_backup(entry['path'], backup, original)
+        remove_backup(app, entry['path'], backup, original)
     except Exception as exc:
         # Verified, recorded and flushed: only the redundant copy stays, as after Approve's refused deletion.
+        if getattr(exc, 'winerror', None) == SHARING_VIOLATION:
+            # Sergei 2026-11-19 (r2 follow-up): another program still holds the backup after the wait. The archive is
+            # written; reported 'written' with its backup kept ("Saved; backup could not be deleted"), and the run
+            # carries on. Before, the run stopped here and --resume refused.
+            return 'written', dict(details, kept_as='delete_refused', reason=(
+                'backup kept: it could not be deleted (another program held it open for %g s): ' % BACKUP_HELD_WAIT
+                + (str(exc)[:200] or type(exc).__name__)))
         return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__), kept_as='delete_refused')
     return 'written', dict(details, backup_removed=True)
+
+
+def remove_backup(app, path, backup, original):
+    """app.remove_verified_backup, waiting out another program that holds the backup open without sharing read or
+    delete (Windows error 32: a scanner, or a reader) for BACKUP_HELD_WAIT seconds (Sergei 2026-11-19, r2 follow-up).
+    Any other error, a failed SHA-256 check included, is raised at once. The tool's own wait: the 0.6.8 engine's
+    remove_verified_backup does not retry."""
+    deadline, pause = time.monotonic() + BACKUP_HELD_WAIT, .05
+    while True:
+        try:
+            return app.remove_verified_backup(path, backup, original)
+        except OSError as exc:
+            left = deadline - time.monotonic()
+            if getattr(exc, 'winerror', None) != SHARING_VIOLATION or left <= 0:
+                raise
+        time.sleep(min(pause, left))
+        pause = min(pause * 2, .5)
 
 
 def label_kept_backup(app, entry, details):
@@ -710,6 +738,8 @@ Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window cl
        'stopped' with its backup kept, and nothing more is written.
      - Checked, but it cannot be flushed to disk (another program holds it open, waited out for 30 s, or another
        error): result 'skipped' with its backup kept ("Save not verified"), and the run carries on.
+     - Checked and flushed, but another program holds its backup open (waited out for 30 s): result 'written' with
+       its backup kept ("Saved; backup could not be deleted"), and the run carries on.
   4. If the run ended on a 'stopped' result, --resume and --recover refuse: look at that archive first (its backup
      is kept; Kept backups lists it as "Save not verified"), then make a new dry run and apply it with a new --out.
      Its nested copy and dropped values are not only in that backup: the app saved them, before the rewrite, to
@@ -947,8 +977,8 @@ def apply(plan_path, out, engine, live, resume=False, recover_only=False):
                                      ensure_ascii=False) + '\n')
             results.flush()
             os.fsync(results.fileno())
-            if outcome == 'skipped' and details.get('kept_as'):
-                print(outcome, path.name + ':', details['reason'], flush=True)  # Written, not flushed (r2).
+            if outcome != 'stopped' and details.get('kept_as'):
+                print(outcome, path.name + ':', details['reason'], flush=True)  # Its backup kept (r2).
             else:
                 print(outcome, path.name, flush=True)
             if outcome == 'stopped' or details.get('kept_as'):

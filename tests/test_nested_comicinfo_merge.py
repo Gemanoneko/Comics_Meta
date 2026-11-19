@@ -341,18 +341,19 @@ class ApplyTests(Applied):
             self.assertIn('could not be flushed', result['reason'])
             self.assertNotIn('held it open', result['reason'])  # Only a holder's sharing violation is waited for.
 
-    def held_while_verified(self, release_after=None):
+    def held_while_verified(self, release_after=None, backup=False):
         """A reader opens self.merge without sharing write right after it is rewritten (a thumbnailer reacting to the
-        change), as in Futaba's TrayQA v0.6.8 probe; the tool's flush then meets Windows error 32."""
+        change), as in Futaba's TrayQA v0.6.8 probe; the tool's flush then meets Windows error 32. With backup=True it
+        opens that write's backup instead, without sharing delete, so deleting it meets the same error."""
         from test_review_068_fixes import Holder
         holders, real = [], tool.verify_written
         self.addCleanup(lambda: [holder.release() for holder in holders])
 
-        def verify(app_, entry, backup):
+        def verify(app_, entry, made):
             if entry['path'] == str(self.merge):
-                holder = Holder(app.filesystem_path(entry['path']))
+                holder = Holder(app.filesystem_path(made if backup else entry['path']))
                 holders.append(holder.release_after(release_after) if release_after else holder)
-            return real(app_, entry, backup)
+            return real(app_, entry, made)
         return holders, patch.object(tool, 'verify_written', verify)
 
     def test_r2_a_reader_holding_the_written_archive_is_waited_out(self):
@@ -384,6 +385,43 @@ class ApplyTests(Applied):
         # --resume does not refuse (nothing stopped) and leaves the skipped archive and its backup alone.
         self.assertEqual(self.apply('run1', resume=True), {'written': 1, 'skipped': 1, 'held': 1})
         self.assertTrue(app.filesystem_path(skipped['backup']).exists())
+
+    def test_r2_a_reader_holding_the_backup_is_waited_out_before_it_is_deleted(self):
+        # Sergei 2026-11-19 (r2 follow-up): a backup another program holds open without sharing delete made its deletion
+        # fail at once (WinError 32): 'stopped', the run ended. The deletion now waits the holder out.
+        holders, held = self.held_while_verified(release_after=.5, backup=True)
+        with held:
+            self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})  # Before: {'stopped': 1} at once.
+        self.assertIsNotNone(holders[0].released_at)
+        self.assertEqual(self.backups(), [])
+
+    def test_r2_a_backup_still_held_after_the_wait_is_kept_the_archive_is_written_and_the_run_carries_on(self):
+        original = tool.sha256(app, str(self.merge))
+        holders, held = self.held_while_verified(backup=True)
+        with held, patch.object(tool, 'BACKUP_HELD_WAIT', .3):
+            counts = self.apply('run1')
+        self.assertEqual(counts, {'written': 2, 'held': 1})  # Before: {'stopped': 1}, the run ended.
+        out = self.root / 'run1'
+        results = {r['path']: r for r in map(json.loads, (out / 'results.jsonl').read_text(encoding='utf-8').splitlines())}
+        kept = results[str(self.merge)]
+        self.assertEqual((kept['outcome'], kept['backup_removed']), ('written', False))
+        self.assertIn('could not be deleted (another program held it open', kept['reason'])
+        self.assertEqual(tool.sha256(app, kept['backup']), original)  # The redundant copy of the original, kept.
+        self.assertTrue(results[str(self.renamed)]['backup_removed'])  # The run carried on.
+        with app.db() as con:
+            # The existing label: "Saved; backup could not be deleted".
+            self.assertEqual([r[0] for r in con.execute('SELECT reason FROM kept_backups')], ['delete_refused'])
+        self.assertEqual(app.read_metadata(self.merge)[0]['Summary'], 'Lobo and Deadman team up.')  # Written.
+        self.assertIn('waited out for %d s' % tool.BACKUP_HELD_WAIT, tool.RECOVERY)
+        holders[0].release()
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})  # Nothing stopped: no refusal.
+
+    def test_a_backup_held_for_another_reason_still_stops_the_run(self):
+        # Only a sharing violation is waited for; a refusal of another kind stops the run as before.
+        with patch.object(app, 'remove_verified_backup', side_effect=PermissionError(13, 'Access is denied')):
+            self.assertEqual(self.apply('run1'), {'stopped': 1})
+        result = json.loads((self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8'))
+        self.assertEqual(result['kept_as'], 'delete_refused')
 
     def test_a_backup_that_cannot_be_proven_is_kept(self):
         with patch.object(app, 'remove_verified_backup', side_effect=ValueError('Backup verification failed.')):
