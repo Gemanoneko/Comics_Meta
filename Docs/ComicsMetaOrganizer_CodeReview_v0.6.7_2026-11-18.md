@@ -271,4 +271,12 @@ This clears construction for source commit cc1292ee74f3c2753e6fe1f8aaaf7c377e5c6
 - **Before the one-off apply run** (not a release gate): the tool-side half of Q1, an fsync of each written archive before its backup is deleted.
 - **First items for Ender's next cycle:** Q2 and Q3.
 
-**Built commit covered:** pending. Sully adds the bump commit's full hash here after the build.
+**Built commit covered:** v0.6.7 build `9d1ad1af7c3e3f6c0db86b052d8372c8f1c5ad1b`. It is cc1292e plus two commits, 880f305 (this review) and 9d1ad1a (Sully's bump). I checked this with `git diff cc1292e 9d1ad1af7c3e3f6c0db86b052d8372c8f1c5ad1b`, which touches 5 paths:
+
+- this review;
+- `VERSION`: 0.6.6 to 0.6.7;
+- `package.json`: the `version` field, 0.6.6 to 0.6.7;
+- `package-lock.json`: its two version fields, 0.6.6 to 0.6.7;
+- `CHANGELOG.md`: a v0.6.7 entry naming the Quit, broker, worker-log, nested ComicInfo and sign-out fixes, and the merge tool (not run).
+
+There is no source, test, tool or build-config change.
