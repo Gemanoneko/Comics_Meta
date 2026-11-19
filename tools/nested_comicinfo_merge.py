@@ -813,16 +813,31 @@ def read_lines(path, quiet=False):
     return records
 
 
+def csv_rows_end(data):
+    """The offset just after the last complete row of a CSV file csv.writer wrote: its last line break outside a quoted
+    value. csv.writer quotes every value that holds a quote, a comma or a line break and doubles the quotes inside it,
+    so a running count of quotes tells inside from outside."""
+    inside, end = False, 0
+    for match in re.finditer(rb'["\n]', data):
+        if match[0] == b'"':
+            inside = not inside
+        elif not inside:
+            end = match.end()
+    return end
+
+
 def cut_torn_tail(path):
     """At --resume or --recover: an append a power cut tore (bytes after the last newline) is moved to <name>.torn
     (kept as evidence, appended) and cut off the file, so the next append starts on a line of its own. Returns the
-    number of bytes moved."""
+    number of bytes moved. In dropped-nested-values.csv a row ends at a line break outside quotes (code review v0.6.8
+    r7): a value such as a "root wins" Summary can hold line breaks, and a tear inside it was cut at its inner line
+    break, which left the quote open, so a CSV reader swallowed every later row into that value."""
     try:
         with open(path, 'rb') as handle:
             data = handle.read()
     except FileNotFoundError:
         return 0
-    end = data.rfind(b'\n') + 1
+    end = csv_rows_end(data) if path.suffix == '.csv' else data.rfind(b'\n') + 1
     if end == len(data):
         return 0
     with open(path.with_name(path.name + '.torn'), 'ab') as evidence:

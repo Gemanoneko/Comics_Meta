@@ -560,6 +560,20 @@ class ResumeTests(Applied):
                     self.assertTrue((out / (name + '.torn')).read_bytes().endswith(tail), name)  # ... and kept.
         self.assert_both_merged()
 
+    def test_r7_a_tear_inside_a_quoted_multi_line_csv_value_is_cut_at_its_row_and_swallows_nothing(self):
+        # Code review v0.6.8 r7(b): a "root wins" value (a Summary) can hold line breaks inside its quotes. A tear in
+        # such a value was cut at its inner newline, which left the quote open, and a CSV reader then swallowed every
+        # later row into that value. The cut now ends at the last complete row.
+        self.interrupt('after saving the record')
+        values = self.root / 'run1' / 'dropped-nested-values.csv'
+        tail = (str(self.renamed) + ',' + FOLDER + 'ComicInfo.xml,Summary,"Line one\nLine tw').encode('utf-8')
+        with open(values, 'ab') as handle:
+            handle.write(tail)
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assert_both_merged()  # Before: {merge: 5, renamed: 1}: the next archive's 5 rows swallowed.
+        self.assertTrue(values.with_name(values.name + '.torn').read_bytes().endswith(tail))  # The whole torn row kept.
+        self.assertFalse(any('Line' in value for row in csv.reader(values.open(encoding='utf-8-sig', newline='')) for value in row))
+
     def test_r1_a_damaged_line_before_the_end_refuses_and_changes_nothing(self):
         self.interrupt('after rename')
         journal = self.root / 'run1' / 'journal.jsonl'
