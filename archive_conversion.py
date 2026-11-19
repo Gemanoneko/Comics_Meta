@@ -1,4 +1,4 @@
-"""Verified local archive conversion; retain originals until content checks pass."""
+"""Verified local archive conversion; retain originals until content checks pass and the CBZ is on the disk."""
 import hashlib
 import json
 import os
@@ -13,6 +13,7 @@ from pathlib import Path,PurePosixPath
 import app
 import library_lock
 import pause_control
+import storage
 
 SEVEN_ZIP=Path(os.environ.get('COMICS_META_7ZIP') or 'C:/Program Files/7-Zip/7z.exe')
 if not SEVEN_ZIP.is_absolute():raise ValueError('7-Zip resource must be an absolute path')
@@ -134,7 +135,12 @@ def convert(path):
         if same:os.replace(source,retained)
         elif final.exists():raise ValueError('CBZ appeared during conversion; original retained.')
         try:
-            os.replace(temporary,final)
+            # Code review v0.6.8 R3: the CBZ's bytes, its rename and its folder entry on the disk before the original
+            # is deleted below (no backup is kept). With os.replace the CBZ was verified from the OS cache only; a power
+            # loss could keep the rename and the deletion while the CBZ came back zero-filled. As the comic writer:
+            # flushed, then renamed with write-through (storage.replace_durably), then its folder flushed.
+            storage.replace_durably(temporary,final)
+            storage.flush_directory(final.parent)
             verify(final,manifest)
             if not same and signature(source)!=original_signature:
                 raise ValueError('Original changed before removal; both archives retained.')

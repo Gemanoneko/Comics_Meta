@@ -5,18 +5,24 @@ reader or thumbnailer that opens it with FILE_SHARE_READ only) made CreateFileW 
 and the write stopped. Futaba reproduced it with such a holder on the written comic (TrayQA v0.6.8). The flush now
 waits that holder out for a while (Sergei 2026-11-19), in the app's Approve and worker writes as in the merge tool.
 
+R3: a CBR/CB7 converted to CBZ is flushed to disk (file and folder) before its original is deleted.
+
 Isolated catalog and archives; the holders are real Windows handles in this process.
 """
 import ctypes
 import os
+import subprocess
 import threading
 import time
 import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
+from PIL import Image
 import app
+import archive_conversion
 import storage
+from test_storage_durable import Disk
 from test_worker import scratch_directory
 
 ROOT_XML = '<?xml version="1.0"?><ComicInfo><Series>Lobo</Series></ComicInfo>'
@@ -156,6 +162,82 @@ class HeldWriteTests(unittest.TestCase):
         self.assertIsNotNone(self.holders[0].released_at)
         self.assertEqual(app.read_metadata(self.path)[0].get('Writer'), 'Alan Grant')
         self.assertEqual(self.backups(), [])  # Written, verified, flushed, then its backup deleted.
+
+
+@unittest.skipUnless(archive_conversion.SEVEN_ZIP.exists(), '7-Zip unavailable')
+class DurableConversionTests(unittest.TestCase):
+    """R3: CBR/CB7 to CBZ conversion wrote the CBZ, renamed it with os.replace (no flush, not written through),
+    verified it from the OS cache and deleted the original, with no backup. After a power loss NTFS can keep the rename
+    and the deletion while the CBZ's bytes never reached the disk: a zero-filled CBZ, the original gone. The Disk model
+    of test_storage_durable stands in for the power cut."""
+
+    def setUp(self):
+        self.root = Path(self.enterContext(scratch_directory()))
+        self.enterContext(patch.object(app, 'DATA', self.root / 'data'))
+        self.enterContext(patch.object(archive_conversion.pause_control, 'requested', return_value=False))
+        self.disk, self.at_removal, self.folder_flushes = Disk(), [], []
+        self.enterContext(patch.object(storage.os, 'fsync', self.disk.fsync))
+        self.enterContext(patch.object(storage, '_move_file', self.disk.move_file))
+        real_flush_directory, real_unlink = storage.flush_directory, os.unlink
+
+        def flush_directory(path):
+            self.folder_flushes.append(Path(path))
+            return real_flush_directory(path)
+
+        def unlink(path, *args, **kwargs):
+            # What the disk holds of the new CBZ at the moment its original goes.
+            if Path(path).suffix in ('.cb7', '.conversion-original'):
+                final = self.final
+                renames = [flags for event, flags in zip([e for e in self.disk.events if e[0] == 'rename'], self.disk.flags)
+                           if event[2] == final.name]
+                self.at_removal.append((os.stat(final).st_ino in self.disk.durable, renames,
+                                        any(os.path.samefile(folder, final.parent) for folder in self.folder_flushes)))
+            return real_unlink(path, *args, **kwargs)
+        self.enterContext(patch.object(storage, 'flush_directory', flush_directory))
+        self.enterContext(patch.object(os, 'unlink', unlink))
+
+    def original(self, name):
+        folder = self.root / 'input'
+        folder.mkdir()
+        Image.new('RGB', (20, 20), 'red').save(folder / '001.png')
+        (folder / 'ComicInfo.xml').write_text('<ComicInfo><Title>Example</Title></ComicInfo>')
+        path = self.root / 'Example.cb7'
+        subprocess.run([str(archive_conversion.SEVEN_ZIP), 'a', '-t7z', str(path), '001.png', 'ComicInfo.xml'], cwd=folder,
+                       capture_output=True, check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if name != path.name:
+            path = path.rename(self.root / name)
+        self.final = path.with_suffix('.cbz')
+        return path
+
+    def assert_durable_before_the_original_goes(self, original):
+        result = archive_conversion.convert(original)
+        self.assertTrue(result['original_removed'])
+        write_through = storage.MOVEFILE_REPLACE_EXISTING | storage.MOVEFILE_WRITE_THROUGH
+        # Before: [(False, [], False)]: never flushed, renamed with os.replace, folder never flushed.
+        self.assertEqual(self.at_removal, [(True, [write_through], True)])
+        self.disk.power_cut(self.final)
+        with zipfile.ZipFile(self.final) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(archive.read('001.png'), (self.root / 'input' / '001.png').read_bytes())
+
+    def test_r3_a_cb7_is_on_the_disk_as_a_cbz_before_the_original_is_deleted(self):
+        original = self.original('Example.cb7')
+        self.assert_durable_before_the_original_goes(original)
+        self.assertFalse(original.exists())
+
+    def test_r3_a_cbz_named_7z_is_replaced_durably_before_its_set_aside_original_is_deleted(self):
+        self.assert_durable_before_the_original_goes(self.original('Example.cbz'))
+        self.assertFalse(list(self.root.glob('*.conversion-original')))
+
+    def test_r3_a_cbz_that_cannot_be_flushed_never_costs_the_original(self):
+        original = self.original('Example.cb7')
+        before = original.read_bytes()
+        with patch.object(storage, 'flush_file', side_effect=OSError(5, 'Access is denied')):
+            with self.assertRaises(OSError):
+                archive_conversion.convert(original)
+        self.assertEqual(original.read_bytes(), before)  # Kept; no CBZ was renamed into place.
+        self.assertFalse(self.final.exists())
+        self.assertEqual(self.at_removal, [])
 
 
 if __name__ == '__main__':
