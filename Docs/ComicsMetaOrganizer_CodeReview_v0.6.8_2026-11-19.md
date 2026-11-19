@@ -306,3 +306,13 @@ This clears construction for source commit a4d23f7a78f7e1f70bb910f3b6a4bbe92db3d
 
 - **Before the one-off apply run** (not a release gate): R1 and R2, the two items this review asked for first, are fixed at a4d23f7. Worth having, not required: r2, a retry on a sharing violation. Today a thumbnailer holding one comic can stop the whole apply.
 - **First items for Ender's next cycle:** R3, then r4, r2 and r7.
+
+**Built commit covered:** v0.6.8 build `da503b3d45798bfb7142c377fe2db5704c509153` (main). It is a4d23f7 plus two commits: 5deebf8 (this review) and da503b3 (Sully's bump). I checked this with `git diff a4d23f7 da503b3d45798bfb7142c377fe2db5704c509153`, which touches 5 paths:
+
+- this review (added);
+- `VERSION`: 0.6.7 to 0.6.8;
+- `package.json`: the `version` field, 0.6.7 to 0.6.8;
+- `package-lock.json`: its two version fields, 0.6.7 to 0.6.8;
+- `CHANGELOG.md`: a v0.6.8 entry naming the durable saves and backups, the recovery of an interrupted save, the old engine's late exit, the unreadable lock file, the nested-only rules, the correctable merged values, the Quit wording, the merge tool's `--resume`/`--recover`, and `data/removed-nested-copies.jsonl`.
+
+There is no source, test, tool or build-config change.
