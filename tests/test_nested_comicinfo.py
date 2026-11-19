@@ -26,6 +26,10 @@ from test_worker import scratch_directory
 NESTED = ('<?xml version="1.0"?><ComicInfo><Series>Lobo/Deadman: The Brave and the Bald</Series><Number>1</Number>'
           '<Summary>Lobo and Deadman team up.</Summary><Genre>Superhero</Genre><Volume>1995</Volume></ComicInfo>')
 ROOT = '<?xml version="1.0"?><ComicInfo><Series>Root Series</Series></ComicInfo>'
+# A Comixology-style scrape (code review v0.6.7 q2): store dates, a PageCount, a case twin, a year as Volume, "None".
+STORE_DATED = ('<?xml version="1.0"?><ComicInfo><Series>Lobo/Deadman: The Brave and the Bald</Series><Number>None</Number>'
+               '<Summary>Lobo and Deadman team up.</Summary><Volume>1995</Volume><Year>2022</Year><Month>3</Month>'
+               '<Day>28</Day><PageCount>91</PageCount><writer>alan grant</writer><Writer>Alan Grant</Writer></ComicInfo>')
 FOLDER = 'Lobo-Deadman - The Brave and the Bald 001 (1995)/'
 
 
@@ -85,6 +89,19 @@ class ReadTests(Isolated):
         with zipfile.ZipFile(self.path) as archive:
             self.assertIsNone(app.metadata_xml(archive.read('ComicInfo.xml')).find('Number'))
 
+    def test_a_nested_only_copy_follows_the_merges_left_out_rules(self):
+        # Code review v0.6.7 q2 (Sergei's tightening ruling of 2026-11-18, as for the merge): before, a nested-only
+        # copy was read whole, store dates, PageCount, case twins and a year-like Volume included.
+        make_comic(self.path, nested=[STORE_DATED])
+        metadata = app.read_metadata(self.path)[0]
+        for tag in ('Year', 'Month', 'Day', 'PageCount', 'writer', 'Volume', 'Number'):
+            self.assertNotIn(tag, metadata)
+        self.assertEqual((metadata['Writer'], metadata['Summary'], metadata['Series']),
+                         ('Alan Grant', 'Lobo and Deadman team up.', 'Lobo/Deadman: The Brave and the Bald'))
+        # Positive control: a Volume that is a number is the comic's.
+        make_comic(self.path, nested=[STORE_DATED.replace('<Volume>1995</Volume>', '<Volume>2</Volume>')])
+        self.assertEqual(app.read_metadata(self.path)[0]['Volume'], '2')
+
     def test_the_root_copy_wins_over_a_nested_one(self):
         make_comic(self.path, root=ROOT, nested=[NESTED])
         self.assertEqual(app.read_metadata(self.path), ({'Series': 'Root Series'}, 'embedded', ''))
@@ -139,6 +156,32 @@ class WriteTests(Isolated):
         with app.db() as con:
             written = json.loads(con.execute('SELECT fields FROM write_ledger').fetchone()[0])
         self.assertEqual(written, {'Writer': 'Alan Grant'})  # The ledger names only what this write set.
+
+    def test_a_nested_only_write_leaves_out_what_the_merge_leaves_out_and_saves_the_whole_copy_first(self):
+        # q2: before, the app's next write (the worker's automatic ones included) moved the store date, PageCount, the
+        # case twin and the year-like Volume into the root copy, and the store Year made fill-empty skip the cover date.
+        make_comic(self.path, nested=[STORE_DATED])
+        app.scan([str(self.folder)], recursive=False)
+        backup = app.write_metadata(catalog_row(self.path), {'Year': '1995', 'Month': '2', 'Number': '1'},
+                                    remove_verified_backups=True, writer='automatic', history_source='Metron')
+        with zipfile.ZipFile(self.path) as archive:
+            root = app.metadata_xml(archive.read('ComicInfo.xml'))
+            names = archive.namelist()
+        self.assertEqual([n for n in names if n.lower().endswith('comicinfo.xml')], ['ComicInfo.xml'])
+        self.assertEqual((root.findtext('Year'), root.findtext('Month'), root.find('Day')), ('1995', '2', None))  # The cover date.
+        for tag in ('PageCount', 'writer', 'Volume'):
+            self.assertIsNone(root.find(tag), tag)
+        self.assertEqual((root.findtext('Writer'), root.findtext('Number')), ('Alan Grant', '1'))
+        self.assertFalse(Path(backup).exists())  # The backup went once verified ...
+        records = [json.loads(line) for line in (app.DATA / 'removed-nested-copies.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(len(records), 1)  # ... after the nested copy was saved whole, with what the root left out.
+        import base64
+        self.assertEqual(base64.b64decode(records[0]['xml_base64']).decode('utf-8'), STORE_DATED)
+        self.assertEqual((records[0]['archive'], records[0]['entry']), (str(self.path), FOLDER + 'ComicInfo.xml'))
+        self.assertEqual({tag: why for tag, _, why in records[0]['left_out']},
+                         {'Number': 'a nested "None" is blank', 'Volume': 'Volume is a year', 'Year': 'nested date never copied',
+                          'Month': 'nested date never copied', 'Day': 'nested date never copied',
+                          'PageCount': 'PageCount never copied', 'writer': 'same tag in another letter case'})
 
     def test_a_planned_empty_field_the_nested_copy_holds_is_refused(self):
         make_comic(self.path, nested=[NESTED])

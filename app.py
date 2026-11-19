@@ -228,8 +228,12 @@ def comicinfo_entry(archive):
     (for example a Comixology scrape kept beside the pages) is the comic's existing metadata, so the root copy a
     write adds starts from it, and that write removes the nested copy (option d), so the archive keeps one ComicInfo
     holding all of it. A bare "None" in it (some scrapers write it for a missing Number) is blank and left out
-    (Sergei 2026-11-18). Several nested copies, or a single one that cannot be read, are ignored and kept, as they
-    were before: the comic reads as having no ComicInfo."""
+    (Sergei 2026-11-18). The merge's other left-out rules apply too (nested_left_out; Sergei's tightening ruling of
+    2026-11-18, applied to nested-only copies in 0.6.8, code review v0.6.7 q2): no nested Year, Month or Day (store
+    dates; read as the comic's, they made fill-empty skip the cover date), no PageCount, no letter-case twin, no
+    Volume that is a year. They are not read and not carried into the root copy; the write that removes the nested
+    copy first saves it whole (removed_nested_copy). Several nested copies, or a single one that cannot be read, are
+    ignored and kept, as they were before: the comic reads as having no ComicInfo."""
     names = archive.namelist()
     root = [n for n in names if n.lower() == 'comicinfo.xml']
     if len(root) > 1:
@@ -243,9 +247,43 @@ def comicinfo_entry(archive):
         xml = _comicinfo_xml(archive, nested[0])
     except Exception:
         return None, None  # Unreadable, oversized or not ComicInfo: ignored, as before.
-    for element in [e for e in xml if comicinfo_filled(e) and not nested_donor(e)]:
+    for element, _ in nested_only_left_out(xml):
         xml.remove(element)
     return nested[0], xml
+
+
+def nested_only_left_out(nested):
+    """[(element, why)]: a nested-only copy's elements that are not the comic's metadata. A bare "None" (blank), and
+    what the merge never copies (nested_left_out), judged against an empty root. Listed before any is removed."""
+    empty = ET.Element('ComicInfo')
+    left = []
+    for element in nested:
+        if not comicinfo_filled(element):
+            continue
+        why = 'a nested "None" is blank' if not nested_donor(element) else nested_left_out(element.tag, empty, nested)
+        if why:
+            left.append((element, why))
+    return left
+
+
+def removed_nested_copy(path, name, raw, backup):
+    """Before a write's backup can be deleted: the nested-only copy that write removes, whole, and each value of it the
+    root copy did not take (q2), appended to data/removed-nested-copies.jsonl and flushed to disk. Like the merge
+    tool's <out> (Sergei 2026-11-18), it keeps what leaves the archive once the backup is gone."""
+    try:
+        left = [[e.tag, (e.text or '').strip() if not len(e) else '<%d child element(s)>' % len(e), why]
+                for e, why in nested_only_left_out(metadata_xml(raw))]
+    except Exception:
+        left = None  # Unreadable here (it was read for the write): the whole copy below still says everything.
+    import base64
+    line = json.dumps({'time': time.time(), 'archive': str(path), 'entry': name, 'left_out': left, 'backup': str(backup),
+                       'xml_base64': base64.b64encode(raw).decode('ascii')}, ensure_ascii=True)
+    target = DATA / 'removed-nested-copies.jsonl'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, 'a', encoding='utf-8') as handle:
+        handle.write(line + '\n')
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def comicinfo_filled(element):
@@ -929,7 +967,7 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         written = {}  # Fields this call sets (not Notes, not values it leaves in place).
         # Nested ComicInfo, Sergei 2026-11-18 (option d): the one nested entry this write removes, as
         # (name, CRC, size). The new root copy carries all of it, so the archive keeps one ComicInfo.
-        drop, merged = None, []
+        drop, merged, nested_only_raw = None, [], None
         if merge_nested is not None:
             nested = [i for i in infos if nested_comicinfo(i.filename)]
             if (source_name is None or nested_comicinfo(source_name) or len(nested) != 1
@@ -946,9 +984,10 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
                 if tag not in ('Notes', 'Pages') and len(elements) == 1 and not len(elements[0]):
                     written[tag] = elements[0].text or ''
         elif source_name is not None and nested_comicinfo(source_name):
-            # A nested-only comic: the new root copy started from all of it, so it goes.
+            # A nested-only comic: the new root copy started from what of it is the comic's metadata (q2), so it goes.
             info = source.getinfo(source_name)
             drop = (info.filename, info.CRC, info.file_size)
+            nested_only_raw = source.read(source_name)
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -1015,6 +1054,10 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             current = path.stat()
             if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
                 raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
+            if nested_only_raw is not None:
+                # q2: the values the new root copy left out go with the nested entry; saved before the rename, so
+                # before any caller can delete the backup.
+                removed_nested_copy(row['path'], drop[0], nested_only_raw, backup)
             finished = temporary.stat()  # The rename keeps the size and modification time: the archive's next signature.
             storage.save(pending, dict(journal, after=[finished.st_size, finished.st_mtime_ns], time=time.time()),
                          ensure_ascii=True)
