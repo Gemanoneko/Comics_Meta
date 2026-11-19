@@ -511,14 +511,16 @@ class FailedWriteBackupTests(Isolated):
         app.scan([str(self.folder)], recursive=False)
         original = path.read_bytes()
         plan = self.plan([self.entry(path, {'Title': 'Mine'})])
-        real_replace = os.replace
+        # The writer's rename is storage._move since 0.6.8 (code review v0.6.7 Q1: flushed, then written through).
+        import storage
+        real_replace = storage._move
 
         def replace(src, dst, *args, **kwargs):
             if Path(dst).name == path.name:
                 make_comic(path, SERGEI)
                 raise PermissionError(32, 'The process cannot access the file because it is being used by another process')
             return real_replace(src, dst, *args, **kwargs)
-        with patch.object(app.os, 'replace', side_effect=replace), self.assertRaises(PermissionError):
+        with patch.object(storage, '_move', side_effect=replace), self.assertRaises(PermissionError):
             batch.apply(plan, remove_verified_backups=True)
         self.assertEqual(app.read_metadata(path)[0]['Series'], 'Spawn (Sergei)')
         names = backups(self.folder)
@@ -531,14 +533,15 @@ class FailedWriteBackupTests(Isolated):
         paths = [make_comic(self.folder / ('Example %03d.cbz' % i)) for i in (1, 2)]
         app.scan([str(self.folder)], recursive=False)
         plan = self.plan([self.entry(path, {'Title': 'T ' + path.stem}) for path in paths])
-        real_replace = os.replace
+        import storage
+        real_replace = storage._move  # The writer's rename since 0.6.8 (Q1).
 
         def replace(src, dst, *args, **kwargs):
             if Path(dst).name == paths[0].name:
                 raise PermissionError(32, 'The process cannot access the file because it is being used by another process')
             return real_replace(src, dst, *args, **kwargs)
         made = []
-        with patch.object(app.os, 'replace', side_effect=replace), self.copies_of(paths[0].name, made):
+        with patch.object(storage, '_move', side_effect=replace), self.copies_of(paths[0].name, made):
             batch.apply(plan, remove_verified_backups=True)
         self.assertEqual(len(made), 1)
         self.assertEqual([app.read_metadata(path)[0].get('Title') for path in paths], [None, 'T Example 002'])
