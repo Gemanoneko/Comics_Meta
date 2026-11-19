@@ -56,7 +56,11 @@ class Engine extends EventEmitter {
     try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port),'--closure-wait',String(this.closureWaitS)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_CLAIM_OWNER:owner,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
     // A private authenticated owner stream supplements the held PID handle.
     // EOF proves this exact shell is gone even if Windows reuses its PID.
-    this.child.once('exit',(code)=>{const wasReady=this.ready;this.ready=false;this.emit('exit',code,wasReady);});
+    // Only the current broker's exit changes the engine's state (code review v0.6.7 Q3). Since 0.6.7 a forced stop
+    // gives up after the closure wait + 1 s and Retry starts a new broker beside a frozen one; that old broker's late
+    // exit marked the new, healthy engine not ready, and the auto-restart then force-stopped it mid-write.
+    const child=this.child;
+    child.once('exit',(code)=>{if(this.child!==child)return;const wasReady=this.ready;this.ready=false;this.emit('exit',code,wasReady);});
     this.child.once('error',error=>this.emit('engine-error',error));
     if(!this.child.pid){this.child=null;throw Object.assign(Error('Engine process could not be started'),{code:'ENGINE_EXIT'});}
     if(!this.child.stdin){throw Object.assign(Error('Engine control unavailable'),{code:'ENGINE_EXIT'});}

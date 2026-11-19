@@ -98,3 +98,24 @@ test('broker exit 123 is PREVIOUS_CLOSING with the leftover record\'s time and n
     assert.equal(engine.leftoverSince(),Math.min(stat.mtimeMs,1763476900000));
   }finally{brokerExit=126;assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
+// Code review v0.6.7 Q3: since 0.6.7 a forced stop gives up after the closure wait + 1 s, so a restart can start a
+// new broker beside one that is frozen. When the old broker finally exited, its exit handler marked the new, healthy
+// engine not ready and emitted exit with wasReady=true; main.cjs then auto-restarted and force-stopped that engine.
+test('a late exit of an old broker leaves the new engine ready and emits nothing',async()=>{
+  const scratch=process.env.COMICS_META_TEST_SCRATCH;assert.ok(scratch);const root=await fs.mkdtemp(path.join(scratch,'engine-stale-exit-'));
+  try{
+    const engine=new Engine({resources:await resourcesIn(root),state:path.join(root,'state'),locks:path.join(root,'locks'),port:0,log:path.join(root,'logs','engine.log')});
+    brokerExit=null;engine.closureWaitS=1;engine.closureWaitMs=100;  // Brokers stay alive; each ignores 'force'.
+    engine.call=async()=>({owned:true,phase:'ready'});  // The startup endpoint of whichever broker is current.
+    await engine.start();
+    const old=engine.child;assert.equal(engine.ready,true);
+    const exits=[];engine.on('exit',(code,wasReady)=>exits.push([code,wasReady]));
+    engine.ready=false;  // That engine stopped answering: the restart force-stops it, gives up, and starts anew.
+    await engine.start();
+    const current=engine.child;assert.notEqual(current,old);assert.equal(engine.ready,true);
+    old.exitCode=124;old.emit('exit',124);  // The frozen old broker ends at last.
+    assert.equal(engine.ready,true);assert.deepEqual(exits,[]);  // Before: ready false, exits [[124,true]].
+    current.exitCode=126;current.emit('exit',126);  // Positive control: the current broker's exit still counts.
+    assert.equal(engine.ready,false);assert.deepEqual(exits,[[126,true]]);
+  }finally{brokerExit=126;assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
+});
