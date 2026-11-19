@@ -1034,6 +1034,10 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     replaced = False
     try:
         shutil.copy2(path, backup)
+        # Code review v0.6.8 R1: the backup's bytes on the disk before the rename below makes it the only copy of
+        # the original (every value this write replaces or drops). Without it a power cut could keep a full-size,
+        # zero-filled backup beside the correctly written comic.
+        storage.flush_file(backup)
         if attempt is not None:
             attempt['backup'] = str(backup)
         try:

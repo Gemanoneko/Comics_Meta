@@ -51,6 +51,7 @@ class DurableArchiveTests(Library):
     """Q1 in the app's own write paths."""
     def setUp(self):
         super().setUp()
+        self.original_bytes = self.path.read_bytes()
         self.disk = Disk()
         self.enterContext(patch.object(storage.os, 'fsync', self.disk.fsync))
         self.enterContext(patch.object(storage, '_move_file', self.disk.move_file))
@@ -80,6 +81,22 @@ class DurableArchiveTests(Library):
         self.assertEqual(self.at_removal, [(True, [write_through])])
         self.assertEqual(self.backups(), [])
         self.assert_survives_a_power_cut()
+
+    def test_r1_the_backup_is_on_disk_before_the_rename_makes_it_the_only_copy_of_the_original(self):
+        # Code review v0.6.8 R1: the write keeps its backup (Approve-style before the caller deletes it, or a kept
+        # backup); a power cut right after the write must not zero it while the comic holds the new values.
+        backup = app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, verify_readback=True)
+        backup_ino = os.stat(app.filesystem_path(backup)).st_ino
+        fsynced = [event[1] for event in self.disk.events if event[0] == 'fsync']
+        renames = [i for i, event in enumerate(self.disk.events) if event[0] == 'rename' and event[2] == self.path.name]
+        self.assertEqual(len(renames), 1)
+        self.assertIn(('fsync', backup_ino), self.disk.events[:renames[0]])  # Before: never flushed at all.
+        self.assertIn(backup_ino, fsynced)
+        self.disk.power_cut(app.filesystem_path(backup))
+        with zipfile.ZipFile(backup) as copy:
+            self.assertIsNone(copy.testzip())
+            self.assertIsNone(app.metadata_xml(copy.read('ComicInfo.xml')).find('Writer'))  # The original, readable.
+        self.assertEqual(Path(backup).read_bytes(), self.original_bytes)
 
     def test_the_approve_path_deletes_the_backup_only_after_the_write_is_on_disk(self):
         # As Approve (and batch.apply) do it: the write returns, then the caller deletes the backup.
