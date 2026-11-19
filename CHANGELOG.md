@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.6.9] - 2026-11-20
+
+### Fixed
+
+- A comic or backup held open by another program is waited for, instead of failing at once (app: up to 10 s; merge tool: 30 s, then the comic is reported and the run carries on).
+- CBR/CB7-to-CBZ conversion keeps the original until the new CBZ is safely on disk.
+- A comic changed by another program during the wait is never overwritten.
+- An unreadable, unheld claim lock no longer blocks startup.
+- Merge tool: clear `written_unverified` outcome; torn CSV rows recovered correctly.
+
 ## [v0.6.8] - 2026-11-19
 
 ### Fixed
