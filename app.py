@@ -811,6 +811,21 @@ def write_guard_held(path):
     return library_lock.identity(filesystem_path(path)) in getattr(_write_guard_state,'held',set())
 
 
+def _flush_copy(path):
+    """storage.flush_file for a copy that may carry its original's read-only bit (shutil.copy2 copies it): a flush
+    needs a handle with write access, so the bit is lifted for the flush only and put back."""
+    import stat as stat_module, storage
+    mode = os.stat(path).st_mode
+    if mode & stat_module.S_IWRITE:
+        storage.flush_file(path)
+        return
+    os.chmod(path, mode | stat_module.S_IWRITE)
+    try:
+        storage.flush_file(path)
+    finally:
+        os.chmod(path, mode)
+
+
 def pending_write_path(path):
     """The record of a write in progress on this archive (code review v0.6.7 Q2), named as its write lock.
 
@@ -1078,12 +1093,12 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     replaced = False
     try:
         shutil.copy2(path, backup)
+        if attempt is not None:
+            attempt['backup'] = str(backup)
         # Code review v0.6.8 R1: the backup's bytes on the disk before the rename below makes it the only copy of
         # the original (every value this write replaces or drops). Without it a power cut could keep a full-size,
         # zero-filled backup beside the correctly written comic.
-        storage.flush_file(backup)
-        if attempt is not None:
-            attempt['backup'] = str(backup)
+        _flush_copy(backup)
         try:
             with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as target:
                 target.comment = source.comment

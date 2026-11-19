@@ -98,6 +98,21 @@ class DurableArchiveTests(Library):
             self.assertIsNone(app.metadata_xml(copy.read('ComicInfo.xml')).find('Writer'))  # The original, readable.
         self.assertEqual(Path(backup).read_bytes(), self.original_bytes)
 
+    def test_r1_a_read_only_comics_backup_is_flushed_and_reported(self):
+        # shutil.copy2 copies the read-only bit, and a flush needs write access: the first R1 commit refused the
+        # flush before the write reported its backup, so Approve lost its "not verified, backup kept" outcome.
+        import stat
+        os.chmod(self.path, stat.S_IREAD)
+        self.addCleanup(os.chmod, self.path, stat.S_IREAD | stat.S_IWRITE)
+        attempt = {}
+        with self.assertRaises(PermissionError):  # Windows refuses to replace a read-only comic, as before.
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, attempt=attempt)
+        backup = app.filesystem_path(attempt['backup'])
+        self.addCleanup(os.chmod, backup, stat.S_IREAD | stat.S_IWRITE)
+        self.assertIn(os.stat(backup).st_ino, self.disk.durable)
+        self.assertFalse(os.stat(backup).st_mode & stat.S_IWRITE)  # Its read-only bit put back, as copy2 made it.
+        self.assertEqual(backup.read_bytes(), self.original_bytes)
+
     def test_the_approve_path_deletes_the_backup_only_after_the_write_is_on_disk(self):
         # As Approve (and batch.apply) do it: the write returns, then the caller deletes the backup.
         with self.path.open('rb') as handle:
