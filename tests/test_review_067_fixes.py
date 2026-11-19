@@ -183,6 +183,16 @@ class InterruptedWriteTests(Library):
         self.assertEqual(self.path.read_bytes(), self.original)
         self.assertFalse(self.temporary.exists())
 
+    def test_an_unreadable_record_is_set_aside_and_never_blocks_the_comic(self):
+        record = app.pending_write_path(self.path)
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_bytes(b'\x00' * 40)  # Damaged on the disk.
+        # Before the fix: every write of this comic raised on the record, for good.
+        app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, remove_verified_backups=True)
+        self.assertEqual(app.read_metadata(self.path)[0]['Writer'], 'Alan Grant')
+        self.assertEqual(self.pending(), [record.name + '.unreadable'])  # Kept as evidence, out of the way.
+        self.assertEqual(app.recover_interrupted_writes(), [])
+
     def test_a_comic_changed_by_another_program_since_is_left_alone(self):
         self.stop_at_rename(after=False)
         make_comic(self.path)  # Saved again elsewhere: a new signature.

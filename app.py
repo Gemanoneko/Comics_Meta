@@ -821,10 +821,21 @@ def recover_interrupted_write(record_path, record_backup=True):
     cannot be read."""
     import library_lock, storage
     record_path=Path(record_path)
-    raw=json.loads(storage.read_text(record_path))
-    if (not isinstance(raw,dict) or raw.get('schema')!=1 or not isinstance(raw.get('path'),str)
-            or pending_write_path(raw['path']).name!=record_path.name):
-        raise ValueError('not a pending-write record of this app')
+    try:
+        raw=json.loads(storage.read_text(record_path))
+        if (not isinstance(raw,dict) or raw.get('schema')!=1 or not isinstance(raw.get('path'),str)
+                or pending_write_path(raw['path']).name!=record_path.name
+                or not isinstance(raw.get('before'),list) or not isinstance(raw.get('backup'),str)):
+            raise ValueError('not a pending-write record of this app')
+    except FileNotFoundError:
+        return {'path':None,'outcome':'gone','backup':None,'backup_removed':False}
+    except (OSError,ValueError) as exc:
+        # Never a block for good: the record is set aside as evidence and the comic's writes go on (a temporary
+        # archive beside it still refuses them, as before 0.6.8, until Folder help clears it).
+        os.replace(record_path,record_path.with_name(record_path.name+'.unreadable'))
+        _recovery_note(record_path.name+' could not be read ('+type(exc).__name__+' '+str(exc)[:200]+'); kept as '
+                       +record_path.name+'.unreadable.')
+        return {'path':None,'outcome':'unreadable','backup':None,'backup_removed':False}
     if not write_guard_held(raw['path']):
         with comic_write_guard(raw['path']):
             return recover_interrupted_write(record_path,record_backup)
