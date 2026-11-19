@@ -420,8 +420,16 @@ def check_member(pid,created_at):
     if terminable and terminate_process(handle,125):return 'alive, terminated again',handle
     return 'alive, could not be terminated (Windows error '+str(C.get_last_error())+')',handle
 
+_unopenable_logged=set()
+
 def held_claims(owner):
-    """How many of that engine's library claims are still locked (library_lock's byte lock; an unopenable one counts)."""
+    """How many of that engine's library claims are still locked (library_lock's byte lock).
+
+    Only a lock conflict counts (code review v0.6.7 q1). A lock file that cannot be opened for writing (read-only, an
+    access rule) is tested through a read-only handle; one that cannot be opened at all is logged once and not
+    counted. Until 0.6.8 any unopenable lock counted as held for good: with a record that has no process list, every
+    start waited and exited 123, and a reboot could not help because no lock was actually held. A reboot frees every
+    lock, so after one nothing counts here."""
     if not owner:return 0
     import file_lock
     held=0
@@ -429,8 +437,13 @@ def held_claims(owner):
         try:descriptor=file_lock.open_lock(lock,create=False)
         except FileNotFoundError:continue
         except OSError:
-            held+=1
-            continue
+            try:descriptor=os.open(lock,os.O_RDONLY|getattr(os,'O_BINARY',0))
+            except FileNotFoundError:continue
+            except OSError as error:
+                if lock.name not in _unopenable_logged:
+                    _unopenable_logged.add(lock.name)
+                    note('Claim lock '+lock.name+' cannot be opened ('+type(error).__name__+' '+str(error)+'); not counted as held.')
+                continue
         try:
             if file_lock.try_lock(descriptor):file_lock.unlock(descriptor)
             else:held+=1

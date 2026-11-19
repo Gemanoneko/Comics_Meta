@@ -384,5 +384,55 @@ class PreviousSessionTests(unittest.TestCase):
         self.assertFalse(record.exists())
 
 
+class UnopenableClaimTests(unittest.TestCase):
+    """Code review v0.6.7 q1: an old claim lock that cannot be opened for writing counted as held for good. With a
+    record that has no process list (every shell-written one), each start waited 5 s and exited 123, and a reboot
+    could not clear it: no lock was actually held. Only a lock conflict counts now."""
+
+    def setUp(self):
+        import engine_host
+        self.engine_host = engine_host
+        self.locks = Path(self.enterContext(scratch_directory()))
+        (self.locks / 'claims').mkdir()
+        self.notes = []
+        for name, value in (('lock_dir', lambda: self.locks), ('RETERMINATE_EVERY', 0.3), ('note', self.notes.append)):
+            original = getattr(engine_host, name)
+            setattr(engine_host, name, value)
+            self.addCleanup(setattr, engine_host, name, original)
+        self.record = self.locks / ('leftover-' + OWNER + '.json')
+        self.record.write_text(json.dumps({'schema': 1, 'owner': OWNER, 'written': time.time() - 86400, 'members': None}),
+                               encoding='utf-8')
+        self.lock = self.locks / 'claims' / ('engine-' + OWNER + '-4242-0123456789ab.lock')
+
+    def read_only(self):
+        import stat
+        os.chmod(self.lock, stat.S_IREAD)
+        self.addCleanup(os.chmod, self.lock, stat.S_IREAD | stat.S_IWRITE)  # So the scratch folder can be removed.
+
+    def test_a_read_only_lock_nobody_holds_never_blocks_and_the_record_goes(self):
+        self.lock.write_bytes(b'')
+        self.read_only()
+        # Before: True (exit 123) on every start, the record kept, as after a reboot (Senua's probe).
+        self.assertFalse(self.engine_host.previous_session_closing(lambda: False))
+        self.assertFalse(self.record.exists())
+        self.assertIn('0 held', ' '.join(self.notes))
+
+    def test_a_read_only_lock_that_is_held_still_waits(self):
+        holder = hold_claim(self, self.locks, OWNER)  # Positive control: a real lock conflict still counts.
+        self.read_only()
+        self.assertTrue(self.engine_host.previous_session_closing(lambda: False))
+        self.assertTrue(self.record.exists())
+        holder.stdin.close()
+        holder.wait(30)
+        self.assertFalse(self.engine_host.previous_session_closing(lambda: False))
+        self.assertFalse(self.record.exists())
+
+    def test_a_lock_that_cannot_be_opened_at_all_is_logged_and_never_blocks(self):
+        self.lock.mkdir()  # A folder by that name: no handle of either kind can open it as a file.
+        self.assertFalse(self.engine_host.previous_session_closing(lambda: False))
+        self.assertFalse(self.record.exists())
+        self.assertEqual(len([n for n in self.notes if 'cannot be opened' in n and 'not counted as held' in n]), 1)
+
+
 if __name__ == '__main__':
     unittest.main()
