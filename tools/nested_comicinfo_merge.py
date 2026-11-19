@@ -40,10 +40,10 @@ on before any backup; keeps a backup; rewrites through a temporary archive; prov
 exactly the nested entry gone; reads the result back; and records history and the write ledger with writer
 'automatic' and source 'nested-comicinfo-merge'. Not 'manual' (Sergei 2026-11-18): a manual write marks every value
 in the comic as Sergei's, which would also freeze the in-book values the app wrote there earlier. Recorded as an
-automatic write from a source other than the in-book tier, the merged values count like any other program's existing
-metadata, and the app's own earlier in-book values in that comic stay correctable (provenance.in_book_values). The
-app replaces only values its in-book tier wrote, so the merged values themselves are not replaced by later lookups,
-exactly as for metadata that came with the file. The app may keep running: a pause stops
+automatic write, the app's own earlier in-book values in that comic stay correctable (provenance.in_book_values),
+and (Sergei 2026-11-19, the app from 0.6.8) so do the merged values themselves: a verified external source that
+disagrees may replace them, like the app's own in-book values (provenance.correctable). Sergei's values and other
+metadata that came with the file are still never replaced. The app may keep running: a pause stops
 only the worker, not the dashboard, so the locks are needed either way, and a comic the worker planned before this
 write is refused by its own signature check and planned again. An archive is written only while it still matches
 the plan (the same fields filled, the same nested values dropped); anything else is skipped and listed.

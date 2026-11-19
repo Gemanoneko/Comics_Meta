@@ -2,7 +2,9 @@
 
 Sergei, 2026-10-13: "Outside sources may now REPLACE in-book values when they
 disagree." Only values the in-book tiers wrote, only from a verified external
-source, and never values Sergei or another program wrote.
+source, and never values Sergei or another program wrote. Sergei, 2026-11-19: the
+values the one-off nested ComicInfo merge copied in (source 'nested-comicinfo-merge')
+count the same way (correctable); the rules below apply to them unchanged.
 
 app.write_metadata keeps a write ledger, one row per verified write, in the same
 transaction as its history row: the fields that write set, who started it
@@ -28,7 +30,18 @@ from pathlib import Path
 import app
 
 IN_BOOK_PREFIX = 'in-book:'
+# The one-off nested ComicInfo merge (tools/nested_comicinfo_merge.py) records its writes with this source. Sergei,
+# 2026-11-19: values it copied in may be corrected later by the app's normal enrichment, like the in-book tiers' own.
+NESTED_MERGE_SOURCE = 'nested-comicinfo-merge'
 REPLACED_PREFIX = 'replaced-in-book:'
+
+
+def correctable(source):
+    """A write source whose values a verified external source may replace while untouched since: the in-book tiers
+    (Sergei 2026-10-13) and the nested merge (Sergei 2026-11-19). Everything else stays: Sergei's values, and other
+    metadata that came with the file (a nested-only copy carried into the root copy included)."""
+    source = str(source or '')
+    return source.startswith(IN_BOOK_PREFIX) or source == NESTED_MERGE_SOURCE
 BACKFILL_KEY = 'write_ledger_backfill_v1'
 CREATOR_FIELDS = ('Writer', 'Penciller', 'Inker', 'Colorist', 'Letterer', 'CoverArtist', 'Editor')
 COLUMNS = 'history_id,path,source,writer,fields,input_size,input_mtime,output_size,output_mtime,origin'
@@ -79,7 +92,8 @@ def same(a, b):
 
 
 def in_book_values(row, old, con=None):
-    """{field: value} for the fields whose current value the in-book tiers wrote, untouched since."""
+    """{field: value} for the fields whose current value the in-book tiers (or, Sergei 2026-11-19, the nested merge)
+    wrote, untouched since: the values a verified external source may replace (correctable)."""
     values, seen = {}, set()
     for link in chain(row, con):
         if link['writer'] != 'automatic':
@@ -92,7 +106,7 @@ def in_book_values(row, old, con=None):
             if field in seen or field == 'Notes':
                 continue
             seen.add(field)
-            if str(link['source'] or '').startswith(IN_BOOK_PREFIX) and str(old.get(field) or '').strip() and same(old.get(field), value):
+            if correctable(link['source']) and str(old.get(field) or '').strip() and same(old.get(field), value):
                 values[field] = old[field]
     return values
 

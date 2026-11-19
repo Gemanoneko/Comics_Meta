@@ -235,7 +235,32 @@ class ApplyTests(Applied):
         self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
         with app.db() as con:
             row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.merge),)).fetchone())
-            self.assertEqual(provenance.in_book_values(row, app.read_metadata(self.merge)[0], con), {'Title': 'From the cover'})
+            # The merged Summary is correctable too since Sergei's 2026-11-19 rule (next test).
+            self.assertEqual(provenance.in_book_values(row, app.read_metadata(self.merge)[0], con),
+                             {'Title': 'From the cover', 'Summary': 'Lobo and Deadman team up.'})
+
+    def test_sergei_2026_11_19_merged_values_may_be_corrected_later_like_in_book_values(self):
+        # Before: {}: the merged values counted as metadata that came with the file, never replaced.
+        import automatic, provenance
+        self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
+
+        def current():
+            with app.db() as con:
+                row = dict(con.execute('SELECT * FROM comics WHERE path=?', (str(self.merge),)).fetchone())
+            old = app.read_metadata(self.merge)[0]
+            return row, old, provenance.in_book_values(row, old)
+        row, old, replaceable = current()
+        self.assertEqual(replaceable, {'Summary': 'Lobo and Deadman team up.'})
+        # A verified source's disagreeing Summary replaces the merged one; the root's own Genre (it came with the
+        # file) and Series stay: the 2026-10-13 rule is otherwise unchanged.
+        fields, changes, replaced = automatic.external_plan(
+            old, {'Summary': 'A verified synopsis.', 'Genre': 'Action', 'Series': 'Lobo/Deadman'}, replaceable, True)
+        self.assertEqual(fields, {'Summary': 'A verified synopsis.'})
+        self.assertEqual(replaced, {'Summary': {'in_book': 'Lobo and Deadman team up.', 'external': 'A verified synopsis.'}})
+        self.assertEqual(changes['Summary']['before'], 'Lobo and Deadman team up.')  # batch.apply's F22 guard.
+        # Sergei's manual write afterwards makes every value in the comic his: nothing is replaceable any more.
+        app.write_metadata(row, {'Writer': 'Alan Grant'}, writer='manual', remove_verified_backups=True)
+        self.assertEqual(current()[2], {})
 
     def test_a_failed_check_keeps_the_backup_saves_nothing_and_stops_the_run(self):
         # Negative control for the delete gate: a written archive that does not pass is never left without its backup.
