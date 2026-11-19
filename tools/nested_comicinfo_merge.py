@@ -4,6 +4,10 @@
         python -B tools/nested_comicinfo_merge.py --report <folder>/<name>.md [--library <folder>] [--live <state folder>]
     Apply (only after Futaba sampled the dry run and Sergei gave the final OK):
         python -B tools/nested_comicinfo_merge.py --apply <name>.json --out <new empty folder> [--engine <folder>] [--live <state folder>]
+    After an interrupted apply (code review v0.6.7 q4; the steps are in RECOVERY below and in --help):
+        python -B tools/nested_comicinfo_merge.py --apply <name>.json --out <the same folder> --resume | --recover
+    Apply needs the installed app at 0.6.8 or later (durable rewrites and a stopped write that can be finished or
+    undone); it refuses an older engine.
 
 Which archives: a root ComicInfo.xml and exactly one ComicInfo.xml inside a folder. Archives with several nested or
 several root copies are listed, never planned. (Nested-only archives need no tool: the app reads the nested copy and
@@ -53,8 +57,10 @@ nested values (<out>/dropped-nested-values.csv) and the whole removed nested cop
 appended and flushed to disk, the written archive and its folder entry are flushed to disk (make_durable; code review
 v0.6.7 Q1: the checks may have read it from the OS cache), and app.remove_verified_backup deletes the backup once its
 SHA-256 equals the original's. A failed check, or an archive that cannot be flushed, keeps the backup and stops the
-run. Results go to <out>/results.jsonl and
-<out>/summary.json.
+run. Results go to <out>/results.jsonl and <out>/summary.json (all runs of the --out folder). <out>/run.json names
+the plan (its SHA-256); <out>/journal.jsonl records, on the disk before each step, an archive's start (with its
+original's SHA-256), its write (with the backup) and its verification, which is how --resume finds and finishes or
+undoes an archive an interrupted run was writing (RECOVERY).
 """
 import argparse
 import copy
@@ -561,6 +567,42 @@ def discard_unused_backup(app, entry, attempt, original):
         return {'backup': backup, 'backup_removed': False, 'note': 'backup kept: ' + (str(exc)[:200] or type(exc).__name__)}
 
 
+def journal(out, event):
+    """One line of <out>/journal.jsonl, on the disk before the step it announces: what --resume reads to find the
+    archive an interrupted run was writing (q4)."""
+    with open(out / 'journal.jsonl', 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps(event, ensure_ascii=True) + '\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def already_saved(out, path):
+    """True when the removed nested copy of this archive is already in <out> (a run stopped after saving it)."""
+    try:
+        with open(out / 'removed-nested-copies.jsonl', encoding='utf-8') as handle:
+            return any(json.loads(line).get('archive') == path for line in handle if line.strip())
+    except FileNotFoundError:
+        return False
+
+
+def finish(app, entry, backup, original, out, details):
+    """The verified write's last steps: the dropped values and the nested copy saved to <out>, the archive and its
+    folder entry flushed to disk, then the backup deleted once its SHA-256 equals the original's."""
+    if not already_saved(out, entry['path']):
+        save_record(app, out, entry, backup)
+    try:
+        make_durable(app, entry['path'])
+    except OSError as exc:
+        return 'stopped', dict(details, reason='backup kept: the written archive could not be flushed to disk: '
+                               + (str(exc)[:200] or type(exc).__name__))
+    journal(out, {'event': 'verified', 'path': entry['path'], 'backup': backup})
+    try:
+        app.remove_verified_backup(entry['path'], backup, original)
+    except Exception as exc:
+        return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__))
+    return 'written', dict(details, backup_removed=True)
+
+
 def merge(app, entry, current, out):
     """Option d through the app's write path, then the backup's removal once the result is verified.
     Returns (outcome, details)."""
@@ -583,6 +625,7 @@ def merge(app, entry, current, out):
     try:
         # As the app's Approve: under the comic's write lock, the original's hash, then the write, then the checks.
         original = sha256(app, entry['path'])
+        journal(out, {'event': 'start', 'path': entry['path'], 'original_sha256': original, 'started_ns': time.time_ns()})
         try:
             # Writer 'automatic' (Sergei 2026-11-18): not Sergei's values, and the comic's earlier in-book values stay
             # correctable (a 'manual' write would make every value in the comic his; see the module docstring).
@@ -599,22 +642,13 @@ def merge(app, entry, current, out):
             if not unchanged:
                 return 'stopped', {'reason': reason, 'backup': attempt.get('backup'), 'backup_removed': False}
             return 'failed', dict({'reason': reason}, **discard_unused_backup(app, entry, attempt, original))
+        journal(out, {'event': 'written', 'path': entry['path'], 'backup': backup})
         details = {'fields': list(entry['fills']),
                    'removed': entry['remove']['name'], 'backup': backup, 'backup_removed': False}
         problem = verify_written(app, entry, backup)
         if problem:
             return 'stopped', dict(details, reason='the written archive failed its check: ' + problem)
-        save_record(app, out, entry, backup)
-        try:
-            make_durable(app, entry['path'])
-        except OSError as exc:
-            return 'stopped', dict(details, reason='backup kept: the written archive could not be flushed to disk: '
-                                   + (str(exc)[:200] or type(exc).__name__))
-        try:
-            app.remove_verified_backup(entry['path'], backup, original)
-        except Exception as exc:
-            return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__))
-        return 'written', dict(details, backup_removed=True)
+        return finish(app, entry, backup, original, out, details)
     finally:
         guard.__exit__(None, None, None)
 
@@ -622,18 +656,138 @@ def merge(app, entry, current, out):
 ACTIONS = {'merge': merge}
 
 
+# Recovery after an interrupted apply (code review v0.6.7 q4) ------------------------------------------------------
+
+RECOVERY = """\
+Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window closed):
+  1. Delete nothing: not the --out folder, not any .comic-metadata-backups folder in the library, and do not clear
+     Kept backups. Until the run is finished, the backup of the archive that was being written may be the only copy
+     of its dropped nested values.
+  2. Run the same command again with --resume added, the same plan and the same --out:
+       ... -B tools\\nested_comicinfo_merge.py --apply <plan>.json --out <the same folder> --resume
+     It finishes or undoes the archive that was being written, then carries on with the archives not done yet.
+     With --recover instead of --resume it finishes or undoes that one archive and starts nothing new; a later
+     --resume carries on. The app may be running; neither needs the other.
+  3. What happens to the archive that was being written, under its write lock:
+     - Still the original (the stop came before the rewrite replaced it): its temporary file is deleted, and each
+       backup this run made of it is deleted once its SHA-256 equals the archive's; then it is merged as planned
+       (--resume) or left as it is (--recover).
+     - Already rewritten: the history and write ledger the stop may have missed are recorded first (the app's own
+       recovery); then, as in a normal run, it is re-read and checked against its backup, its dropped values and
+       nested copy are saved to --out, it is flushed to disk, and its backup is deleted. Result 'written', marked
+       resumed.
+     - Anything that does not check out (no backup equal to the original, a failed check, no history): result
+       'stopped' with its backup kept, and nothing more is written.
+  4. If the run ended on a 'stopped' result, --resume and --recover refuse: look at that archive first (its backup
+     is kept; Kept backups lists it), then make a new dry run and apply it with a new --out.
+  5. Starting the app also finishes or undoes an interrupted write (its own recovery at start), but it saves
+     nothing to --out and keeps the backup of a rewritten archive: run --resume (or --recover) afterwards all the
+     same.
+  A merge that finished is not reversed: its backup is deleted by design (Sergei 2026-11-18); the removed nested
+  copy stays in <out>/removed-nested-copies.jsonl and its dropped values in <out>/dropped-nested-values.csv.
+"""
+
+
+def attempt_backups(app, entry, started_ns):
+    """The app's backups of this archive ('<name>.<time_ns>.bak') made at or after an attempt began, newest first."""
+    path = app.filesystem_path(entry['path'])
+    folder = path.parent / '.comic-metadata-backups'
+    pattern = re.compile(re.escape(path.name) + r'\.([0-9]{1,20})\.bak')
+    try:
+        names = os.listdir(folder)
+    except FileNotFoundError:
+        return []
+    found = [(int(m[1]), folder / name) for name in names for m in [pattern.fullmatch(name)] if m and int(m[1]) >= started_ns]
+    return [str(item) for _, item in sorted(found, reverse=True)]
+
+
+def recover_entry(app, entry, events, out):
+    """Finish or undo the archive an interrupted run was writing (RECOVERY step 3). Returns (outcome, details), or
+    None when the archive is still the original, its leftovers removed, so it can be merged as planned."""
+    start = events['start']
+    original = start['original_sha256']
+    try:
+        guard = app.comic_write_guard(entry['path'])
+        guard.__enter__()
+    except app.ArchiveChanged as exc:
+        raise SystemExit('%s is being written by the app now (%s). Run --resume again in a minute.' % (entry['path'], exc))
+    try:
+        pending = app.pending_write_path(entry['path'])
+        if pending.exists():
+            # The write itself was stopped: the app's own recovery records its history or removes its temporary
+            # archive. Kept backups are left to this tool, which deletes the backup after its own checks.
+            app.recover_interrupted_write(pending, record_backup=False)
+        try:
+            current = sha256(app, entry['path'])
+        except FileNotFoundError:
+            return 'stopped', {'reason': 'the archive is missing', 'resumed': True}
+        if current == original:
+            for backup in attempt_backups(app, entry, start['started_ns']):
+                try:
+                    app.remove_verified_backup(entry['path'], backup, original)
+                except Exception:
+                    pass  # A partial or differing copy is kept.
+            return None
+        backup = (events.get('written') or {}).get('backup')
+        if backup is None:
+            matches = [b for b in attempt_backups(app, entry, start['started_ns']) if sha256(app, b) == original]
+            backup = matches[0] if matches else None
+        details = {'fields': list(entry['fills']), 'removed': entry['remove']['name'], 'backup': backup,
+                   'backup_removed': False, 'resumed': True}
+        present = bool(backup) and app.filesystem_path(backup).exists()
+        if 'verified' in events and not present:
+            return 'written', dict(details, backup_removed=True, note='its backup was deleted before the stop')
+        if not present:
+            return 'stopped', dict(details, reason='rewritten, but no backup equal to the original was found; nothing deleted')
+        problem = verify_written(app, entry, backup)
+        if problem:
+            return 'stopped', dict(details, reason='the written archive failed its check: ' + problem)
+        with app.db() as con:
+            recorded = con.execute('SELECT 1 FROM history WHERE backup=?', (backup,)).fetchone()
+        if not recorded:
+            return 'stopped', dict(details, reason='rewritten and verified, but its history is not recorded; backup kept')
+        return finish(app, entry, backup, original, out, details)
+    finally:
+        guard.__exit__(None, None, None)
+
+
+def read_lines(path):
+    try:
+        with open(path, encoding='utf-8') as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+    except FileNotFoundError:
+        return []
+
+
 def check_out_folder(out):
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
-        raise SystemExit('--out must be a new or empty folder.')
+        raise SystemExit('--out must be a new or empty folder (or add --resume to carry on an interrupted run).')
     out.mkdir(parents=True, exist_ok=True)
 
 
-def apply(plan_path, out, engine, live):
-    plan = json.loads(Path(plan_path).read_text(encoding='utf-8'))
+def check_resume_folder(out, plan_sha256):
+    """The --out of an earlier apply of this same plan, and not ended on a 'stopped' result (RECOVERY step 4)."""
+    try:
+        run = json.loads((out / 'run.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        raise SystemExit('--resume needs the --out folder of an earlier apply (it holds run.json).') from None
+    if run.get('plan_sha256') != plan_sha256:
+        raise SystemExit('This --out folder belongs to the apply of another plan.')
+    results = read_lines(out / 'results.jsonl')
+    if results and results[-1].get('outcome') == 'stopped':
+        raise SystemExit('The last run stopped at %s: %s. Look at that archive first (its backup is kept), then make a '
+                         'new dry run and apply it with a new --out.' % (results[-1]['path'], results[-1].get('reason')))
+    return results
+
+
+def apply(plan_path, out, engine, live, resume=False, recover_only=False):
+    raw = Path(plan_path).read_bytes()
+    plan = json.loads(raw.decode('utf-8'))
     if plan.get('kind') != PLAN_KIND or plan.get('version') != PLAN_VERSION:
         raise SystemExit('Not a nested ComicInfo merge plan of this version.')
+    plan_sha256 = hashlib.sha256(raw).hexdigest()
     out = Path(out)
-    check_out_folder(out)
+    previous = check_resume_folder(out, plan_sha256) if resume or recover_only else None
     os.environ['COMICS_META_STATE_ROOT'] = str(live)  # Before the app's modules are imported.
     sys.path.insert(0, str(engine))
     import app
@@ -642,18 +796,39 @@ def apply(plan_path, out, engine, live):
     if (not hasattr(app, 'nested_left_out') or not hasattr(app, 'nested_donor')
             or 'merge_nested' not in introspect.signature(app.write_metadata).parameters):
         raise SystemExit('This app version has no nested merge. Install the version that has it, then apply.')
+    if not hasattr(app, 'recover_interrupted_write'):
+        # 0.6.8 (code review v0.6.7 Q1, Q2, q4): durable rewrites, and a stopped write that can be finished or undone.
+        raise SystemExit('This app version cannot recover an interrupted write. Install 0.6.8 or later, then apply.')
     import library_lock
     if library_lock.identity(app.live_root() or '') != library_lock.identity(plan['library']):
         raise SystemExit('The plan was made for another library than the app is using.')
-    counts = Counter()
+    if previous is None:
+        check_out_folder(out)
+        (out / 'run.json').write_text(json.dumps({'plan': str(Path(plan_path).resolve()), 'plan_sha256': plan_sha256,
+                                                  'started': time.strftime('%Y-%m-%d %H:%M:%S')}, indent=1), encoding='utf-8')
+    done = {result['path'] for result in previous or []}
+    events = {}
+    for event in read_lines(out / 'journal.jsonl'):
+        events.setdefault(event['path'], {})[event['event']] = event
+    held = 0
     with open(out / 'results.jsonl', 'a', encoding='utf-8') as results:
         for entry in plan['entries']:
             action = ACTIONS.get(entry.get('action'))
             if action is None:
-                counts['held'] += 1  # Held in the dry run: never written.
+                held += 1  # Held in the dry run: never written.
+                continue
+            if entry['path'] in done:
                 continue
             path = Path(entry['path'])
-            if path.with_name(path.name + '.metadata-tmp').exists():
+            interrupted = 'start' in events.get(entry['path'], {})
+            outcome = recover_entry(app, entry, events[entry['path']], out) if interrupted else None
+            if outcome is None and recover_only:
+                if interrupted:
+                    print('recovered (left as it was)', path.name, flush=True)
+                continue
+            if outcome is not None:
+                outcome, details = outcome
+            elif path.with_name(path.name + '.metadata-tmp').exists():
                 outcome, details = 'skipped', {'reason': 'the app is writing this comic now'}
             else:
                 try:
@@ -664,32 +839,49 @@ def apply(plan_path, out, engine, live):
                     outcome, details = 'skipped', {'reason': 'no longer one root and one nested copy, or now held'}
                 else:
                     outcome, details = action(app, entry, current, out)
-            counts[outcome] += 1
             results.write(json.dumps({'path': entry['path'], 'action': entry['action'], 'outcome': outcome, **details},
                                      ensure_ascii=False) + '\n')
             results.flush()
+            os.fsync(results.fileno())
             print(outcome, path.name, flush=True)
             if outcome == 'stopped':
                 break  # The archive may have been written but did not verify: stop for inspection, backup kept.
+    counts = Counter(result['outcome'] for result in read_lines(out / 'results.jsonl'))
+    if held:
+        counts['held'] = held
     (out / 'summary.json').write_text(json.dumps(dict(counts), indent=1), encoding='utf-8')
     print('Done:', dict(counts))
     return counts
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0], epilog=RECOVERY,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--report', help='dry run: the .md to write (the .csv and .json go beside it)')
     parser.add_argument('--library', help='dry run: library folder (default: the live config\'s)')
     parser.add_argument('--apply', help='apply this plan (.json from a dry run)')
     parser.add_argument('--out', help='apply: a new or empty folder for the results')
+    parser.add_argument('--resume', action='store_true',
+                        help='apply: carry on an interrupted apply in its --out folder (see Recovery below)')
+    parser.add_argument('--recover', action='store_true',
+                        help='apply: finish or undo the archive an interrupted apply was writing, and nothing more')
     parser.add_argument('--engine', default=str(default_engine()), help='apply: the app engine folder (default: the installed app)')
     parser.add_argument('--live', default=str(default_live()), help='the live state folder (default: %%LOCALAPPDATA%%\\ComicsMeta)')
     args = parser.parse_args(argv)
     if args.apply:
         if not args.out:
             parser.error('--apply needs --out')
-        apply(args.apply, args.out, Path(args.engine), Path(args.live))
+        if args.resume and args.recover:
+            parser.error('give --resume or --recover, not both')
+        try:
+            apply(args.apply, args.out, Path(args.engine), Path(args.live), resume=args.resume, recover_only=args.recover)
+        except KeyboardInterrupt:
+            print('Interrupted. To finish or undo the archive in progress, run the same command with --resume (or '
+                  '--recover); see --help.', file=sys.stderr, flush=True)
+            raise SystemExit(130)
         return
+    if args.resume or args.recover:
+        parser.error('--resume and --recover go with --apply and --out')
     if not args.report:
         parser.error('give --report for a dry run, or --apply with --out')
     sys.path.insert(0, str(CODE))

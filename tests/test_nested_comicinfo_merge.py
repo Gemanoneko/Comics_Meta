@@ -13,6 +13,7 @@ import os
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
+from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 import app
@@ -173,20 +174,22 @@ class DryRunTests(Library):
         self.assertIn('root: Lobo-Deadman - The Brave And The Bald #3, 2022-10; nested: (unreadable)', held[0])
 
 
-class ApplyTests(Library):
+class Applied(Library):
     def setUp(self):
         super().setUp()
         self.addCleanup(os.environ.__setitem__, 'COMICS_META_STATE_ROOT', os.environ['COMICS_META_STATE_ROOT'])
         app.scan([str(self.library)])
         self.dry_run()
 
-    def apply(self, out):
+    def apply(self, out, **options):
         with patch.object(app, 'live_root', return_value=str(self.library)):
-            return tool.apply(self.report.with_suffix('.json'), self.root / out, CODE, app.STATE_ROOT)
+            return tool.apply(self.report.with_suffix('.json'), self.root / out, CODE, app.STATE_ROOT, **options)
 
     def backups(self):
         return sorted(p.name for p in self.library.rglob('*.bak'))
 
+
+class ApplyTests(Applied):
     def test_apply_merges_verifies_saves_the_dropped_values_then_deletes_the_backup(self):
         with zipfile.ZipFile(self.merge) as archive:
             before = {i.filename: i.CRC for i in archive.infolist()}
@@ -309,10 +312,151 @@ class ApplyTests(Library):
                 self.apply('run1')
         self.assertEqual(self.merge.read_bytes(), original)
 
+    def test_an_engine_that_cannot_recover_an_interrupted_write_is_refused(self):
+        # 0.6.7's engine: no durable rename and no pending-write record, so an interrupted apply could not be finished.
+        original, recovery = self.merge.read_bytes(), getattr(app, 'recover_interrupted_write', None)
+        if recovery is not None:
+            del app.recover_interrupted_write
+        try:
+            with self.assertRaisesRegex(SystemExit, '0.6.8'):
+                self.apply('run1')
+        finally:
+            if recovery is not None:
+                app.recover_interrupted_write = recovery
+        self.assertEqual(self.merge.read_bytes(), original)
+
     def test_a_plan_for_another_library_is_refused(self):
         with patch.object(app, 'live_root', return_value=str(self.root / 'Elsewhere')):
             with self.assertRaises(SystemExit):
                 tool.apply(self.report.with_suffix('.json'), self.root / 'run1', CODE, app.STATE_ROOT)
+
+
+class Killed(BaseException):
+    """The apply's process ends here (a crash, a power cut, Ctrl+C): no `except Exception` runs, as with a real stop."""
+
+
+class ResumeTests(Applied):
+    """Code review v0.6.7 q4: an interrupted apply can be finished or undone. Before 0.6.8 a re-run needed a new
+    --out, skipped the archive that was being written (now root-only), and left its backup, the only copy of its
+    dropped nested values, behind."""
+    def interrupt(self, where):
+        """Run the apply until it is stopped on the first archive at `where`."""
+        import storage
+        real_replace, real_verify, real_remove, real_durable = (storage.replace_durably, tool.verify_written,
+                                                                app.remove_verified_backup, tool.make_durable)
+
+        def replace(source, destination):
+            if where == 'before rename':
+                os.replace(source, str(source) + '.kept')  # A kill leaves the temporary archive on the disk.
+                raise Killed()
+            real_replace(source, destination)
+            if where == 'after rename':
+                raise Killed()
+
+        def verify(app_, entry, backup):
+            if where == 'while verifying':
+                raise Killed()
+            return real_verify(app_, entry, backup)
+
+        def durable(app_, path):
+            if where == 'after saving the record':
+                raise Killed()
+            return real_durable(app_, path)
+
+        def remove(path, backup, original):
+            real_remove(path, backup, original)
+            if where == 'after deleting the backup':
+                raise Killed()
+        with patch.object(storage, 'replace_durably', replace), patch.object(tool, 'verify_written', verify), \
+                patch.object(tool, 'make_durable', durable), patch.object(app, 'remove_verified_backup', remove), \
+                self.assertRaises(Killed):
+            self.apply('run1')
+        temporary = self.merge.with_name(self.merge.name + '.metadata-tmp')
+        if where == 'before rename':
+            os.replace(str(app.filesystem_path(temporary)) + '.kept', app.filesystem_path(temporary))
+
+    def history(self):
+        with app.db() as con:
+            return sorted((Path(r[0]).name, r[1], r[2]) for r in con.execute(
+                'SELECT l.path, h.source, l.writer FROM history h JOIN write_ledger l ON l.history_id=h.id'))
+
+    def dropped_rows(self):
+        with open(self.root / 'run1' / 'dropped-nested-values.csv', encoding='utf-8-sig', newline='') as handle:
+            return Counter(Path(r['archive']).name for r in csv.DictReader(handle))
+
+    def assert_both_merged(self):
+        self.assertEqual(self.backups(), [])
+        for path in (self.merge, self.renamed):
+            with zipfile.ZipFile(path) as archive:
+                self.assertEqual([n for n in archive.namelist() if n.lower().endswith('comicinfo.xml')], ['ComicInfo.xml'])
+            self.assertEqual(app.read_metadata(path)[0]['Summary'], 'Lobo and Deadman team up.')
+        self.assertEqual(self.history(), [(self.merge.name, 'nested-comicinfo-merge', 'automatic'),
+                                          (self.renamed.name, 'nested-comicinfo-merge', 'automatic')])
+        self.assertEqual(self.dropped_rows(), {self.merge.name: 5, self.renamed.name: 5})  # Each archive's rows once.
+        copies = [json.loads(line)['archive'] for line in (self.root / 'run1' / 'removed-nested-copies.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(sorted(copies), sorted([str(self.merge), str(self.renamed)]))
+        self.assertFalse((app.DATA / 'pending-writes').exists() and any((app.DATA / 'pending-writes').iterdir()))
+
+    def test_stopped_inside_the_write_after_its_rename_resume_records_the_history_and_finishes(self):
+        self.interrupt('after rename')
+        self.assertEqual(self.history(), [])  # Rewritten, nothing recorded, backup kept, no result line.
+        self.assertEqual(len(self.backups()), 1)
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assert_both_merged()
+        results = [json.loads(line) for line in (self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual([(Path(r['path']).name, r['outcome'], r.get('resumed', False)) for r in results],
+                         [(self.merge.name, 'written', True), (self.renamed.name, 'written', False)])
+
+    def test_stopped_before_the_rename_resume_undoes_it_then_merges_as_planned(self):
+        self.interrupt('before rename')
+        temporary = app.filesystem_path(self.merge.with_name(self.merge.name + '.metadata-tmp'))
+        self.assertTrue(temporary.exists())
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assertFalse(temporary.exists())
+        self.assert_both_merged()
+
+    def test_stopped_while_verifying_resume_finishes(self):
+        self.interrupt('while verifying')
+        self.assertEqual(len(self.backups()), 1)
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assert_both_merged()
+
+    def test_stopped_after_saving_the_record_resume_finishes_without_saving_it_twice(self):
+        self.interrupt('after saving the record')
+        self.assertEqual(self.dropped_rows(), {self.merge.name: 5})
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assert_both_merged()
+
+    def test_stopped_after_deleting_the_backup_resume_records_the_result(self):
+        self.interrupt('after deleting the backup')
+        self.assertEqual(self.backups(), [])
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})
+        self.assert_both_merged()
+
+    def test_recover_finishes_or_undoes_the_interrupted_archive_and_writes_nothing_new(self):
+        self.interrupt('before rename')
+        second = self.renamed.read_bytes()
+        self.assertEqual(self.apply('run1', recover_only=True), {'held': 1})
+        self.assertFalse(app.filesystem_path(self.merge.with_name(self.merge.name + '.metadata-tmp')).exists())
+        self.assertEqual(self.backups(), [])  # Undone: the comic is the original and its backup was an exact copy.
+        with zipfile.ZipFile(self.merge) as archive:
+            self.assertIn(FOLDER + 'ComicInfo.xml', archive.namelist())
+        self.assertEqual(self.renamed.read_bytes(), second)  # Nothing new started.
+        self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})  # A later --resume carries on.
+        self.assert_both_merged()
+
+    def test_resume_refuses_after_a_stop_and_for_another_plan_or_folder(self):
+        with patch.object(tool, 'verify_written', return_value='entries other than ComicInfo changed'):
+            self.assertEqual(self.apply('run1'), {'stopped': 1})
+        with self.assertRaisesRegex(SystemExit, 'stopped at'):
+            self.apply('run1', resume=True)
+        with self.assertRaisesRegex(SystemExit, 'earlier apply'):
+            self.apply('elsewhere', resume=True)
+        (self.root / 'run1' / 'run.json').write_text(json.dumps({'plan_sha256': '0' * 64}), encoding='utf-8')
+        with self.assertRaisesRegex(SystemExit, 'another plan'):
+            self.apply('run1', resume=True)
+        with self.assertRaisesRegex(SystemExit, 'new or empty'):
+            self.apply('run1')  # Without --resume a used folder is still refused.
 
 
 if __name__ == '__main__':
