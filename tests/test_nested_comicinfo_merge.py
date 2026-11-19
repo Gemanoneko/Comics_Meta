@@ -491,6 +491,52 @@ class ResumeTests(Applied):
         self.assertEqual(self.apply('run1', resume=True), {'written': 2, 'held': 1})  # A later --resume carries on.
         self.assert_both_merged()
 
+    def test_r1_a_torn_last_line_never_stops_resume_or_recover(self):
+        # Code review v0.6.8 r1: a power cut during an append can leave a cut-short or zero-filled last line; json.loads
+        # then raised at the start of --resume and --recover, and RECOVERY step 1 forbids touching --out.
+        out = self.root / 'run1'
+        for mode in ('recover_only', 'resume'):
+            with self.subTest(mode=mode):
+                if mode == 'recover_only':
+                    self.interrupt('after saving the record')
+                torn = {'journal.jsonl': b'\x00' * 61, 'results.jsonl': b'{"path": "' + str(self.renamed).encode('unicode_escape'),
+                        'removed-nested-copies.jsonl': b'{"archive": "x", "xml', 'dropped-nested-values.csv': b'\x00' * 9}
+                for name, tail in torn.items():
+                    with open(out / name, 'ab') as handle:
+                        handle.write(tail)
+                expected = {'written': 1, 'held': 1} if mode == 'recover_only' else {'written': 2, 'held': 1}
+                self.assertEqual(self.apply('run1', **{mode: True}), expected)  # Before: JSONDecodeError.
+                for name, tail in torn.items():
+                    self.assertTrue((out / name).read_bytes().endswith(b'\n'), name)  # Cut off ...
+                    self.assertTrue((out / (name + '.torn')).read_bytes().endswith(tail), name)  # ... and kept.
+        self.assert_both_merged()
+
+    def test_r1_a_damaged_line_before_the_end_refuses_and_changes_nothing(self):
+        self.interrupt('after rename')
+        journal = self.root / 'run1' / 'journal.jsonl'
+        journal.write_bytes(b'{"event": "st\n' + journal.read_bytes())
+        before = journal.read_bytes()
+        with self.assertRaisesRegex(SystemExit, 'line 1 is damaged'):
+            self.apply('run1', resume=True)
+        self.assertEqual(journal.read_bytes(), before)
+        self.assertEqual(len(self.backups()), 1)  # Nothing touched.
+
+    def test_r1_run_json_is_on_the_disk_before_any_archive_starts(self):
+        durable, order = set(), []
+        real = os.fsync
+
+        def fsync(fd):
+            durable.add(os.fstat(fd).st_ino)
+            return real(fd)
+        real_start = tool.journal
+
+        def journal(out, event):
+            order.append((event['event'], os.stat(out / 'run.json').st_ino in durable))
+            return real_start(out, event)
+        with patch.object(tool.os, 'fsync', fsync), patch.object(tool, 'journal', journal):
+            self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
+        self.assertEqual(order[0], ('start', True))  # Before: ('start', False): written with write_text, never flushed.
+
     def test_resume_refuses_after_a_stop_and_for_another_plan_or_folder(self):
         with patch.object(tool, 'verify_written', return_value='entries other than ComicInfo changed'):
             self.assertEqual(self.apply('run1'), {'stopped': 1})

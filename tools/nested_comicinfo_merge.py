@@ -578,11 +578,7 @@ def journal(out, event):
 
 def already_saved(out, path):
     """True when the removed nested copy of this archive is already in <out> (a run stopped after saving it)."""
-    try:
-        with open(out / 'removed-nested-copies.jsonl', encoding='utf-8') as handle:
-            return any(json.loads(line).get('archive') == path for line in handle if line.strip())
-    except FileNotFoundError:
-        return False
+    return any(record.get('archive') == path for record in read_lines(out / 'removed-nested-copies.jsonl'))
 
 
 def finish(app, entry, backup, original, out, details):
@@ -680,7 +676,8 @@ Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window cl
        ... -B tools\\nested_comicinfo_merge.py --apply <plan>.json --out <the same folder> --resume
      It finishes or undoes the archive that was being written, then carries on with the archives not done yet.
      With --recover instead of --resume it finishes or undoes that one archive and starts nothing new; a later
-     --resume carries on. The app may be running; neither needs the other.
+     --resume carries on. The app may be running; neither needs the other. A last line a power cut tore in a file
+     of --out is moved to <name>.torn beside it and left out; a damaged line before the end refuses (look at it).
   3. What happens to the archive that was being written, under its write lock:
      - Still the original (the stop came before the rewrite replaced it): its temporary file is deleted, and each
        backup this run made of it is deleted once its SHA-256 equals the archive's; then it is merged as planned
@@ -767,12 +764,56 @@ def recover_entry(app, entry, events, out):
         guard.__exit__(None, None, None)
 
 
-def read_lines(path):
+APPENDED = ('journal.jsonl', 'results.jsonl', 'removed-nested-copies.jsonl', 'dropped-nested-values.csv')
+
+
+def read_lines(path, quiet=False):
+    """The records of one of <out>'s JSON-lines files (code review v0.6.8 r1). Each line is appended with its newline
+    in one write and fsync'd, so bytes after the last newline are an append a power cut tore (cut short or
+    zero-filled): left out, with a warning. A damaged line before it refuses: nothing is guessed."""
     try:
-        with open(path, encoding='utf-8') as handle:
-            return [json.loads(line) for line in handle if line.strip()]
+        with open(path, 'rb') as handle:
+            data = handle.read()
     except FileNotFoundError:
         return []
+    end = data.rfind(b'\n') + 1
+    records = []
+    for number, line in enumerate(data[:end].split(b'\n')[:-1], 1):
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line.decode('utf-8')))
+        except (ValueError, UnicodeDecodeError):
+            raise SystemExit('%s: line %d is damaged. Look at it before going on; nothing was written.' % (path, number)) from None
+    if data[end:] and not quiet:
+        print('%s ends with a torn line (%d bytes); it is left out.' % (Path(path).name, len(data) - end),
+              file=sys.stderr, flush=True)
+    return records
+
+
+def cut_torn_tail(path):
+    """At --resume or --recover: an append a power cut tore (bytes after the last newline) is moved to <name>.torn
+    (kept as evidence, appended) and cut off the file, so the next append starts on a line of its own. Returns the
+    number of bytes moved."""
+    try:
+        with open(path, 'rb') as handle:
+            data = handle.read()
+    except FileNotFoundError:
+        return 0
+    end = data.rfind(b'\n') + 1
+    if end == len(data):
+        return 0
+    with open(path.with_name(path.name + '.torn'), 'ab') as evidence:
+        evidence.write(data[end:])
+        evidence.flush()
+        os.fsync(evidence.fileno())
+    with open(path, 'r+b') as handle:
+        handle.truncate(end)
+        handle.flush()
+        os.fsync(handle.fileno())
+    print('%s ended with a torn line (%d bytes): moved to %s.torn.' % (path.name, len(data) - end, path.name),
+          file=sys.stderr, flush=True)
+    return len(data) - end
 
 
 def check_out_folder(out):
@@ -789,6 +830,11 @@ def check_resume_folder(out, plan_sha256):
         raise SystemExit('--resume needs the --out folder of an earlier apply (it holds run.json).') from None
     if run.get('plan_sha256') != plan_sha256:
         raise SystemExit('This --out folder belongs to the apply of another plan.')
+    for name in APPENDED:
+        if name.endswith('.jsonl'):
+            read_lines(out / name, quiet=True)  # A damaged line refuses before anything changes.
+    for name in APPENDED:
+        cut_torn_tail(out / name)  # Code review v0.6.8 r1: a power cut's torn append never stops the recovery.
     results = read_lines(out / 'results.jsonl')
     if results and results[-1].get('outcome') == 'stopped':
         raise SystemExit('The last run stopped at %s: %s. Look at that archive first (its backup is kept), then make a '
@@ -820,8 +866,13 @@ def apply(plan_path, out, engine, live, resume=False, recover_only=False):
         raise SystemExit('The plan was made for another library than the app is using.')
     if previous is None:
         check_out_folder(out)
-        (out / 'run.json').write_text(json.dumps({'plan': str(Path(plan_path).resolve()), 'plan_sha256': plan_sha256,
-                                                  'started': time.strftime('%Y-%m-%d %H:%M:%S')}, indent=1), encoding='utf-8')
+        # On the disk before any archive is started, like the journal (code review v0.6.8 r1): without it --resume
+        # refuses the folder and a fresh apply refuses it as not empty.
+        with open(out / 'run.json', 'x', encoding='utf-8') as handle:
+            handle.write(json.dumps({'plan': str(Path(plan_path).resolve()), 'plan_sha256': plan_sha256,
+                                     'started': time.strftime('%Y-%m-%d %H:%M:%S')}, indent=1))
+            handle.flush()
+            os.fsync(handle.fileno())
     done = {result['path'] for result in previous or []}
     events = {}
     for event in read_lines(out / 'journal.jsonl'):
