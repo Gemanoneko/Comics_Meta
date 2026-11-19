@@ -58,8 +58,8 @@ appended and flushed to disk, the written archive and its folder entry are flush
 v0.6.7 Q1: the checks may have read it from the OS cache), and app.remove_verified_backup deletes the backup once its
 SHA-256 equals the original's. A failed check keeps the backup and stops the run. A flush that another program
 refuses by holding the archive open without sharing write (Windows error 32) is retried for FLUSH_HELD_WAIT seconds
-(code review v0.6.8 r2); an archive still held after that is skipped and reported with its backup kept (listed in
-Kept backups as "Save not verified"), and the run carries on (Sergei 2026-11-19). Any other flush error keeps the
+(code review v0.6.8 r2); an archive still held after that is reported 'written_unverified' with its backup kept
+(listed in Kept backups as "Save not verified"), and the run carries on (Sergei 2026-11-19; code review v0.6.9 w3). Any other flush error keeps the
 backup and stops the run (code review v0.6.9 w3). A backup another program holds
 open without sharing delete is waited out the same way (BACKUP_HELD_WAIT); still held, the archive is reported
 'written' with its backup kept (listed as "Saved; backup could not be deleted"), and the run carries on. Results go
@@ -613,9 +613,10 @@ def finish(app, entry, backup, original, out, details):
             # kept ("Save not verified"), as before 0.6.9. The next archive would most likely fail on that drive too.
             return 'stopped', dict(details, reason='backup kept: the written archive could not be flushed to disk: '
                                    + (str(exc)[:200] or type(exc).__name__))
-        # Sergei 2026-11-19 (code review v0.6.8 r2): still held after the wait: skipped and reported, its backup kept
-        # and listed as "Save not verified"; the run carries on with the next archive.
-        return 'skipped', dict(details, kept_as='save_not_verified', reason=(
+        # Sergei 2026-11-19 (code review v0.6.8 r2): still held after the wait: reported, its backup kept and listed as
+        # "Save not verified"; the run carries on with the next archive. Its own outcome (code review v0.6.9 w3): it
+        # was 'skipped', which summary.json and the Done: line counted with the archives the run never touched.
+        return 'written_unverified', dict(details, kept_as='save_not_verified', reason=(
             'backup kept: the written archive could not be flushed to disk (another program held it open for %g s): '
             % FLUSH_HELD_WAIT + (str(exc)[:200] or type(exc).__name__)))
     journal(out, {'event': 'verified', 'path': entry['path'], 'backup': backup})
@@ -655,8 +656,8 @@ def label_kept_backup(app, entry, details):
     """A 'stopped' archive's kept backup is listed in Kept backups with the app's own reason (code review v0.6.8 R2):
     'Save not verified' ("this may be its only good copy") unless the stop came after the write was verified, recorded
     and flushed ('delete_refused'). Before, it read "Reason not recorded". Its nested copy and dropped values are not
-    only in it: the app's writer saved them to data/removed-nested-copies.jsonl before the rewrite. A 'skipped' archive
-    that was written but could not be flushed (r2) is labelled the same way: its details name kept_as."""
+    only in it: the app's writer saved them to data/removed-nested-copies.jsonl before the rewrite. A 'written_unverified'
+    archive (written, but it could not be flushed: r2) is labelled the same way: its details name kept_as."""
     backup = details.get('backup')
     if not backup or details.get('backup_removed') or not app.filesystem_path(backup).exists():
         return
@@ -741,8 +742,9 @@ Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window cl
      - Anything that does not check out (no backup equal to the original, a failed check, no history): result
        'stopped' with its backup kept, and nothing more is written.
      - Checked, but it cannot be flushed to disk because another program holds it open (waited out for 30 s):
-       result 'skipped' with its backup kept ("Save not verified"), and the run carries on. Any other flush error
-       (an I/O error, a drive gone) is 'stopped' with its backup kept.
+       result 'written_unverified' with its backup kept ("Save not verified"), and the run carries on. Any other
+       flush error (an I/O error, a drive gone) is 'stopped' with its backup kept. 'skipped' always means the
+       archive was not written.
      - Checked and flushed, but another program holds its backup open (waited out for 30 s): result 'written' with
        its backup kept ("Saved; backup could not be deleted"), and the run carries on.
   4. If the run ended on a 'stopped' result, --resume and --recover refuse: look at that archive first (its backup

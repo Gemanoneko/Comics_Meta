@@ -373,28 +373,37 @@ class ApplyTests(Applied):
         self.assertIsNotNone(holders[0].released_at)
         self.assertEqual(self.backups(), [])
 
-    def test_r2_an_archive_still_held_after_the_wait_is_skipped_with_its_backup_kept_and_the_run_carries_on(self):
+    def test_r2_w3_an_archive_still_held_after_the_wait_is_written_unverified_with_its_backup_kept_and_the_run_carries_on(self):
+        # Code review v0.6.9 w3(b): it was reported 'skipped', so summary.json and the Done: line counted a rewritten
+        # archive with the archives the run never touched. Its own outcome now, the same in results.jsonl, summary.json
+        # and the Done: line; 'skipped' means untouched.
         original = tool.sha256(app, str(self.merge))
         holders, held = self.held_while_verified()
         with held, patch.object(tool, 'FLUSH_HELD_WAIT', .3):
             counts = self.apply('run1')
-        self.assertEqual(counts, {'written': 1, 'skipped': 1, 'held': 1})  # Before: {'stopped': 1}, the run ended.
+        expected = {'written': 1, 'written_unverified': 1, 'held': 1}
+        self.assertEqual(counts, expected)  # Before: {'written': 1, 'skipped': 1, 'held': 1}.
         out = self.root / 'run1'
-        results = {r['path']: r for r in map(json.loads, (out / 'results.jsonl').read_text(encoding='utf-8').splitlines())}
-        skipped = results[str(self.merge)]
-        self.assertEqual((skipped['outcome'], skipped['backup_removed']), ('skipped', False))
-        self.assertIn('could not be flushed to disk (another program held it open', skipped['reason'])
-        self.assertEqual(tool.sha256(app, skipped['backup']), original)  # Its backup kept: the original, unchanged.
+        lines = [json.loads(line) for line in (out / 'results.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(json.loads((out / 'summary.json').read_text(encoding='utf-8')), expected)
+        self.assertEqual(dict(Counter(r['outcome'] for r in lines), held=1), expected)  # results.jsonl agrees.
+        results = {r['path']: r for r in lines}
+        unverified = results[str(self.merge)]
+        self.assertEqual((unverified['outcome'], unverified['backup_removed'], unverified['kept_as']),
+                         ('written_unverified', False, 'save_not_verified'))
+        self.assertIn('could not be flushed to disk (another program held it open', unverified['reason'])
+        self.assertEqual(tool.sha256(app, unverified['backup']), original)  # Its backup kept: the original, unchanged.
         self.assertEqual(results[str(self.renamed)]['outcome'], 'written')  # The run carried on.
         with app.db() as con:
             self.assertEqual([r[0] for r in con.execute('SELECT reason FROM kept_backups')], ['save_not_verified'])
         with open(out / 'dropped-nested-values.csv', encoding='utf-8-sig', newline='') as handle:
             self.assertIn(str(self.merge), {r['archive'] for r in csv.DictReader(handle)})  # Saved before the flush.
         self.assertIn('waited out for %d s' % tool.FLUSH_HELD_WAIT, tool.RECOVERY)  # --help names the real wait.
+        self.assertIn("'written_unverified'", tool.RECOVERY)
         holders[0].release()
-        # --resume does not refuse (nothing stopped) and leaves the skipped archive and its backup alone.
-        self.assertEqual(self.apply('run1', resume=True), {'written': 1, 'skipped': 1, 'held': 1})
-        self.assertTrue(app.filesystem_path(skipped['backup']).exists())
+        # --resume does not refuse (nothing stopped) and leaves that archive and its backup alone.
+        self.assertEqual(self.apply('run1', resume=True), expected)
+        self.assertTrue(app.filesystem_path(unverified['backup']).exists())
 
     def test_r2_a_reader_holding_the_backup_is_waited_out_before_it_is_deleted(self):
         # Sergei 2026-11-19 (r2 follow-up): a backup another program holds open without sharing delete made its deletion
