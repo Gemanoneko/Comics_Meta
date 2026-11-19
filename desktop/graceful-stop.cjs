@@ -47,7 +47,9 @@ class GracefulStop extends EventEmitter {
           const left=Math.max(1,PAUSE_LIMIT_MS-(Date.now()-start));
           if(mode==='install'){await this.engine.stop({timeoutMs:left});return true;}
           // Judy's R6 item 1: "Closing…" has no buttons, so it may last no longer than the one closure wait; then the
-          // forced path (the ending state), so Quit always ends. Paused means no comic write is running by now.
+          // forced path (the ending state), so Quit always ends. Paused covers the workers only: a manual Approve begun
+          // before Quit may still be writing and be stopped here; the engine's next start finishes or undoes that
+          // write from its pending-write record (code review v0.6.7 Q2, app.recover_interrupted_write).
           try{await this.engine.stop({timeoutMs:Math.min(this.engine.closureWaitS*1000,left)});return true;}
           catch{return await this.end();}
         }

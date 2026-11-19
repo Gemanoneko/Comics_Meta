@@ -92,5 +92,106 @@ class DurableArchiveTests(Library):
         self.assert_survives_a_power_cut()
 
 
+class Killed(BaseException):
+    """The process ends here: Quit's 30 s Closing cap terminating the engine's Job mid-Approve, a crash, a power cut.
+    BaseException, so no `except Exception` in the writer runs, as with a real kill."""
+
+
+class InterruptedWriteTests(Library):
+    """Q2: the Closing cap can stop a manual Approve mid-write. Quit still always ends; the next start (or the comic's
+    next write) finishes or undoes what the stopped write left: no temporary archive that blocks later writes, no
+    written comic without its history."""
+    def setUp(self):
+        super().setUp()
+        self.temporary = app.filesystem_path(self.path).with_name(self.path.name + '.metadata-tmp')
+        self.original = self.path.read_bytes()
+
+    def pending(self):
+        folder = app.DATA / 'pending-writes'
+        return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
+
+    def stop_at_rename(self, after):
+        """Run an Approve-style write that is killed at its rename: just after it (after=True) or just before, with
+        its temporary archive left on the disk as a kill leaves it."""
+        real = storage.replace_durably
+
+        def killed(source, destination):
+            if after:
+                real(source, destination)
+            else:
+                os.replace(source, str(source) + '.kept')
+            raise Killed()
+        with patch.object(storage, 'replace_durably', killed), self.assertRaises(Killed):
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, verify_readback=True,
+                               overwrite_fields=('Web',), history_source='https://comicvine.gamespot.com/x/4000-1/')
+        if not after:
+            os.replace(str(self.temporary) + '.kept', self.temporary)
+
+    def history(self):
+        with app.db() as con:
+            return [tuple(r) for r in con.execute(
+                'SELECT h.source, l.writer, l.fields, l.origin FROM history h JOIN write_ledger l ON l.history_id=h.id')]
+
+    def test_a_write_stopped_after_its_rename_gets_its_history_at_the_next_start(self):
+        self.stop_at_rename(after=True)
+        self.assertEqual(self.history(), [])  # What the stop left: a written comic with no history.
+        outcomes = app.recover_interrupted_writes()  # The next start, before any worker.
+        self.assertEqual([o['outcome'] for o in outcomes], ['recorded'])
+        self.assertEqual(self.history(), [('https://comicvine.gamespot.com/x/4000-1/', 'manual', '{"Writer": "Alan Grant"}', 'recovered')])
+        row = catalog_row(self.path)
+        stat = self.path.stat()
+        self.assertEqual((row['size'], row['mtime'], row['status']), (stat.st_size, stat.st_mtime_ns, 'tagged'))
+        import provenance
+        self.assertEqual(len(provenance.chain(row)), 1)  # The write chains to the archive: its provenance holds.
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(len(self.backups()), 1)  # Kept (no proven original hash here), and listed with its reason.
+        with app.db() as con:
+            self.assertEqual([r[0] for r in con.execute('SELECT reason FROM kept_backups')], ['delete_refused'])
+        self.assertEqual(app.recover_interrupted_writes(), [])  # Once.
+
+    def test_a_write_stopped_before_its_rename_is_undone_at_the_next_start(self):
+        self.stop_at_rename(after=False)
+        self.assertTrue(self.temporary.exists())  # What blocked every later write to this comic.
+        outcomes = app.recover_interrupted_writes()
+        self.assertEqual([(o['outcome'], o['backup_removed']) for o in outcomes], [('undone', True)])
+        self.assertFalse(self.temporary.exists())
+        self.assertEqual(self.backups(), [])  # Proven an exact copy of the unchanged comic, so deleted.
+        self.assertEqual(self.path.read_bytes(), self.original)
+        self.assertEqual((self.history(), self.pending()), ([], []))
+        # The comic can be written again.
+        app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, remove_verified_backups=True)
+        self.assertEqual(app.read_metadata(self.path)[0]['Writer'], 'Alan Grant')
+
+    def test_the_comics_next_write_recovers_first_if_no_start_came_between(self):
+        self.stop_at_rename(after=False)
+        # Before: ValueError('A temporary file already exists; inspect it before proceeding.')
+        app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, remove_verified_backups=True)
+        self.assertEqual(app.read_metadata(self.path)[0]['Writer'], 'Alan Grant')
+        self.assertEqual((self.backups(), self.pending()), ([], []))
+        self.stop_at_rename(after=True)
+        # The stopped write changed the comic, so the next plan (made before it) is refused, after its history.
+        stale = catalog_row(self.path)
+        app.recover_interrupted_writes()
+        with self.assertRaises(app.ArchiveChanged):
+            app.write_metadata(stale, {'Penciller': 'Val Semeiks'})
+
+    def test_an_ordinary_failure_before_the_rename_leaves_no_record(self):
+        # The caller's own failure handling (F29) owns the backup, as before.
+        with patch.object(zipfile.ZipFile, 'testzip', return_value='002.jpg'), self.assertRaisesRegex(ValueError, 'validation'):
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'})
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(self.path.read_bytes(), self.original)
+        self.assertFalse(self.temporary.exists())
+
+    def test_a_comic_changed_by_another_program_since_is_left_alone(self):
+        self.stop_at_rename(after=False)
+        make_comic(self.path)  # Saved again elsewhere: a new signature.
+        os.utime(self.path, ns=(1, 1))
+        outcomes = app.recover_interrupted_writes()
+        self.assertEqual([o['outcome'] for o in outcomes], ['changed'])
+        self.assertTrue(self.temporary.exists())  # Folder help shows it, as before.
+        self.assertEqual(len(self.backups()), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

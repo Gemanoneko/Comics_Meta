@@ -732,6 +732,115 @@ def write_guard_held(path):
     return library_lock.identity(filesystem_path(path)) in getattr(_write_guard_state,'held',set())
 
 
+def pending_write_path(path):
+    """The record of a write in progress on this archive (code review v0.6.7 Q2), named as its write lock.
+
+    _write_metadata_guarded saves it durably before the backup copy, adds the archive's next signature ('after') just
+    before the rename, and removes it once the history is recorded. A process stopped in between (Quit's Closing cap,
+    a crash, a power loss) leaves it for recover_interrupted_write."""
+    return DATA/'pending-writes'/(write_lock_path(path).stem+'.json')
+
+
+def _recovery_note(text):
+    print('Interrupted write recovery: '+text,file=sys.stderr,flush=True)
+
+
+def recover_interrupted_writes():
+    """Finish or undo every write a stopped process left half-done (code review v0.6.7 Q2). Run at start, with the
+    library claimed and before any worker. Never raises: a record that cannot be handled now is kept for the next
+    start (or for its comic's next write), and logged."""
+    folder=DATA/'pending-writes'
+    try:records=sorted(folder.glob('*.json')) if folder.is_dir() else []
+    except OSError as exc:
+        _recovery_note('records could not be listed ('+type(exc).__name__+' '+str(exc)[:200]+').')
+        return []
+    outcomes=[]
+    for record in records:
+        try:outcomes.append(recover_interrupted_write(record))
+        except Exception as exc:
+            _recovery_note(record.name+' kept for the next start ('+type(exc).__name__+' '+str(exc)[:200]+').')
+    return outcomes
+
+
+def recover_interrupted_write(record_path, record_backup=True):
+    """Finish or undo the write one pending record describes, under that comic's write guard (taken here unless this
+    thread holds it). Returns {'path', 'outcome', 'backup', 'backup_removed'}; outcome is:
+
+    - 'recorded': the rename happened and the comic reads as the write planned: its history and ledger row (writer and
+      source as planned, origin 'recovered') and the catalog row are recorded now. The backup is kept and listed in
+      Kept backups as "Saved; backup could not be deleted": the original's hash is not known here.
+    - 'already recorded': the history was recorded before the stop; only the record was left. The backup, if any, is
+      kept and listed the same way.
+    - 'not verified': renamed, but the comic does not read as planned: no history; the backup is kept as "Save not
+      verified".
+    - 'undone': never renamed; the comic is exactly what the write started from. Its temporary archive is deleted
+      (the comic's next write would refuse it) and its backup is deleted once its SHA-256 equals the comic's, else
+      kept as "Not saved; file was not changed".
+    - 'changed': the comic is neither; another program changed or removed it since. Nothing is touched.
+
+    record_backup=False leaves Kept backups' reasons alone (the merge tool deletes the backup itself after its own
+    checks). Raises (record kept) when the comic's write guard or the library claim cannot be had, or the record
+    cannot be read."""
+    import library_lock, storage
+    record_path=Path(record_path)
+    raw=json.loads(storage.read_text(record_path))
+    if (not isinstance(raw,dict) or raw.get('schema')!=1 or not isinstance(raw.get('path'),str)
+            or pending_write_path(raw['path']).name!=record_path.name):
+        raise ValueError('not a pending-write record of this app')
+    if not write_guard_held(raw['path']):
+        with comic_write_guard(raw['path']):
+            return recover_interrupted_write(record_path,record_backup)
+    library_lock.require(raw['path'])  # Raises, keeping the record, while another copy owns the library.
+    path=filesystem_path(raw['path'])
+    backup=filesystem_path(raw['backup'])
+    temporary=path.with_name(path.name+'.metadata-tmp')
+    try:
+        current=path.stat()
+        signature=[current.st_size,current.st_mtime_ns]
+    except FileNotFoundError:
+        signature=None
+    removed=False
+    if raw.get('after') and signature==raw['after']:
+        outcome=_record_interrupted_write(raw,path,signature)
+        reason='save_not_verified' if outcome=='not verified' else 'delete_refused'
+    elif signature==raw.get('before'):
+        outcome,reason='undone','not_saved'
+        temporary.unlink(missing_ok=True)  # This write's own, unfinished: the comic is still what it started from.
+        if backup.exists():
+            try:
+                with path.open('rb') as handle:
+                    remove_verified_backup(raw['path'],backup,hashlib.file_digest(handle,'sha256').hexdigest())
+                removed=True
+            except Exception:
+                pass  # A partial or differing copy is kept.
+    else:
+        outcome,reason='changed',None
+    if record_backup and reason and not removed and backup.exists():
+        import kept_backups
+        kept_backups.record(raw['path'],backup,reason)
+    record_path.unlink(missing_ok=True)
+    _recovery_note(Path(raw['path']).name+': '+outcome+('; its backup was deleted' if removed else '; its backup is kept' if backup.exists() else '')+'.')
+    return {'path':raw['path'],'outcome':outcome,'backup':raw['backup'],'backup_removed':removed}
+
+
+def _record_interrupted_write(raw, path, signature):
+    """The history, ledger and catalog rows a write renamed before its process stopped did not record."""
+    metadata,_,_=read_metadata(path)
+    if any(metadata.get(key,'')!=value for key,value in (raw.get('expected') or {}).items()):
+        return 'not verified'
+    with db() as con:
+        if con.execute('SELECT 1 FROM history WHERE backup=?',(raw['backup'],)).fetchone():
+            return 'already recorded'
+        con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
+                    (signature[0],signature[1],json.dumps(metadata),raw['id']))
+        history_id=con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
+                               (raw['history_path'],raw['backup'],raw['source'],raw.get('time') or time.time())).lastrowid
+        con.execute('INSERT INTO write_ledger VALUES(?,?,?,?,?,?,?,?,?,?)',
+                    (history_id,raw['path'],raw['source'],raw['writer'],json.dumps(raw.get('written') or {},ensure_ascii=False),
+                     raw['before'][0],raw['before'][1],signature[0],signature[1],'recovered'))
+    return 'recorded'
+
+
 def write_metadata(row, fields, *, append_notes=False, overwrite_fields=(), remove_verified_backups=False,
                    expected=None, history_source=None, attempt=None, writer='manual',
                    expected_snapshot=None, verify_readback=False, guard_held=False, merge_nested=None):
@@ -783,6 +892,10 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         scanned_root = None
     library_lock.require(row['path'], scanned_root)  # Raises before any change if another copy owns the library.
     path = filesystem_path(row['path'])
+    if pending_write_path(row['path']).exists():
+        # An earlier write of this comic was stopped part-way (code review v0.6.7 Q2): finish or undo it first, under
+        # this write's guard. A finished one changed the comic, so the signature check below refuses this plan.
+        recover_interrupted_write(pending_write_path(row['path']))
     stat = path.stat()
     if stat.st_size != row['size'] or stat.st_mtime_ns != row['mtime']:
         raise ArchiveChanged('File changed since scanning. Rescan first.')
@@ -856,63 +969,86 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
     backup = backup_dir / (path.name + '.' + str(time.time_ns()) + '.bak')
     if backup.exists():
         raise ValueError('A backup with this name already exists; nothing written.')
-    shutil.copy2(path, backup)
-    if attempt is not None:
-        attempt['backup'] = str(backup)
-    try:
-        with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as target:
-            target.comment = source.comment
-            for info in source.infolist():
-                if info.filename.lower() == 'comicinfo.xml' or (drop and info.filename == drop[0]):
-                    continue
-                with source.open(info) as src, target.open(info, 'w') as dst:
-                    shutil.copyfileobj(src, dst, length=1024 * 1024)
-            target.writestr('ComicInfo.xml', xml_bytes, compress_type=zipfile.ZIP_DEFLATED)
-        with zipfile.ZipFile(temporary) as check, zipfile.ZipFile(backup) as original:
-            if check.testzip() is not None:
-                raise ValueError('Archive validation failed.')
-            # Every other entry is unchanged, in order. The one exception is the nested ComicInfo this write
-            # merged (drop): the original held exactly that entry, unchanged, and the result does not.
-            entries = [(i.filename, i.CRC, i.file_size) for i in original.infolist() if i.filename.lower() != 'comicinfo.xml']
-            before = [entry for entry in entries if not (drop and entry[0] == drop[0])]
-            after = [(i.filename, i.CRC, i.file_size) for i in check.infolist() if i.filename.lower() != 'comicinfo.xml']
-            if before != after or (drop and len(entries) - len(before) != 1) or (drop and drop not in entries):
-                raise ValueError('Archive contents changed unexpectedly.')
-            readback = metadata_xml(check.read('ComicInfo.xml'))
-            for key,value in expected_fields.items():
-                if readback.findtext(key,default='') != value:
-                    raise ValueError('Temporary archive metadata verification failed for '+key)
-            for tag in merged:
-                if [_element_key(e) for e in readback if e.tag == tag] != [_element_key(e) for e in xml if e.tag == tag]:
-                    raise ValueError('Temporary archive metadata verification failed for '+tag)
-        current = path.stat()
-        if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
-            raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
-        # Code review v0.6.7 Q1: the new archive's bytes reach the disk before the rename, and the rename before this
-        # returns (storage.replace_durably, as storage's durable save). Every caller that then deletes the backup
-        # (Approve, the worker's batch, remove_verified_backups, the nested merge tool) deletes it only after this.
-        import storage
-        storage.replace_durably(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
-    metadata, _, _ = read_metadata(path)
-    if remove_verified_backups or verify_readback:
-        for key, value in expected_fields.items():
-            if metadata.get(key, '') != value:
-                raise ValueError('Readback verification failed for ' + key)
-    before = stat
-    stat = path.stat()
+    import storage
     source_text = str(history_source)[:200] if history_source else fields.get('Web', '')
-    with db() as con:
-        con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
-                    (stat.st_size, stat.st_mtime_ns, json.dumps(metadata), row['id']))
-        history_id = con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
-                                 (str(path), str(backup), source_text, time.time())).lastrowid
-        con.execute('INSERT INTO write_ledger VALUES(?,?,?,?,?,?,?,?,?,?)',
-                    (history_id, str(row['path']), source_text, writer, json.dumps(written, ensure_ascii=False),
-                     before.st_size, before.st_mtime_ns, stat.st_size, stat.st_mtime_ns, 'write'))
-    if remove_verified_backups:
-        remove_verified_backup(path, backup, original_sha256)
+    # Code review v0.6.7 Q2: what this write is about to do, on the disk before the backup copy, so that a process
+    # stopped part-way (Quit's 30 s Closing cap, a crash, a power loss) leaves no temporary archive that blocks later
+    # writes and no written comic without its history: recover_interrupted_write finishes or undoes it at the next
+    # start (or at this comic's next write). 'after' is added once the temporary archive is complete and verified.
+    pending = pending_write_path(row['path'])
+    journal = {'schema': 1, 'path': str(row['path']), 'id': row['id'], 'history_path': str(path), 'backup': str(backup),
+               'before': [stat.st_size, stat.st_mtime_ns], 'source': source_text, 'writer': writer,
+               'written': written, 'expected': expected_fields}
+    pending.parent.mkdir(parents=True, exist_ok=True)
+    storage.save(pending, journal, ensure_ascii=True)
+    replaced = False
+    try:
+        shutil.copy2(path, backup)
+        if attempt is not None:
+            attempt['backup'] = str(backup)
+        try:
+            with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as target:
+                target.comment = source.comment
+                for info in source.infolist():
+                    if info.filename.lower() == 'comicinfo.xml' or (drop and info.filename == drop[0]):
+                        continue
+                    with source.open(info) as src, target.open(info, 'w') as dst:
+                        shutil.copyfileobj(src, dst, length=1024 * 1024)
+                target.writestr('ComicInfo.xml', xml_bytes, compress_type=zipfile.ZIP_DEFLATED)
+            with zipfile.ZipFile(temporary) as check, zipfile.ZipFile(backup) as original:
+                if check.testzip() is not None:
+                    raise ValueError('Archive validation failed.')
+                # Every other entry is unchanged, in order. The one exception is the nested ComicInfo this write
+                # merged (drop): the original held exactly that entry, unchanged, and the result does not.
+                entries = [(i.filename, i.CRC, i.file_size) for i in original.infolist() if i.filename.lower() != 'comicinfo.xml']
+                before = [entry for entry in entries if not (drop and entry[0] == drop[0])]
+                after = [(i.filename, i.CRC, i.file_size) for i in check.infolist() if i.filename.lower() != 'comicinfo.xml']
+                if before != after or (drop and len(entries) - len(before) != 1) or (drop and drop not in entries):
+                    raise ValueError('Archive contents changed unexpectedly.')
+                readback = metadata_xml(check.read('ComicInfo.xml'))
+                for key,value in expected_fields.items():
+                    if readback.findtext(key,default='') != value:
+                        raise ValueError('Temporary archive metadata verification failed for '+key)
+                for tag in merged:
+                    if [_element_key(e) for e in readback if e.tag == tag] != [_element_key(e) for e in xml if e.tag == tag]:
+                        raise ValueError('Temporary archive metadata verification failed for '+tag)
+            current = path.stat()
+            if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
+                raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
+            finished = temporary.stat()  # The rename keeps the size and modification time: the archive's next signature.
+            storage.save(pending, dict(journal, after=[finished.st_size, finished.st_mtime_ns], time=time.time()),
+                         ensure_ascii=True)
+            # Code review v0.6.7 Q1: the new archive's bytes reach the disk before the rename, and the rename before
+            # this returns (storage.replace_durably, as storage's durable save). Every caller that then deletes the
+            # backup (Approve, the worker's batch, remove_verified_backups, the nested merge tool) deletes it only after.
+            storage.replace_durably(temporary, path)
+            replaced = True
+        finally:
+            temporary.unlink(missing_ok=True)
+        metadata, _, _ = read_metadata(path)
+        if remove_verified_backups or verify_readback:
+            for key, value in expected_fields.items():
+                if metadata.get(key, '') != value:
+                    raise ValueError('Readback verification failed for ' + key)
+        before = stat
+        stat = path.stat()
+        with db() as con:
+            con.execute("UPDATE comics SET size=?,mtime=?,metadata=?,status='tagged',error='' WHERE id=?",
+                        (stat.st_size, stat.st_mtime_ns, json.dumps(metadata), row['id']))
+            history_id = con.execute('INSERT INTO history(path,backup,source,timestamp) VALUES(?,?,?,?)',
+                                     (str(path), str(backup), source_text, time.time())).lastrowid
+            con.execute('INSERT INTO write_ledger VALUES(?,?,?,?,?,?,?,?,?,?)',
+                        (history_id, str(row['path']), source_text, writer, json.dumps(written, ensure_ascii=False),
+                         before.st_size, before.st_mtime_ns, stat.st_size, stat.st_mtime_ns, 'write'))
+        if remove_verified_backups:
+            remove_verified_backup(path, backup, original_sha256)
+    except Exception:
+        # Nothing replaced: the comic is unchanged and the caller's failure handling (F29) owns the backup. Once the
+        # rename happened the record stays, so the history a failed step did not record is recovered.
+        if not replaced:
+            pending.unlink(missing_ok=True)
+        raise
+    pending.unlink(missing_ok=True)
     return str(backup)
 
 
@@ -1464,6 +1600,7 @@ def main(argv=None):
         try:library_lock.claim_configured('dashboard')
         except library_lock.LibraryBusy as exc:
             print(str(exc),file=sys.stderr,flush=True);return library_lock.EXIT_LIBRARY_BUSY
+        recover_interrupted_writes()  # Code review v0.6.7 Q2: before any worker can write.
         server=LocalServer(('127.0.0.1',options.port),Handler)
         server.supervisor_stop=threading.Event() if server.setup_required else supervisor.start(BASE)
         address=f'http://127.0.0.1:{options.port}'
@@ -1498,6 +1635,9 @@ def main(argv=None):
             if os.environ.get('COMICS_META_SHELL_TOKEN'):catalog_step(lambda:pause_control.shell_pause(False))
             server.startup_phase='library'
             library_lock.claim_configured('dashboard')
+            # Code review v0.6.7 Q2: finish or undo a write the last session was stopped in (Quit's Closing cap, a
+            # crash), with the library claimed and before any worker starts. Never raises.
+            recover_interrupted_writes()
             server.startup_phase='service'
             catalog_step(server.initialize)
             server.supervisor_stop = threading.Event() if server.setup_required else supervisor.start(BASE)

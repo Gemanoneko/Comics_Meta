@@ -220,10 +220,12 @@ def _parse(raw, valid):
     return (True, value) if valid(value) else (False, None)
 
 
-def save(path, value, *, keep_previous=False, valid=is_object):
+def save(path, value, *, keep_previous=False, valid=is_object, ensure_ascii=False):
+    """ensure_ascii: escape every non-ASCII character, so any Windows file name (even one with an unpaired surrogate,
+    which UTF-8 cannot encode) can be saved."""
     path = Path(path)
     # Text-mode line ends, as Path.write_text wrote them before.
-    data = json.dumps(value, ensure_ascii=False, indent=2).replace('\n', os.linesep).encode('utf-8')
+    data = json.dumps(value, ensure_ascii=ensure_ascii, indent=2).replace('\n', os.linesep).encode('utf-8')
     if not keep_previous:
         _write(path, data)
         return
