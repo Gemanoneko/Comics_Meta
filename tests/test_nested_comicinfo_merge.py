@@ -329,18 +329,27 @@ class ApplyTests(Applied):
         with zipfile.ZipFile(self.merge) as archive:
             self.assertIsNone(archive.testzip())
 
-    def test_q1_an_archive_that_cannot_be_flushed_keeps_its_backup_and_is_skipped(self):
-        # Sergei 2026-11-19 (code review v0.6.8 r2): skipped and reported, its backup kept; the run carries on. Before:
-        # {'stopped': 1}, the second archive never started.
-        with patch.object(tool, 'make_durable', side_effect=OSError(5, 'Access is denied')):
+    def assert_a_flush_error_stops_the_run(self, error):
+        # Code review v0.6.9 w3: after r2 any flush error became 'skipped' (counted with the archives the run never
+        # touched) and the run carried on, an I/O error or a dropped drive included. Only a held archive is 'skipped'
+        # now (the held tests below); any other flush error keeps its own result: 'stopped', as before 0.6.9.
+        with patch.object(tool, 'make_durable', side_effect=error):
             counts = self.apply('run1')
-        self.assertEqual(counts, {'skipped': 2, 'held': 1})
-        self.assertEqual(len(self.backups()), 2)
-        results = [json.loads(line) for line in (self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8').splitlines()]
-        self.assertEqual({r['outcome'] for r in results}, {'skipped'})
-        for result in results:
-            self.assertIn('could not be flushed', result['reason'])
-            self.assertNotIn('held it open', result['reason'])  # Only a holder's sharing violation is waited for.
+        self.assertEqual(counts, {'stopped': 1})  # Before: {'skipped': 2, 'held': 1}.
+        result = json.loads((self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8'))
+        self.assertIn('could not be flushed', result['reason'])
+        self.assertNotIn('held it open', result['reason'])  # Only a holder's sharing violation is waited for.
+        self.assertFalse(result['backup_removed'])
+        self.assertEqual(len(self.backups()), 1)  # Its backup kept; the second archive never started.
+        with app.db() as con:
+            self.assertEqual([r[0] for r in con.execute('SELECT reason FROM kept_backups')], ['save_not_verified'])
+
+    def test_q1_w3_an_access_denied_flush_keeps_its_backup_and_stops_the_run(self):
+        self.assert_a_flush_error_stops_the_run(OSError(5, 'Access is denied'))
+
+    def test_w3_a_drive_gone_at_the_flush_keeps_its_backup_and_stops_the_run(self):
+        import ctypes
+        self.assert_a_flush_error_stops_the_run(ctypes.WinError(1167))  # ERROR_DEVICE_NOT_CONNECTED.
 
     def held_while_verified(self, release_after=None, backup=False):
         """A reader opens self.merge without sharing write right after it is rewritten (a thumbnailer reacting to the
