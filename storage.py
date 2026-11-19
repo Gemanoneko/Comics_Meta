@@ -36,9 +36,10 @@ BACKUP = '.bak'             # The previous good record, beside the file.
 UNREADABLE = '.unreadable'  # The last file read_json() could not read, kept as evidence when it put the copy back.
 SAVE_LOCK_WAIT = 30.0       # Seconds a keep_previous save or a restore waits for another holder of the file's lock.
 FLUSH_HELD_WAIT = 10.0      # Seconds a flush waits out another program that holds the file without sharing write.
+RENAME_HELD_WAIT = 10.0     # Seconds replace_durably waits out another program that has the destination open.
 WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x0, 0x80, 0x102
 GENERIC_WRITE, SHARE_ALL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS = 0x40000000, 0x7, 3, 0x02000000
-ERROR_SHARING_VIOLATION = 32
+ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, FILE_ATTRIBUTE_READONLY = 5, 32, 0x1
 INVALID_HANDLE = (1 << (8 * ctypes.sizeof(ctypes.c_void_p))) - 1
 _move_file = None
 _flush_api = None
@@ -66,9 +67,38 @@ def replace_durably(source, destination):
     """Rename a finished file over another so that both the bytes and the rename are on the disk when this returns:
     flush_file(source), then the write-through rename. Code review v0.6.7 Q1: a comic rewritten through a temporary
     archive and os.replace() was verified from the OS cache only, then its backup was deleted; a power loss in that
-    window could keep the rename and the deletion (journaled metadata) but not the new archive's data."""
+    window could keep the rename and the deletion (journaled metadata) but not the new archive's data.
+
+    Sergei 2026-11-19 (r2 follow-up): Windows refuses to replace a file another program has open, and the write failed
+    at once. A refusal because the destination is held is retried for RENAME_HELD_WAIT seconds (_held_open); any other
+    error is raised at once, and a lasting refusal leaves the destination unchanged."""
     flush_file(source)
-    _move(source, destination)
+    deadline, pause = time.monotonic() + RENAME_HELD_WAIT, .05
+    while True:
+        try:
+            _move(source, destination)
+            return
+        except OSError as error:
+            left = deadline - time.monotonic()
+            if left <= 0 or not _held_open(error, destination):
+                raise
+        time.sleep(min(pause, left))
+        pause = min(pause * 2, .5)
+
+
+def _held_open(error, destination):
+    """True when a refused rename means another program has the destination open: a sharing violation, or access
+    denied on a destination that is not read-only. MoveFileExW gives error 5 for an open destination whatever sharing
+    its holder allows (probed 2026-11-19), and also for a read-only one, which waiting never helps."""
+    code = getattr(error, 'winerror', None)
+    if code == ERROR_SHARING_VIOLATION:
+        return True
+    if code != ERROR_ACCESS_DENIED:
+        return False
+    try:
+        return not os.stat(destination).st_file_attributes & FILE_ATTRIBUTE_READONLY
+    except (OSError, AttributeError):
+        return False
 
 
 def _open_handle(path, directory):

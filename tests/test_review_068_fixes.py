@@ -172,6 +172,56 @@ class HeldWriteTests(unittest.TestCase):
         self.assertEqual(app.read_metadata(self.path)[0].get('Writer'), 'Alan Grant')
         self.assertEqual(self.backups(), [])  # Written, verified, flushed, then its backup deleted.
 
+    def held_at_the_rename(self, release_after=None):
+        """Another program opens the comic itself right before the writer's rename over it. Windows refuses to replace
+        an open file (MoveFileExW gives error 5, whatever sharing the holder allows)."""
+        real = storage.flush_file
+
+        def flush_file(path):
+            result = real(path)
+            if str(path).endswith('.metadata-tmp'):  # The temporary archive's flush comes right before the rename.
+                holder = Holder(app.filesystem_path(self.path))
+                self.holders.append(holder.release_after(release_after) if release_after else holder)
+            return result
+        return patch.object(storage, 'flush_file', flush_file)
+
+    def test_r2_approve_and_the_worker_wait_out_a_reader_holding_the_comic_at_its_rename(self):
+        # Sergei 2026-11-19 (r2 follow-up). Before: PermissionError [WinError 5] at once, the comic unchanged.
+        for mode, field, options in (('approve', 'Writer', {'verify_readback': True, 'overwrite_fields': ('Web',)}),
+                                     ('worker', 'Penciller', {'remove_verified_backups': True})):
+            with self.subTest(mode=mode):
+                with self.held_at_the_rename(release_after=.4):
+                    app.write_metadata(catalog_row(self.path), {field: 'Written by ' + mode}, **options)
+                self.assertIsNotNone(self.holders[-1].released_at)
+                self.assertEqual(app.read_metadata(self.path)[0].get(field), 'Written by ' + mode)
+
+    def assert_unchanged_after_a_refused_rename(self, before, started, at_most):
+        self.assertLess(time.monotonic() - started, at_most)
+        self.assertEqual(self.path.read_bytes(), before)  # Unchanged, as before 0.6.9.
+        self.assertFalse(self.path.with_name(self.path.name + '.metadata-tmp').exists())
+        self.assertFalse(app.pending_write_path(str(self.path)).exists())
+        with app.db() as con:
+            self.assertEqual(con.execute('SELECT COUNT(*) FROM history').fetchone()[0], 0)
+
+    def test_r2_a_comic_still_held_at_its_rename_stays_unchanged(self):
+        before, started, attempt = self.path.read_bytes(), time.monotonic(), {}
+        with self.held_at_the_rename(), patch.object(storage, 'RENAME_HELD_WAIT', .3), \
+                self.assertRaises(PermissionError):
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, attempt=attempt, verify_readback=True)
+        self.assertGreaterEqual(time.monotonic() - started, .3)  # It waited.
+        self.assert_unchanged_after_a_refused_rename(before, started, 5)
+
+    def test_r2_a_read_only_comic_is_still_refused_at_once(self):
+        # Error 5 is also what a read-only comic gives; that is never waited for (code review v0.6.8 R1 keeps its outcome).
+        os.chmod(self.path, stat.S_IREAD)
+        self.addCleanup(os.chmod, self.path, stat.S_IREAD | stat.S_IWRITE)
+        before, started = self.path.read_bytes(), time.monotonic()
+        with self.assertRaises(PermissionError):
+            app.write_metadata(catalog_row(self.path), {'Writer': 'Alan Grant'}, verify_readback=True)
+        for backup in self.folder.rglob('*.bak'):
+            os.chmod(backup, stat.S_IREAD | stat.S_IWRITE)  # copy2 copied the read-only bit; let scratch cleanup remove it.
+        self.assert_unchanged_after_a_refused_rename(before, started, 2)
+
 
 @unittest.skipUnless(archive_conversion.SEVEN_ZIP.exists(), '7-Zip unavailable')
 class DurableConversionTests(unittest.TestCase):
