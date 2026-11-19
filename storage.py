@@ -35,8 +35,10 @@ MOVEFILE_WRITE_THROUGH = 0x8
 BACKUP = '.bak'             # The previous good record, beside the file.
 UNREADABLE = '.unreadable'  # The last file read_json() could not read, kept as evidence when it put the copy back.
 SAVE_LOCK_WAIT = 30.0       # Seconds a keep_previous save or a restore waits for another holder of the file's lock.
+FLUSH_HELD_WAIT = 10.0      # Seconds a flush waits out another program that holds the file without sharing write.
 WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x0, 0x80, 0x102
 GENERIC_WRITE, SHARE_ALL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS = 0x40000000, 0x7, 3, 0x02000000
+ERROR_SHARING_VIOLATION = 32
 INVALID_HANDLE = (1 << (8 * ctypes.sizeof(ctypes.c_void_p))) - 1
 _move_file = None
 _flush_api = None
@@ -71,7 +73,11 @@ def replace_durably(source, destination):
 
 def _open_handle(path, directory):
     """A Windows handle with write access (FlushFileBuffers needs it) that shares read, write and delete, so it never
-    blocks a reader such as YACReader. Folders need FILE_FLAG_BACKUP_SEMANTICS."""
+    blocks a reader such as YACReader. Folders need FILE_FLAG_BACKUP_SEMANTICS.
+
+    Code review v0.6.8 r2: another program that holds the file open without sharing write (a reader or thumbnailer
+    that opens it with FILE_SHARE_READ only) makes this open fail at once with a sharing violation, Windows error 32,
+    and the write stopped. That error is retried for FLUSH_HELD_WAIT seconds; any other error is raised at once."""
     global _flush_api
     if _flush_api is None:
         from ctypes import wintypes
@@ -82,11 +88,18 @@ def _open_handle(path, directory):
         api.FlushFileBuffers.argtypes, api.FlushFileBuffers.restype = [wintypes.HANDLE], wintypes.BOOL
         api.CloseHandle.argtypes, api.CloseHandle.restype = [wintypes.HANDLE], wintypes.BOOL
         _flush_api = api
-    handle = _flush_api.CreateFileW(str(path), GENERIC_WRITE, SHARE_ALL, None, OPEN_EXISTING,
-                                    FILE_FLAG_BACKUP_SEMANTICS if directory else 0, None)
-    if handle is None or handle == INVALID_HANDLE:
-        raise ctypes.WinError(ctypes.get_last_error())
-    return handle
+    deadline, pause = time.monotonic() + FLUSH_HELD_WAIT, .05
+    while True:
+        handle = _flush_api.CreateFileW(str(path), GENERIC_WRITE, SHARE_ALL, None, OPEN_EXISTING,
+                                        FILE_FLAG_BACKUP_SEMANTICS if directory else 0, None)
+        if handle is not None and handle != INVALID_HANDLE:
+            return handle
+        error = ctypes.get_last_error()
+        left = deadline - time.monotonic()
+        if error != ERROR_SHARING_VIOLATION or left <= 0:
+            raise ctypes.WinError(error)  # A sharing violation is a PermissionError (winerror 32).
+        time.sleep(min(pause, left))
+        pause = min(pause * 2, .5)
 
 
 def flush_file(path):

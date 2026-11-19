@@ -328,13 +328,62 @@ class ApplyTests(Applied):
         with zipfile.ZipFile(self.merge) as archive:
             self.assertIsNone(archive.testzip())
 
-    def test_q1_an_archive_that_cannot_be_flushed_keeps_its_backup_and_stops_the_run(self):
+    def test_q1_an_archive_that_cannot_be_flushed_keeps_its_backup_and_is_skipped(self):
+        # Sergei 2026-11-19 (code review v0.6.8 r2): skipped and reported, its backup kept; the run carries on. Before:
+        # {'stopped': 1}, the second archive never started.
         with patch.object(tool, 'make_durable', side_effect=OSError(5, 'Access is denied')):
             counts = self.apply('run1')
-        self.assertEqual(counts, {'stopped': 1})
-        self.assertEqual(len(self.backups()), 1)
-        result = json.loads((self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8'))
-        self.assertIn('could not be flushed', result['reason'])
+        self.assertEqual(counts, {'skipped': 2, 'held': 1})
+        self.assertEqual(len(self.backups()), 2)
+        results = [json.loads(line) for line in (self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual({r['outcome'] for r in results}, {'skipped'})
+        for result in results:
+            self.assertIn('could not be flushed', result['reason'])
+            self.assertNotIn('held it open', result['reason'])  # Only a holder's sharing violation is waited for.
+
+    def held_while_verified(self, release_after=None):
+        """A reader opens self.merge without sharing write right after it is rewritten (a thumbnailer reacting to the
+        change), as in Futaba's TrayQA v0.6.8 probe; the tool's flush then meets Windows error 32."""
+        from test_review_068_fixes import Holder
+        holders, real = [], tool.verify_written
+        self.addCleanup(lambda: [holder.release() for holder in holders])
+
+        def verify(app_, entry, backup):
+            if entry['path'] == str(self.merge):
+                holder = Holder(app.filesystem_path(entry['path']))
+                holders.append(holder.release_after(release_after) if release_after else holder)
+            return real(app_, entry, backup)
+        return holders, patch.object(tool, 'verify_written', verify)
+
+    def test_r2_a_reader_holding_the_written_archive_is_waited_out(self):
+        holders, held = self.held_while_verified(release_after=.5)
+        with held:
+            self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})  # Before: {'stopped': 1} at once.
+        self.assertIsNotNone(holders[0].released_at)
+        self.assertEqual(self.backups(), [])
+
+    def test_r2_an_archive_still_held_after_the_wait_is_skipped_with_its_backup_kept_and_the_run_carries_on(self):
+        original = tool.sha256(app, str(self.merge))
+        holders, held = self.held_while_verified()
+        with held, patch.object(tool, 'FLUSH_HELD_WAIT', .3):
+            counts = self.apply('run1')
+        self.assertEqual(counts, {'written': 1, 'skipped': 1, 'held': 1})  # Before: {'stopped': 1}, the run ended.
+        out = self.root / 'run1'
+        results = {r['path']: r for r in map(json.loads, (out / 'results.jsonl').read_text(encoding='utf-8').splitlines())}
+        skipped = results[str(self.merge)]
+        self.assertEqual((skipped['outcome'], skipped['backup_removed']), ('skipped', False))
+        self.assertIn('could not be flushed to disk (another program held it open', skipped['reason'])
+        self.assertEqual(tool.sha256(app, skipped['backup']), original)  # Its backup kept: the original, unchanged.
+        self.assertEqual(results[str(self.renamed)]['outcome'], 'written')  # The run carried on.
+        with app.db() as con:
+            self.assertEqual([r[0] for r in con.execute('SELECT reason FROM kept_backups')], ['save_not_verified'])
+        with open(out / 'dropped-nested-values.csv', encoding='utf-8-sig', newline='') as handle:
+            self.assertIn(str(self.merge), {r['archive'] for r in csv.DictReader(handle)})  # Saved before the flush.
+        self.assertIn('waited out for %d s' % tool.FLUSH_HELD_WAIT, tool.RECOVERY)  # --help names the real wait.
+        holders[0].release()
+        # --resume does not refuse (nothing stopped) and leaves the skipped archive and its backup alone.
+        self.assertEqual(self.apply('run1', resume=True), {'written': 1, 'skipped': 1, 'held': 1})
+        self.assertTrue(app.filesystem_path(skipped['backup']).exists())
 
     def test_a_backup_that_cannot_be_proven_is_kept(self):
         with patch.object(app, 'remove_verified_backup', side_effect=ValueError('Backup verification failed.')):

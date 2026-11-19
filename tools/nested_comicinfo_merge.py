@@ -56,8 +56,10 @@ entry gone, and the root copy must hold the merged values and every root value u
 nested values (<out>/dropped-nested-values.csv) and the whole removed nested copy (<out>/removed-nested-copies.jsonl)
 appended and flushed to disk, the written archive and its folder entry are flushed to disk (make_durable; code review
 v0.6.7 Q1: the checks may have read it from the OS cache), and app.remove_verified_backup deletes the backup once its
-SHA-256 equals the original's. A failed check, or an archive that cannot be flushed, keeps the backup and stops the
-run. Results go to <out>/results.jsonl and <out>/summary.json (all runs of the --out folder). <out>/run.json names
+SHA-256 equals the original's. A failed check keeps the backup and stops the run. A flush that another program
+refuses by holding the archive open without sharing write (Windows error 32) is retried for FLUSH_HELD_WAIT seconds
+(code review v0.6.8 r2); an archive that still cannot be flushed is skipped and reported with its backup kept (listed
+in Kept backups as "Save not verified"), and the run carries on (Sergei 2026-11-19). Results go to <out>/results.jsonl and <out>/summary.json (all runs of the --out folder). <out>/run.json names
 the plan (its SHA-256); <out>/journal.jsonl records, on the disk before each step, an archive's start (with its
 original's SHA-256), its write (with the backup) and its verification, which is how --resume finds and finishes or
 undoes an archive an interrupted run was writing (RECOVERY).
@@ -84,6 +86,8 @@ SKIP_DIRS = {'.yacreaderlibrary', '.comic-metadata-backups'}
 DATE = ('Year', 'Month', 'Day')
 HISTORY_SOURCE = 'nested-comicinfo-merge'
 WRITER = 'automatic'
+FLUSH_HELD_WAIT = 30  # Seconds make_durable waits out another program holding the archive without sharing write (r2).
+SHARING_VIOLATION = 32  # Windows ERROR_SHARING_VIOLATION.
 _kernel = None
 
 
@@ -511,6 +515,10 @@ def make_durable(app, path):
     too (storage.replace_durably); this is the tool's own proof, whatever engine wrote the archive. The handles share
     read, write and delete, so a reader is never blocked; FlushFileBuffers needs write access. Raises OSError."""
     target = app.filesystem_path(path)
+    # Code review v0.6.8 r2 (Futaba's TrayQA v0.6.8 probe): another program that opened the archive without sharing
+    # write (a reader, or a thumbnailer reacting to the rewrite) made CreateFileW fail at once with a sharing violation
+    # (Windows error 32), and the run stopped. That error is retried for FLUSH_HELD_WAIT seconds; any other is raised.
+    # The tool's own wait: the engine it writes through (0.6.8) does not retry.
     if os.name != 'nt':
         for item in (target, target.parent):
             descriptor = os.open(item, os.O_RDONLY)
@@ -530,11 +538,17 @@ def make_durable(app, path):
     invalid = wintypes.HANDLE(-1).value
 
     def open_for_flush(item, flags):
-        # GENERIC_WRITE; share read, write and delete; OPEN_EXISTING.
-        handle = kernel.CreateFileW(str(item), 0x40000000, 0x7, None, 3, flags, None)
-        if handle is None or handle == invalid:
-            raise ctypes.WinError(ctypes.get_last_error())
-        return handle
+        deadline, pause = time.monotonic() + FLUSH_HELD_WAIT, .05
+        while True:
+            # GENERIC_WRITE; share read, write and delete; OPEN_EXISTING.
+            handle = kernel.CreateFileW(str(item), 0x40000000, 0x7, None, 3, flags, None)
+            if handle is not None and handle != invalid:
+                return handle
+            error, left = ctypes.get_last_error(), deadline - time.monotonic()
+            if error != SHARING_VIOLATION or left <= 0:
+                raise ctypes.WinError(error)
+            time.sleep(min(pause, left))
+            pause = min(pause * 2, .5)
     handle = open_for_flush(target, 0)
     try:
         descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
@@ -589,8 +603,13 @@ def finish(app, entry, backup, original, out, details):
     try:
         make_durable(app, entry['path'])
     except OSError as exc:
-        return 'stopped', dict(details, reason='backup kept: the written archive could not be flushed to disk: '
-                               + (str(exc)[:200] or type(exc).__name__))
+        # Sergei 2026-11-19 (code review v0.6.8 r2): skipped and reported, its backup kept and listed as "Save not
+        # verified"; the run carries on with the next archive. Before, the run stopped here and --resume refused.
+        held = getattr(exc, 'winerror', None) == SHARING_VIOLATION
+        return 'skipped', dict(details, kept_as='save_not_verified', reason=(
+            'backup kept: the written archive could not be flushed to disk'
+            + (' (another program held it open for %g s)' % FLUSH_HELD_WAIT if held else '')
+            + ': ' + (str(exc)[:200] or type(exc).__name__)))
     journal(out, {'event': 'verified', 'path': entry['path'], 'backup': backup})
     try:
         app.remove_verified_backup(entry['path'], backup, original)
@@ -604,7 +623,8 @@ def label_kept_backup(app, entry, details):
     """A 'stopped' archive's kept backup is listed in Kept backups with the app's own reason (code review v0.6.8 R2):
     'Save not verified' ("this may be its only good copy") unless the stop came after the write was verified, recorded
     and flushed ('delete_refused'). Before, it read "Reason not recorded". Its nested copy and dropped values are not
-    only in it: the app's writer saved them to data/removed-nested-copies.jsonl before the rewrite."""
+    only in it: the app's writer saved them to data/removed-nested-copies.jsonl before the rewrite. A 'skipped' archive
+    that was written but could not be flushed (r2) is labelled the same way: its details name kept_as."""
     backup = details.get('backup')
     if not backup or details.get('backup_removed') or not app.filesystem_path(backup).exists():
         return
@@ -688,6 +708,8 @@ Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window cl
        resumed.
      - Anything that does not check out (no backup equal to the original, a failed check, no history): result
        'stopped' with its backup kept, and nothing more is written.
+     - Checked, but it cannot be flushed to disk (another program holds it open, waited out for 30 s, or another
+       error): result 'skipped' with its backup kept ("Save not verified"), and the run carries on.
   4. If the run ended on a 'stopped' result, --resume and --recover refuse: look at that archive first (its backup
      is kept; Kept backups lists it as "Save not verified"), then make a new dry run and apply it with a new --out.
      Its nested copy and dropped values are not only in that backup: the app saved them, before the rewrite, to
@@ -910,9 +932,13 @@ def apply(plan_path, out, engine, live, resume=False, recover_only=False):
                                      ensure_ascii=False) + '\n')
             results.flush()
             os.fsync(results.fileno())
-            print(outcome, path.name, flush=True)
-            if outcome == 'stopped':
+            if outcome == 'skipped' and details.get('kept_as'):
+                print(outcome, path.name + ':', details['reason'], flush=True)  # Written, not flushed (r2).
+            else:
+                print(outcome, path.name, flush=True)
+            if outcome == 'stopped' or details.get('kept_as'):
                 label_kept_backup(app, entry, details)
+            if outcome == 'stopped':
                 break  # The archive may have been written but did not verify: stop for inspection, backup kept.
     counts = Counter(result['outcome'] for result in read_lines(out / 'results.jsonl'))
     if held:
