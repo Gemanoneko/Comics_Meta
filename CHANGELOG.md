@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.6.8] - 2026-11-19
+
+### Fixed
+
+- Saves and backups are on disk before a backup is deleted (Approve, worker and merge tool).
+- A save cut off by Quit is finished or undone at the next start.
+- A late exit of an old engine no longer stops the new one.
+- An unreadable lock file no longer blocks startup.
+- Nested-only ComicInfo follows the merge's rules (no store dates, no PageCount).
+- Values filled from nested ComicInfo can now be corrected by enrichment.
+- Quit wording states the real wait.
+
+### Added
+
+- `--resume` / `--recover` for the merge tool, with recovery steps.
+- Removed nested copies and dropped values are recorded in `data/removed-nested-copies.jsonl`.
+
 ## [v0.6.7] - 2026-11-18
 
 ### Fixed
