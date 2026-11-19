@@ -4,7 +4,9 @@ save() writes the new file beside the old one, puts its bytes on the disk (flush
 it over the old one with MOVEFILE_WRITE_THROUGH, as setup_state's save already did. A stop at any moment leaves the
 complete old file or the complete new one. Before 2026-11-17 the rename could reach the disk before the bytes: after
 the unclean stop of 2026-11-13, progress.json, folders.json and browser-search.json came back full size and all
-zeros (Docs/ComicsMetaOrganizer_ZeroFillDiagnosis_2026-11-17.md).
+zeros (Docs/ComicsMetaOrganizer_ZeroFillDiagnosis_2026-11-17.md). replace_durably() does the same for a finished file
+written elsewhere (the comic writer's temporary archive, 0.6.8); flush_file() and flush_directory() put an existing
+file's bytes, or a folder's entries, on the disk.
 
 The state files a lost record stops the app for (progress.json, folders.json, browser-search.json) are saved with
 keep_previous: the record being replaced, if it reads, is kept as <name>.bak. read_json() puts that copy back when the
@@ -34,7 +36,10 @@ BACKUP = '.bak'             # The previous good record, beside the file.
 UNREADABLE = '.unreadable'  # The last file read_json() could not read, kept as evidence when it put the copy back.
 SAVE_LOCK_WAIT = 30.0       # Seconds a keep_previous save or a restore waits for another holder of the file's lock.
 WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x0, 0x80, 0x102
+GENERIC_WRITE, SHARE_ALL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS = 0x40000000, 0x7, 3, 0x02000000
+INVALID_HANDLE = (1 << (8 * ctypes.sizeof(ctypes.c_void_p))) - 1
 _move_file = None
+_flush_api = None
 _mutex_api = None
 _local_locks = {}
 _local_locks_guard = threading.Lock()
@@ -53,6 +58,70 @@ def _move(source, destination):
         _move_file = move
     if not _move_file(str(source), str(destination), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH):
         raise ctypes.WinError(ctypes.get_last_error())  # Access denied or a sharing violation is a PermissionError.
+
+
+def replace_durably(source, destination):
+    """Rename a finished file over another so that both the bytes and the rename are on the disk when this returns:
+    flush_file(source), then the write-through rename. Code review v0.6.7 Q1: a comic rewritten through a temporary
+    archive and os.replace() was verified from the OS cache only, then its backup was deleted; a power loss in that
+    window could keep the rename and the deletion (journaled metadata) but not the new archive's data."""
+    flush_file(source)
+    _move(source, destination)
+
+
+def _open_handle(path, directory):
+    """A Windows handle with write access (FlushFileBuffers needs it) that shares read, write and delete, so it never
+    blocks a reader such as YACReader. Folders need FILE_FLAG_BACKUP_SEMANTICS."""
+    global _flush_api
+    if _flush_api is None:
+        from ctypes import wintypes
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                    wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        api.CreateFileW.restype = wintypes.HANDLE
+        api.FlushFileBuffers.argtypes, api.FlushFileBuffers.restype = [wintypes.HANDLE], wintypes.BOOL
+        api.CloseHandle.argtypes, api.CloseHandle.restype = [wintypes.HANDLE], wintypes.BOOL
+        _flush_api = api
+    handle = _flush_api.CreateFileW(str(path), GENERIC_WRITE, SHARE_ALL, None, OPEN_EXISTING,
+                                    FILE_FLAG_BACKUP_SEMANTICS if directory else 0, None)
+    if handle is None or handle == INVALID_HANDLE:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return handle
+
+
+def flush_file(path):
+    """Put a file's data and size on the disk (os.fsync: FlushFileBuffers on Windows). Raises OSError when it cannot."""
+    if os.name != 'nt':
+        descriptor = os.open(path, os.O_RDONLY)
+    else:
+        import msvcrt
+        handle = _open_handle(path, False)
+        try:
+            descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+        except BaseException:
+            _flush_api.CloseHandle(handle)
+            raise
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def flush_directory(path):
+    """Put a folder's entries on the disk: a rename into it, or a name removed from it. Raises OSError when it cannot."""
+    if os.name != 'nt':
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        return
+    handle = _open_handle(path, True)
+    try:
+        if not _flush_api.FlushFileBuffers(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        _flush_api.CloseHandle(handle)
 
 
 def _write(path, data):

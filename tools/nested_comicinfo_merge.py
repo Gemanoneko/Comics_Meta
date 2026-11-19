@@ -50,8 +50,10 @@ it, the written archive is re-read in full (every entry decompressed and checked
 included), every entry but ComicInfo must equal the backup's in name, CRC, size and order with exactly the nested
 entry gone, and the root copy must hold the merged values and every root value unchanged. Only then are the dropped
 nested values (<out>/dropped-nested-values.csv) and the whole removed nested copy (<out>/removed-nested-copies.jsonl)
-appended and flushed to disk, and app.remove_verified_backup deletes the backup once its SHA-256 equals the
-original's. A failed check keeps the backup and stops the run. Results go to <out>/results.jsonl and
+appended and flushed to disk, the written archive and its folder entry are flushed to disk (make_durable; code review
+v0.6.7 Q1: the checks may have read it from the OS cache), and app.remove_verified_backup deletes the backup once its
+SHA-256 equals the original's. A failed check, or an archive that cannot be flushed, keeps the backup and stops the
+run. Results go to <out>/results.jsonl and
 <out>/summary.json.
 """
 import argparse
@@ -496,6 +498,55 @@ def save_record(app, out, entry, backup):
         os.fsync(handle.fileno())
 
 
+def make_durable(app, path):
+    """The written archive's bytes and its folder entry on the disk before its backup goes (code review v0.6.7 Q1:
+    the checks above may read the new archive from the OS cache; after a power loss NTFS can keep the rename and the
+    backup's deletion while the new archive's data never reached the disk). The app's writer flushes before its rename
+    too (storage.replace_durably); this is the tool's own proof, whatever engine wrote the archive. The handles share
+    read, write and delete, so a reader is never blocked; FlushFileBuffers needs write access. Raises OSError."""
+    target = app.filesystem_path(path)
+    if os.name != 'nt':
+        for item in (target, target.parent):
+            descriptor = os.open(item, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return
+    import ctypes, msvcrt
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                   wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.FlushFileBuffers.argtypes, kernel.FlushFileBuffers.restype = [wintypes.HANDLE], wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    invalid = wintypes.HANDLE(-1).value
+
+    def open_for_flush(item, flags):
+        # GENERIC_WRITE; share read, write and delete; OPEN_EXISTING.
+        handle = kernel.CreateFileW(str(item), 0x40000000, 0x7, None, 3, flags, None)
+        if handle is None or handle == invalid:
+            raise ctypes.WinError(ctypes.get_last_error())
+        return handle
+    handle = open_for_flush(target, 0)
+    try:
+        descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        kernel.CloseHandle(handle)
+        raise
+    try:
+        os.fsync(descriptor)  # FlushFileBuffers: the archive's data and size.
+    finally:
+        os.close(descriptor)
+    folder = open_for_flush(target.parent, 0x02000000)  # FILE_FLAG_BACKUP_SEMANTICS: a folder handle.
+    try:
+        if not kernel.FlushFileBuffers(folder):  # The rename into the folder.
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        kernel.CloseHandle(folder)
+
+
 def discard_unused_backup(app, entry, attempt, original):
     """After a failed write: the backup it made goes only while the archive is still exactly the original."""
     backup = attempt.get('backup')
@@ -554,6 +605,11 @@ def merge(app, entry, current, out):
         if problem:
             return 'stopped', dict(details, reason='the written archive failed its check: ' + problem)
         save_record(app, out, entry, backup)
+        try:
+            make_durable(app, entry['path'])
+        except OSError as exc:
+            return 'stopped', dict(details, reason='backup kept: the written archive could not be flushed to disk: '
+                                   + (str(exc)[:200] or type(exc).__name__))
         try:
             app.remove_verified_backup(entry['path'], backup, original)
         except Exception as exc:

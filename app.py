@@ -888,7 +888,11 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         current = path.stat()
         if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
             raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
-        os.replace(temporary, path)
+        # Code review v0.6.7 Q1: the new archive's bytes reach the disk before the rename, and the rename before this
+        # returns (storage.replace_durably, as storage's durable save). Every caller that then deletes the backup
+        # (Approve, the worker's batch, remove_verified_backups, the nested merge tool) deletes it only after this.
+        import storage
+        storage.replace_durably(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
     metadata, _, _ = read_metadata(path)

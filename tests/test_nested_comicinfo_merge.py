@@ -259,6 +259,34 @@ class ApplyTests(Library):
                 archive.writestr(name, data[:-1] + b'X' if name.endswith('002.jpg') else data)
         self.assertEqual(tool.verify_written(app, entry, backup), 'entries other than ComicInfo changed')
 
+    def test_q1_each_archive_is_on_disk_before_its_backup_goes_whatever_engine_wrote_it(self):
+        # Code review v0.6.7 Q1: verify_written can read the new archive from the OS cache. The tool flushes the
+        # archive and its folder itself, so even a writer that flushes nothing (as 0.6.7's: os.replace) is safe.
+        import storage
+        from test_storage_durable import Disk
+        disk, at_removal = Disk(), []
+        real = app.remove_verified_backup
+
+        def remove(path, backup, original):
+            at_removal.append((Path(path).name, os.stat(app.filesystem_path(path)).st_ino in disk.durable))
+            return real(path, backup, original)
+        with patch.object(storage, 'replace_durably', os.replace), patch.object(storage.os, 'fsync', disk.fsync), \
+                patch.object(app, 'remove_verified_backup', remove):
+            self.assertEqual(self.apply('run1'), {'written': 2, 'held': 1})
+        # Before: [(..., False), (..., False)].
+        self.assertEqual(at_removal, [(self.merge.name, True), (self.renamed.name, True)])
+        disk.power_cut(app.filesystem_path(self.merge))
+        with zipfile.ZipFile(self.merge) as archive:
+            self.assertIsNone(archive.testzip())
+
+    def test_q1_an_archive_that_cannot_be_flushed_keeps_its_backup_and_stops_the_run(self):
+        with patch.object(tool, 'make_durable', side_effect=OSError(5, 'Access is denied')):
+            counts = self.apply('run1')
+        self.assertEqual(counts, {'stopped': 1})
+        self.assertEqual(len(self.backups()), 1)
+        result = json.loads((self.root / 'run1' / 'results.jsonl').read_text(encoding='utf-8'))
+        self.assertIn('could not be flushed', result['reason'])
+
     def test_a_backup_that_cannot_be_proven_is_kept(self):
         with patch.object(app, 'remove_verified_backup', side_effect=ValueError('Backup verification failed.')):
             counts = self.apply('run1')
