@@ -7,10 +7,16 @@ waits that holder out for a while (Sergei 2026-11-19), in the app's Approve and 
 
 R3: a CBR/CB7 converted to CBZ is flushed to disk (file and folder) before its original is deleted.
 
+Futaba's TrayQA v0.6.8 finding 1: a library claim lock that cannot be opened for writing counts only when it is really
+locked, as engine_host.held_claims (q1) already does.
+
 Isolated catalog and archives; the holders are real Windows handles in this process.
 """
 import ctypes
+import io
+import json
 import os
+import stat
 import subprocess
 import threading
 import time
@@ -21,7 +27,10 @@ from unittest.mock import patch
 from PIL import Image
 import app
 import archive_conversion
+import file_lock
+import library_lock
 import storage
+from test_library_lock import LockFixture
 from test_storage_durable import Disk
 from test_worker import scratch_directory
 
@@ -238,6 +247,69 @@ class DurableConversionTests(unittest.TestCase):
         self.assertEqual(original.read_bytes(), before)  # Kept; no CBZ was renamed into place.
         self.assertFalse(self.final.exists())
         self.assertEqual(self.at_removal, [])
+
+
+class UnopenableClaimTests(LockFixture):
+    """Futaba's TrayQA v0.6.8 finding 1: library_lock._overlapping_owner counted any claim lock it could not open for
+    writing as a live claim. Read-only claim locks whose .json records were missing (nobody holding them) then failed
+    every start with LIBRARY_BUSY ("Another Comics Meta copy is using this library (state folder: unknown)"), and Try
+    again did not help. Now the rule of engine_host.held_claims (code review v0.6.7 q1): only a lock conflict counts."""
+
+    def setUp(self):
+        super().setUp()
+        self.claims = self.locks / 'claims'
+        self.claims.mkdir(parents=True)
+
+    def read_only_lock(self, name='engine-' + 'a' * 64 + '-4242-0123456789ab.lock', held=False):
+        lock = self.claims / name
+        fd = file_lock.open_lock(lock)
+        if held:
+            self.assertTrue(file_lock.try_lock(fd))  # A live claimant: the lock is really held.
+            self.addCleanup(os.close, fd)
+        else:
+            os.close(fd)
+        os.chmod(lock, stat.S_IREAD)
+        self.addCleanup(lambda: lock.exists() and os.chmod(lock, stat.S_IREAD | stat.S_IWRITE))
+        return lock
+
+    def claim(self):
+        claim = library_lock.acquire(self.library, 'dashboard')
+        self.addCleanup(claim.release)
+        return claim
+
+    def test_finding_1_a_read_only_claim_lock_nobody_holds_never_blocks_a_start(self):
+        self.read_only_lock()  # Its .json record missing, as in Futaba's edge probe.
+        self.assertTrue(self.claim().held)  # Before: LibraryBusy (state folder: unknown).
+
+    def test_finding_1_a_read_only_lock_of_another_copy_that_has_ended_never_blocks_a_start(self):
+        lock = self.read_only_lock()
+        lock.with_suffix('.json').write_text(json.dumps({
+            'state_root': str(self.other_state), 'state_identity': library_lock.identity(self.other_state),
+            'library': str(self.library), 'library_identity': library_lock.identity(self.library)}), encoding='utf-8')
+        self.assertTrue(self.claim().held)  # Before: LibraryBusy naming the other copy's state folder.
+
+    def test_finding_1_a_claim_lock_that_cannot_be_opened_at_all_is_logged_once_and_not_counted(self):
+        lock = self.claims / 'foreign.lock'
+        lock.write_bytes(b'')
+        real_open_lock, real_open = file_lock.open_lock, os.open
+
+        def refuse(path, *args):
+            if Path(path).name == lock.name:
+                raise PermissionError(13, 'Access is denied', str(path))
+        with patch.object(library_lock, '_unopenable_logged', set(), create=True), \
+                patch.object(file_lock, 'open_lock', lambda path, create=True: refuse(path) or real_open_lock(path, create)), \
+                patch.object(library_lock.os, 'open', lambda path, flags, *rest: refuse(path) or real_open(path, flags, *rest)), \
+                patch('sys.stderr', new_callable=io.StringIO) as log:
+            self.claim().release()  # Before: LibraryBusy (state folder: unknown).
+            self.claim()
+        self.assertEqual(log.getvalue().count('foreign.lock cannot be opened'), 1)
+        self.assertTrue(lock.exists())  # Not counted, and not removed either.
+
+    def test_positive_control_a_read_only_claim_lock_a_live_process_holds_still_refuses(self):
+        self.read_only_lock(held=True)  # No record: a held claim that cannot be read is not proof the library is free.
+        with self.assertRaises(library_lock.LibraryBusy) as caught:
+            self.claim()
+        self.assertEqual(caught.exception.owner['state_root'], 'unknown')
 
 
 if __name__ == '__main__':

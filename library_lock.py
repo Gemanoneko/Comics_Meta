@@ -39,6 +39,7 @@ GATE_TIMEOUT = 30
 _held = []
 _mutex = threading.Lock()
 _role = None
+_unopenable_logged = set()  # Claim locks already logged as unopenable by this process.
 
 
 class LibraryBusy(Exception):
@@ -113,20 +114,44 @@ def _gate(timeout):
         os.close(fd)
 
 
+def _open_claim(lock_path):
+    """A descriptor to test a claim's byte lock with, or None when the lock is gone or cannot be opened at all.
+
+    Only a lock conflict counts as a live claim (Futaba's TrayQA v0.6.8 finding 1; the rule of
+    engine_host.held_claims, code review v0.6.7 q1). A lock file that cannot be opened for writing (read-only, an
+    access rule) is tested through a read-only handle; one that cannot be opened at all is logged once and not
+    counted. Until 0.6.9 any lock that could not be opened for writing counted as a live claim: read-only claim locks
+    that nobody held, with their records missing, failed every start with LIBRARY_BUSY."""
+    try:
+        return file_lock.open_lock(lock_path, create=False)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        pass
+    try:
+        return os.open(lock_path, os.O_RDONLY | getattr(os, 'O_BINARY', 0))
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        if lock_path.name not in _unopenable_logged:
+            _unopenable_logged.add(lock_path.name)
+            print('Library claim lock ' + lock_path.name + ' cannot be opened (' + type(error).__name__ + ' '
+                  + str(error) + '); not counted as held.', file=sys.stderr, flush=True)
+        return None
+
+
 def _overlapping_owner(claims, library_id, state_id):
     """The record of a live claim from another state root on an overlapping folder, else None."""
     for lock_path in sorted(claims.glob('*.lock')):
         record_path = lock_path.with_suffix('.json')
+        fd = _open_claim(lock_path)
+        if fd is None:
+            continue  # Gone, or not counted (left in place).
         try:
-            fd = file_lock.open_lock(lock_path, create=False)
-        except FileNotFoundError:
-            continue
-        except OSError:
-            live = True  # Unopenable is not proof that its owner has gone.
-        else:
             live = not file_lock.try_lock(fd)
             if not live:
                 file_lock.unlock(fd)
+        finally:
             os.close(fd)
         if not live:
             _remove(lock_path, record_path)  # Its process has ended.
