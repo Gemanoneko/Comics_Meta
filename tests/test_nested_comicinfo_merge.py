@@ -272,6 +272,27 @@ class ApplyTests(Applied):
         with zipfile.ZipFile(self.renamed) as archive:
             self.assertIn(FOLDER + 'ComicInfo.xml', archive.namelist())
 
+    def test_r2_a_stopped_archive_keeps_its_dropped_values_outside_the_backup_and_its_backup_reads_unverified(self):
+        # Code review v0.6.8 R2: on a stop, the dropped nested values lived only in the kept backup, listed as
+        # "Reason not recorded" (or "Saved; backup could not be deleted" after the app's recovery), and RECOVERY step 4
+        # led away from it. Now the writer saved them before the rewrite, and the backup reads "Save not verified".
+        import base64
+        with zipfile.ZipFile(self.merge) as archive:
+            nested = archive.read(FOLDER + 'ComicInfo.xml')
+        with patch.object(tool, 'verify_written', return_value='entries other than ComicInfo changed'):
+            self.assertEqual(self.apply('run1'), {'stopped': 1})
+        self.assertFalse((self.root / 'run1' / 'dropped-nested-values.csv').exists())  # The tool's own record: success only.
+        records = [json.loads(line) for line in (app.DATA / 'removed-nested-copies.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual([(r['archive'], r['kind']) for r in records], [(str(self.merge), 'merge')])
+        self.assertEqual(base64.b64decode(records[0]['xml_base64']), nested)
+        self.assertEqual({row[0]: row[2] for row in records[0]['left_out']},
+                         {'Series': 'root wins', 'Number': 'root wins', 'Genre': 'root wins',
+                          'Year': 'nested date never copied', 'Month': 'nested date never copied'})
+        with app.db() as con:
+            reasons = [row[0] for row in con.execute('SELECT reason FROM kept_backups')]
+        self.assertEqual(reasons, ['save_not_verified'])
+        self.assertIn('Save not verified', tool.RECOVERY)
+
     def test_the_check_catches_a_changed_page_and_a_missing_merged_value(self):
         plan = json.loads(self.report.with_suffix('.json').read_text(encoding='utf-8'))
         entry = next(e for e in plan['entries'] if e['path'] == str(self.merge))

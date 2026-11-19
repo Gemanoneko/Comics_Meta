@@ -266,24 +266,65 @@ def nested_only_left_out(nested):
     return left
 
 
-def removed_nested_copy(path, name, raw, backup):
-    """Before a write's backup can be deleted: the nested-only copy that write removes, whole, and each value of it the
-    root copy did not take (q2), appended to data/removed-nested-copies.jsonl and flushed to disk. Like the merge
-    tool's <out> (Sergei 2026-11-18), it keeps what leaves the archive once the backup is gone."""
+def _describe(elements):
+    """One value for a record: the text, texts joined by ' | ' for a repeated tag, or a short note for structure."""
+    if all(not len(e) for e in elements):
+        return ' | '.join((e.text or '').strip() for e in elements)
+    return '<%s: %d element(s), %d child element(s)>' % (elements[0].tag, len(elements), sum(len(e) for e in elements))
+
+
+def merge_left_out(root, nested, merged):
+    """[[tag, nested value, why, root value kept]]: each value of a merged nested copy the root copy did not take
+    (code review v0.6.8 R2). root is the root copy before the merge, merged the tags it filled. Why is the merge's own
+    rule (nested_left_out) or 'root wins'; a value the root already says the same way is not listed."""
+    left = []
+    for tag in dict.fromkeys(e.tag for e in nested):
+        donors = [e for e in nested if e.tag == tag and nested_donor(e)]
+        if tag in merged or not donors:
+            continue
+        current = [e for e in root if e.tag == tag and comicinfo_filled(e)]
+        if current and [_element_key(e) for e in donors] == [_element_key(e) for e in current]:
+            continue
+        left.append([tag, _describe(donors), nested_left_out(tag, root, nested) or 'root wins',
+                     _describe(current) if current else ''])
+    return left
+
+
+def removed_nested_copy(path, name, raw, backup, root=None, merged=()):
+    """Before the rename, so before any caller can delete the backup: the nested copy a write removes, whole, and each
+    value of it the root copy did not take, appended to data/removed-nested-copies.jsonl and flushed to disk. So no
+    nested value is ever only in a backup: not after a merge the tool stopped or that was interrupted, nor once the
+    worker deletes a verified backup.
+
+    A nested-only copy (q2): root is None; left_out lists what nested_only_left_out leaves out. A merge (code review
+    v0.6.8 R2): root is the root copy before the merge and merged the tags it filled; left_out lists each nested value
+    not taken, with why and the root value kept (merge_left_out). The merge tool keeps its own record in its --out."""
     try:
-        left = [[e.tag, (e.text or '').strip() if not len(e) else '<%d child element(s)>' % len(e), why]
-                for e, why in nested_only_left_out(metadata_xml(raw))]
+        nested = metadata_xml(raw)
+        if root is None:
+            left = [[e.tag, _describe([e]), why] for e, why in nested_only_left_out(nested)]
+        else:
+            left = merge_left_out(root, nested, merged)
     except Exception:
         left = None  # Unreadable here (it was read for the write): the whole copy below still says everything.
     import base64
-    line = json.dumps({'time': time.time(), 'archive': str(path), 'entry': name, 'left_out': left, 'backup': str(backup),
+    line = json.dumps({'time': time.time(), 'kind': 'nested-only' if root is None else 'merge', 'archive': str(path),
+                       'entry': name, 'left_out': left, 'backup': str(backup),
                        'xml_base64': base64.b64encode(raw).decode('ascii')}, ensure_ascii=True)
     target = DATA / 'removed-nested-copies.jsonl'
     target.parent.mkdir(parents=True, exist_ok=True)
-    with open(target, 'a', encoding='utf-8') as handle:
-        handle.write(line + '\n')
+    with open(target, 'ab') as handle:
+        # A line a power cut tore (cut short or zero-filled) never swallows this one: it starts on a line of its own.
+        torn = handle.tell() > 0 and _last_byte(target) != b'\n'
+        handle.write((('\n' if torn else '') + line + '\n').encode('ascii'))
         handle.flush()
         os.fsync(handle.fileno())
+
+
+def _last_byte(path):
+    with open(path, 'rb') as handle:
+        handle.seek(-1, os.SEEK_END)
+        return handle.read(1)
 
 
 def comicinfo_filled(element):
@@ -978,13 +1019,16 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
         written = {}  # Fields this call sets (not Notes, not values it leaves in place).
         # Nested ComicInfo, Sergei 2026-11-18 (option d): the one nested entry this write removes, as
         # (name, CRC, size). The new root copy carries all of it, so the archive keeps one ComicInfo.
-        drop, merged, nested_only_raw = None, [], None
+        drop, merged, nested_raw, merge_root = None, [], None, None
         if merge_nested is not None:
             nested = [i for i in infos if nested_comicinfo(i.filename)]
             if (source_name is None or nested_comicinfo(source_name) or len(nested) != 1
                     or nested[0].filename != merge_nested['name']
                     or (nested[0].CRC, nested[0].file_size) != (merge_nested['crc'], merge_nested['size'])):
                 raise ArchiveChanged('Nested ComicInfo changed since planning; nothing written.')
+            import copy
+            merge_root = copy.deepcopy(xml)  # The root copy before the merge, for the record of what it did not take.
+            nested_raw = source.read(nested[0].filename)
             merged = merge_comicinfo(xml, _comicinfo_xml(source, nested[0].filename))
             unplanned = sorted(set(merged) - set(merge_nested['tags']))
             if unplanned:
@@ -998,7 +1042,7 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             # A nested-only comic: the new root copy started from what of it is the comic's metadata (q2), so it goes.
             info = source.getinfo(source_name)
             drop = (info.filename, info.CRC, info.file_size)
-            nested_only_raw = source.read(source_name)
+            nested_raw = source.read(source_name)
         for key, value in fields.items():
             node = xml.find(key)
             if node is None:
@@ -1069,10 +1113,11 @@ def _write_metadata_guarded(row, fields, *, append_notes=False, overwrite_fields
             current = path.stat()
             if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
                 raise ArchiveChanged('Comic changed while preparing metadata. Original retained.')
-            if nested_only_raw is not None:
-                # q2: the values the new root copy left out go with the nested entry; saved before the rename, so
-                # before any caller can delete the backup.
-                removed_nested_copy(row['path'], drop[0], nested_only_raw, backup)
+            if nested_raw is not None:
+                # q2 (a nested-only copy) and code review v0.6.8 R2 (a merge): the nested entry goes with values the
+                # root copy did not take. The whole copy and those values are saved before the rename, so before any
+                # caller (the merge tool after its checks, the worker, Approve) can delete or keep the backup.
+                removed_nested_copy(row['path'], drop[0], nested_raw, backup, root=merge_root, merged=merged)
             finished = temporary.stat()  # The rename keeps the size and modification time: the archive's next signature.
             storage.save(pending, dict(journal, after=[finished.st_size, finished.st_mtime_ns], time=time.time()),
                          ensure_ascii=True)

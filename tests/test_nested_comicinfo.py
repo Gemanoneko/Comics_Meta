@@ -262,6 +262,31 @@ class MergeTests(Isolated):
         # Volume 1995 is a year, so it is not copied (Futaba F4).
         self.assertEqual(json.loads(fields), {'Number': '1', 'Summary': 'Lobo and Deadman team up.', 'Genre': 'Superhero'})
 
+    def test_r2_a_merge_saves_the_whole_nested_copy_and_its_dropped_values_before_the_rename(self):
+        # Code review v0.6.8 R2: the tool saved them only after its checks passed, so a stopped or interrupted merge
+        # left them only in the backup. The writer now saves them before the rename, as for a nested-only copy.
+        import storage
+        make_comic(self.path, root=ROOT.replace('</ComicInfo>', '<Genre>Humor</Genre></ComicInfo>'), nested=[self.NESTED_FULL])
+        with zipfile.ZipFile(self.path) as archive:
+            raw = archive.read(FOLDER + 'ComicInfo.xml')
+        app.scan([str(self.folder)], recursive=False)
+        seen = []
+
+        def stopped(source, destination):
+            seen.append((app.DATA / 'removed-nested-copies.jsonl').exists())  # On the disk before the rename?
+            raise KeyboardInterrupt()  # The process stops at the rename.
+        with patch.object(storage, 'replace_durably', stopped), self.assertRaises(KeyboardInterrupt):
+            self.merge(tags=['Number', 'Summary', 'Volume', 'Writer', 'Pages'])
+        self.assertEqual(seen, [True])  # Before: [False]; nothing was saved by the writer at all.
+        records = [json.loads(line) for line in (app.DATA / 'removed-nested-copies.jsonl').read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(len(records), 1)
+        import base64
+        self.assertEqual(base64.b64decode(records[0]['xml_base64']), raw)  # The whole nested copy, byte for byte.
+        self.assertEqual((records[0]['kind'], records[0]['entry']), ('merge', FOLDER + 'ComicInfo.xml'))
+        self.assertEqual({row[0]: row[1:] for row in records[0]['left_out']},
+                         {'Series': ['Lobo/Deadman: The Brave and the Bald', 'root wins', 'Root Series'],
+                          'Genre': ['Superhero', 'root wins', 'Humor'], 'Volume': ['1995', 'Volume is a year', '']})
+
     def test_a_nested_none_is_blank(self):
         # Sergei 2026-11-18: some scrapers write the text "None" for a missing value.
         make_comic(self.path, root='<ComicInfo><Series>Root Series</Series></ComicInfo>',

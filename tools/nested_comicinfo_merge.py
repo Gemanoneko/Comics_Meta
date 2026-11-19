@@ -599,8 +599,21 @@ def finish(app, entry, backup, original, out, details):
     try:
         app.remove_verified_backup(entry['path'], backup, original)
     except Exception as exc:
-        return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__))
+        # Verified, recorded and flushed: only the redundant copy stays, as after Approve's refused deletion.
+        return 'stopped', dict(details, reason='backup kept: ' + (str(exc)[:200] or type(exc).__name__), kept_as='delete_refused')
     return 'written', dict(details, backup_removed=True)
+
+
+def label_kept_backup(app, entry, details):
+    """A 'stopped' archive's kept backup is listed in Kept backups with the app's own reason (code review v0.6.8 R2):
+    'Save not verified' ("this may be its only good copy") unless the stop came after the write was verified, recorded
+    and flushed ('delete_refused'). Before, it read "Reason not recorded". Its nested copy and dropped values are not
+    only in it: the app's writer saved them to data/removed-nested-copies.jsonl before the rewrite."""
+    backup = details.get('backup')
+    if not backup or details.get('backup_removed') or not app.filesystem_path(backup).exists():
+        return
+    import kept_backups
+    kept_backups.record(entry['path'], app.filesystem_path(backup), details.get('kept_as', 'save_not_verified'))
 
 
 def merge(app, entry, current, out):
@@ -661,8 +674,8 @@ ACTIONS = {'merge': merge}
 RECOVERY = """\
 Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window closed):
   1. Delete nothing: not the --out folder, not any .comic-metadata-backups folder in the library, and do not clear
-     Kept backups. Until the run is finished, the backup of the archive that was being written may be the only copy
-     of its dropped nested values.
+     Kept backups. Until the run is finished, the backup of the archive that was being written is the only copy of
+     that archive as it was, and --resume needs it to check the rewrite and finish.
   2. Run the same command again with --resume added, the same plan and the same --out:
        ... -B tools\\nested_comicinfo_merge.py --apply <plan>.json --out <the same folder> --resume
      It finishes or undoes the archive that was being written, then carries on with the archives not done yet.
@@ -679,7 +692,10 @@ Recovery after an interrupted apply (a crash, a power cut, Ctrl+C, the window cl
      - Anything that does not check out (no backup equal to the original, a failed check, no history): result
        'stopped' with its backup kept, and nothing more is written.
   4. If the run ended on a 'stopped' result, --resume and --recover refuse: look at that archive first (its backup
-     is kept; Kept backups lists it), then make a new dry run and apply it with a new --out.
+     is kept; Kept backups lists it as "Save not verified"), then make a new dry run and apply it with a new --out.
+     Its nested copy and dropped values are not only in that backup: the app saved them, before the rewrite, to
+     data\\removed-nested-copies.jsonl in its state folder (%LOCALAPPDATA%\\ComicsMeta), one line per archive with
+     the whole nested copy (xml_base64) and each value the root did not take (left_out).
   5. Starting the app also finishes or undoes an interrupted write (its own recovery at start), but it saves
      nothing to --out and keeps the backup of a rewritten archive: run --resume (or --recover) afterwards all the
      same.
@@ -845,6 +861,7 @@ def apply(plan_path, out, engine, live, resume=False, recover_only=False):
             os.fsync(results.fileno())
             print(outcome, path.name, flush=True)
             if outcome == 'stopped':
+                label_kept_backup(app, entry, details)
                 break  # The archive may have been written but did not verify: stop for inspection, backup kept.
     counts = Counter(result['outcome'] for result in read_lines(out / 'results.jsonl'))
     if held:
