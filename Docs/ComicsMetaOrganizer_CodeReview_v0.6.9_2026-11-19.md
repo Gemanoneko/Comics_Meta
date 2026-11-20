@@ -256,3 +256,13 @@ This clears construction for source commit 105a25abcacf4d31d34e0700e693c12947f4c
     - `skipped` with a `note` "backup kept" means another program changed that comic, and its pre-edit backup is left unlisted in that folder's `.comic-metadata-backups` (w9).
     - Any other flush error now ends the run with `stopped`, and `--resume` refuses: make a new dry run and use a new `--out`.
 - **First items for Ender's next cycle:** w1 (claim lock fails open), w9, w2, then w4.
+
+**Built commit covered:** v0.6.9 build `67c7b53008609f7f88879abb0ab339fa4577958e` (main). It is 105a25a plus two commits: c36d1a0 (this review) and 67c7b53 (Sully's bump). I checked this with `git diff 105a25a 67c7b53008609f7f88879abb0ab339fa4577958e`, which touches 5 paths:
+
+- this review (added);
+- `VERSION`: 0.6.8 to 0.6.9;
+- `package.json`: the `version` field, 0.6.8 to 0.6.9;
+- `package-lock.json`: its two version fields, 0.6.8 to 0.6.9;
+- `CHANGELOG.md`: a v0.6.9 entry naming the held-file waits, the durable CBR/CB7 conversion, the comic never overwritten after another program's change, the unheld claim lock, and the merge tool's `written_unverified` outcome and torn CSV rows.
+
+There is no source, test, tool or build-config change.
