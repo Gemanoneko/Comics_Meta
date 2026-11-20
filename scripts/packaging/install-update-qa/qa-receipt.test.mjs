@@ -1,16 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import {fileURLToPath} from 'node:url';
+const scratch=fileURLToPath(new URL('../../../scratch/',import.meta.url));
+fs.mkdirSync(scratch,{recursive:true});
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {validateGuestPhase,validateSandboxClientClosure} from './qa-receipt.mjs';
 test('missing real guest evidence cannot produce install/update acceptance',()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cmo-qa-receipt-'));
+  const root=fs.mkdtempSync(path.join(scratch,'cmo-qa-receipt-'));
   try{assert.throws(()=>validateGuestPhase({root,mode:'processing',plan:{},manifestSha256:'a'.repeat(64)}));}
   finally{fs.rmSync(root,{recursive:true});}
 });
 test('a synthetic pass flag without real ownership proof is refused',()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cmo-qa-receipt-'));
+  const root=fs.mkdtempSync(path.join(scratch,'cmo-qa-receipt-'));
   try{
     const out=path.join(root,'output-processing');fs.mkdirSync(out);
     for(const name of ['host-processing-owned.json','host-session-processing.json','host-processing-started.json'])fs.writeFileSync(path.join(root,name),JSON.stringify({pass:true}));

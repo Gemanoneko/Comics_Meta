@@ -23,7 +23,7 @@ const remain=Math.floor(deadline-performance.now());requireThat(remain>2000,'Hos
 const {runOwned}=await import(pathToFileURL(input+'/owner/bounded-check.mjs'));
 const temp=path.join(plan.hostRoot,'host-temp-'+mode);fs.mkdirSync(temp);
 const env={SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',ComSpec:'C:\\Windows\\System32\\cmd.exe',PATH:'C:\\Windows\\System32',
-  TEMP:temp,TMP:temp,USERPROFILE:process.env.USERPROFILE,USERNAME:process.env.USERNAME,APPDATA:process.env.APPDATA,LOCALAPPDATA:process.env.LOCALAPPDATA,COMPUTERNAME:process.env.COMPUTERNAME};
+  TEMP:temp,TMP:temp,TMPDIR:temp,USERPROFILE:process.env.USERPROFILE,USERNAME:process.env.USERNAME,APPDATA:process.env.APPDATA,LOCALAPPDATA:process.env.LOCALAPPDATA,COMPUTERNAME:process.env.COMPUTERNAME};
 const owned=await runOwned(process.execPath,[input+'/host-session.mjs',mode,sessionSha],{cwd:plan.hostRoot,env,timeoutMs:remain,maxBytes:2*1024*1024,koffiRoot:input+'/ownership/node_modules/koffi'});
 writeJson(path.join(plan.hostRoot,'host-'+mode+'-owned.json'),owned);
 requireThat(owned.ok&&owned.closed&&!owned.forced&&!owned.timedOut&&owned.outputComplete&&owned.native?.complete&&owned.native.zero,'Host Sandbox session failed/closure uncertain; no automatic retry');

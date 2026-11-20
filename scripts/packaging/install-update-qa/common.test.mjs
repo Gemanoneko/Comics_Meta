@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import {fileURLToPath} from 'node:url';
+const scratch=fileURLToPath(new URL('../../../scratch/',import.meta.url));
+fs.mkdirSync(scratch,{recursive:true});
 import {test} from 'node:test';
 import {digest,inventory,verifyInventory,member,parseComputeList,wsConfig,safeGuestIdentity} from './common.mjs';
 test('input membership validation is order-independent but refuses tamper, extra files and traversal',()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cmo-manifest-control-'));
+  const root=fs.mkdtempSync(path.join(scratch,'cmo-manifest-control-'));
   try{
     fs.writeFileSync(path.join(root,'a'),'real control');
     const records=inventory(root);

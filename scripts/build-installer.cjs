@@ -85,7 +85,7 @@ function main(){
   for(const name of ['user.npmrc','global.npmrc'])fs.writeFileSync(path.join(npmDir,name),'');
   const dist=path.join(root,'dist');
   if(fs.existsSync(dist))for(const name of fs.readdirSync(dist))if(name.endsWith('__uninstaller.exe'))fs.rmSync(path.join(dist,name));
-  const env={...process.env,TEMP:tmp,TMP:tmp,ELECTRON_BUILDER_CACHE:path.join(build,'cache'),
+  const env={...process.env,TEMP:tmp,TMP:tmp,TMPDIR:tmp,ELECTRON_BUILDER_CACHE:path.join(build,'cache'),
     COMICS_META_LEAN_BUILD:'1',COMICS_META_STAGED_MANIFEST_SHA256:stagedSha,COMICS_META_NATIVE_ROOT:nativeRoot,
     NPM_CONFIG_USERCONFIG:path.join(npmDir,'user.npmrc'),NPM_CONFIG_GLOBALCONFIG:path.join(npmDir,'global.npmrc'),
     NPM_CONFIG_CACHE:path.join(npmDir,'cache'),NPM_CONFIG_OFFLINE:'true',NPM_CONFIG_IGNORE_SCRIPTS:'true',

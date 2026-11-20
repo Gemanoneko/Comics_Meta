@@ -109,7 +109,7 @@ export async function prepare(options = {}) {
     NPM_CONFIG_GLOBALCONFIG: path.join(npmConfig, 'global.npmrc'), NPM_CONFIG_CACHE: path.join(cache, 'npm'),
     NPM_CONFIG_IGNORE_SCRIPTS: 'true', NPM_CONFIG_AUDIT: 'false', NPM_CONFIG_FUND: 'false',
     NPM_CONFIG_UPDATE_NOTIFIER: 'false', ELECTRON_SKIP_BINARY_DOWNLOAD: '1', PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1',
-    TEMP: npmConfig, TMP: npmConfig});
+    TEMP: npmConfig, TMP: npmConfig, TMPDIR: npmConfig});
   function run(file, args) {
     const result = spawnSync(file, args, {cwd: work, env, windowsHide: true, encoding: 'utf8', timeout: budget(), maxBuffer: 16 * 1024 ** 2});
     need(!result.error && result.status === 0, path.basename(file) + ' failed: ' + (result.error || result.stderr || result.stdout));
