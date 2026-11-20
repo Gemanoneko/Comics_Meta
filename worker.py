@@ -81,7 +81,8 @@ def run_one():
         try:
             import research_runtime
             with research_runtime.stage('Archive write and verification'):
-                batch.apply(item['plan'], remove_verified_backups=True)
+                # The supervisor discards stdout. Encoding a filename for it can still fail on Windows.
+                batch.apply(item['plan'], remove_verified_backups=True, print_progress=False)
             item.update(state='complete', finished=time.time())
         except pause_control.PauseRequested:
             item.update(state='pending',paused=time.time())

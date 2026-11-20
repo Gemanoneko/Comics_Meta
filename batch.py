@@ -163,7 +163,7 @@ def discard_failed_backup(path,backup,sha256):
     return ''
 
 
-def apply(plan_path, remove_verified_backups=False):
+def apply(plan_path, remove_verified_backups=False, *, print_progress=True):
     """Write a reviewed plan, one comic at a time, each with its own checks.
 
     - A comic whose archive changed since planning (F22) is skipped (skipped.json).
@@ -188,7 +188,8 @@ def apply(plan_path, remove_verified_backups=False):
         items.append({'path':str(path),'reason':reason,'at':time.time(),**extra})
         storage.save(plan_path.parent/name,items)
         discovery_state.write_not_done(path,outcome,reason)
-        print('Skipped, changed since planning:' if outcome=='write_skipped' else 'Not written, retried later:',path.name,'-',reason)
+        if print_progress:
+            print('Skipped, changed since planning:' if outcome=='write_skipped' else 'Not written, retried later:',path.name,'-',reason)
     # A reference plan (batch.py prepare) is one Sergei reviewed by hand; the write
     # ledger counts its values as his (provenance.py: never replaced automatically).
     writer='manual' if plan.get('reference') else 'automatic'
@@ -267,11 +268,13 @@ def apply(plan_path, remove_verified_backups=False):
                         'backup_sha256_verified':True,'metadata_readback_verified':True,
                         'backup_removed_after_verification':removed})
         storage.save(result_path,results)
-        print('Updated and verified:',path.name)
+        if print_progress:
+            print('Updated and verified:',path.name)
         progress(updated=len(results),detail='Verified: '+path.name)
     app.JOB.update(running=True,visited=0,changed=0,errors=0)
     app.scan([plan['folder']],recursive=False)  # Subfolders are inventoried by their own passes.
-    print('Repeat scan:',app.JOB)
+    if print_progress:
+        print('Repeat scan:',app.JOB)
     status=storage.read_json(app.DATA/'progress.json',valid=progress_record)
     completed=[b for b in status.get('completed',[]) if b.get('batch')!=plan_path.parent.name]
     completed.append({'batch':plan_path.parent.name,'folder':Path(plan['folder']).name,'updated':len(results),

@@ -82,7 +82,7 @@ class TicketCacheTests(unittest.TestCase):
         (worker.QUEUE / '001.json').write_text(json.dumps({'plan': 'p1', 'folder': 'F', 'state': 'pending', 'requeued': True}))
         with patch.object(worker.batch, 'apply') as apply:
             self.assertTrue(worker.run_one())
-        apply.assert_called_once_with('p1', remove_verified_backups=True)
+        apply.assert_called_once_with('p1', remove_verified_backups=True, print_progress=False)
         self.assertEqual(json.loads((worker.QUEUE / '001.json').read_text())['state'], 'complete')
         self.assertFalse(worker.run_one())
 

@@ -19,6 +19,7 @@ the archive changes.
 
 Isolated catalog, queue and archives; every source is mocked.
 """
+import io
 import json
 import os
 import sqlite3
@@ -26,7 +27,7 @@ import time
 import unittest
 import warnings
 import zipfile
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 import app
@@ -242,6 +243,26 @@ class EditDuringPassTests(Isolated):
 
 class FailingArchiveTests(Isolated):
     """F23."""
+
+    def test_worker_finishes_unicode_batch_with_legacy_stdout(self):
+        written = make_comic(self.folder / 'Æther 001.cbz')
+        skipped = make_comic(self.folder / 'Æther 002.cbz')
+        failed = make_comic(self.folder / 'Æther 003.cbz', duplicate=True)
+        app.scan([str(self.folder)], recursive=False)
+        plan = self.plan([self.entry(path, {'Series': 'Æther'}) for path in (written, skipped, failed)])
+        rewrite(skipped, SERGEI)
+        ticket = worker.enqueue(plan)
+
+        # Even a discarded Windows stream encodes each filename before discarding its bytes.
+        with io.TextIOWrapper(io.BytesIO(), encoding='cp1251', errors='strict') as stream, redirect_stdout(stream):
+            self.assertTrue(worker.run_one())
+
+        status = json.loads(ticket.read_text(encoding='utf-8'))
+        self.assertEqual(status['state'], 'complete', status.get('error'))
+        self.assertEqual(self.recorded(plan, 'results.json'), [written.name])
+        self.assertEqual(self.recorded(plan, 'skipped.json'), [skipped.name])
+        self.assertEqual(self.recorded(plan, 'failed.json'), [failed.name])
+        self.assertEqual(app.read_metadata(written)[0]['Series'], 'Æther')
 
     def test_one_failing_archive_does_not_strand_the_rest_and_is_retried_daily(self):
         # Senua's probe P1. Before: the ticket needed attention and the comics after the failure were never written.
