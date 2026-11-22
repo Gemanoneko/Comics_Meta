@@ -52,8 +52,12 @@ class Engine extends EventEmitter {
     const out=fs.openSync(this.log,'a');
     // PYTHONDONTWRITEBYTECODE reaches every descendant (supervisor workers too): no __pycache__ may
     // appear in the installed runtime, whose closure the next update verifies (0.2.2->0.2.3 failure).
+    // PYTHONUTF8 reaches them the same way (0.6.10): the broker, app.py and both workers run in UTF-8 mode, so their
+    // standard streams (this log) take any file name. Since 0.6.7 a worker has real standard handles, and its cp1251
+    // stdout could not encode a name with U+00B2 (superscript two), which stopped the batch. Every launch in the tree
+    // (engine_host.py, supervisor.py) must stay free of -I and -E: either makes Python ignore the variable.
     const owner=this.owner=crypto.randomBytes(32).toString('hex');
-    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port),'--closure-wait',String(this.closureWaitS)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_CLAIM_OWNER:owner,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
+    try {this.child=spawn(python,['-B',host,'--parent-pid',String(process.pid),'--port',String(this.port),'--closure-wait',String(this.closureWaitS)],{cwd:path.dirname(host),windowsHide:true,stdio:['pipe',out,out],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',PYTHONUTF8:'1',COMICS_META_STATE_ROOT:this.state,COMICS_META_LOCK_DIR:this.locks,COMICS_META_SHELL_TOKEN:this.token,COMICS_META_CLAIM_OWNER:owner,COMICS_META_7ZIP:path.join(this.resources,'runtime','7zip','7z.exe')}});}finally{fs.closeSync(out);}
     // A private authenticated owner stream supplements the held PID handle.
     // EOF proves this exact shell is gone even if Windows reuses its PID.
     // Only the current broker's exit changes the engine's state (code review v0.6.7 Q3). Since 0.6.7 a forced stop

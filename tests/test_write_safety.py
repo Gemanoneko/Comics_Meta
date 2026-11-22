@@ -27,7 +27,7 @@ import time
 import unittest
 import warnings
 import zipfile
-from contextlib import ExitStack, contextmanager, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 import app
@@ -37,6 +37,7 @@ import coverage_priority
 import discovery_state
 import in_book
 import pipeline_config
+import provenance
 import providers
 import research
 import worker
@@ -245,24 +246,40 @@ class FailingArchiveTests(Isolated):
     """F23."""
 
     def test_worker_finishes_unicode_batch_with_legacy_stdout(self):
-        written = make_comic(self.folder / 'Æther 001.cbz')
-        skipped = make_comic(self.folder / 'Æther 002.cbz')
-        failed = make_comic(self.folder / 'Æther 003.cbz', duplicate=True)
+        # cp1251 has no byte for 'Æ' or '²'.
+        written = make_comic(self.folder / 'Æther² 001.cbz')
+        skipped = make_comic(self.folder / 'Æther² 002.cbz')
+        failed = make_comic(self.folder / 'Æther² 003.cbz', duplicate=True)
         app.scan([str(self.folder)], recursive=False)
-        plan = self.plan([self.entry(path, {'Series': 'Æther'}) for path in (written, skipped, failed)])
+        plan = self.plan([self.entry(path, {'Series': 'Æther²'}) for path in (written, skipped, failed)])
         rewrite(skipped, SERGEI)
         ticket = worker.enqueue(plan)
+        empty = self.root / 'Æther² (nothing to look up)'
+        empty.mkdir()
+        self.enterContext(patch.object(provenance, '_backfilled', set()))
+        log = io.BytesIO()
 
-        # Even a discarded Windows stream encodes each filename before discarding its bytes.
-        with io.TextIOWrapper(io.BytesIO(), encoding='cp1251', errors='strict') as stream, redirect_stdout(stream):
+        # Even a discarded Windows stream encodes each filename before discarding its bytes. The log (stderr) is a
+        # cp1251 stream too, but it escapes what it cannot encode, so a line sent there is never refused.
+        with io.TextIOWrapper(io.BytesIO(), encoding='cp1251', errors='strict') as stream, redirect_stdout(stream), \
+                io.TextIOWrapper(log, encoding='cp1251', errors='backslashreplace') as errors, redirect_stderr(errors):
             self.assertTrue(worker.run_one())
+            # The worker's other step, a folder pass. Its one message that can still name a file (a write-ledger
+            # backfill that failed) went to stdout until 0.6.10 and ended the pass with a 'charmap' error.
+            with patch.object(provenance, 'backfill', side_effect=PermissionError(13, 'Permission denied', written.name)) as backfill:
+                self.assertFalse(worker.discover_selection({'folder': str(empty), 'coverage_only': False}))
+            backfill.assert_called_once_with()
+            errors.flush()
+            logged = log.getvalue().decode('cp1251')
 
         status = json.loads(ticket.read_text(encoding='utf-8'))
         self.assertEqual(status['state'], 'complete', status.get('error'))
         self.assertEqual(self.recorded(plan, 'results.json'), [written.name])
         self.assertEqual(self.recorded(plan, 'skipped.json'), [skipped.name])
         self.assertEqual(self.recorded(plan, 'failed.json'), [failed.name])
-        self.assertEqual(app.read_metadata(written)[0]['Series'], 'Æther')
+        self.assertEqual(app.read_metadata(written)[0]['Series'], 'Æther²')
+        self.assertIn('Write ledger backfill not completed: PermissionError', logged)
+        self.assertIn(r'\xc6ther\xb2 001.cbz', logged)  # The file is named in the log, escaped.
 
     def test_one_failing_archive_does_not_strand_the_rest_and_is_retried_daily(self):
         # Senua's probe P1. Before: the ticket needed attention and the comics after the failure were never written.

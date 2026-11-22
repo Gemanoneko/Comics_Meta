@@ -26,6 +26,7 @@ from their batch folders (backfill): the plan entry gives the source, the fields
 the starting signature; results.json gives the verified output signature.
 """
 import json
+import sys
 from pathlib import Path
 import app
 
@@ -202,4 +203,6 @@ def ensure_backfilled():
             backfill()
     except Exception as exc:
         # Safe either way: without the backfill, v0.1.3's in-book values are never replaced.
-        print('Write ledger backfill not completed:', type(exc).__name__, str(exc)[:300])
+        # To stderr (engine.log), which escapes what it cannot encode. This runs in the worker, whose stdout is
+        # discarded but still encodes: on a cp1251 stream a file name in the message raised from here (0.6.10).
+        print('Write ledger backfill not completed:', type(exc).__name__, str(exc)[:300], file=sys.stderr, flush=True)

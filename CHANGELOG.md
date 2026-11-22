@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.6.10] - 2026-11-22
+
+### Fixed
+
+- A file name with a character the Windows code page lacks (for example "²") no longer stops a background batch with a `charmap` error. The worker no longer prints per-comic lines to its discarded output.
+- The engine and its workers run in UTF-8 mode, so `engine.log` takes any file name. A failed write-ledger backfill is now reported there.
+
 ## [v0.6.9] - 2026-11-20
 
 ### Fixed

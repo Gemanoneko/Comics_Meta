@@ -23,6 +23,11 @@ test('engine and all its descendants run with bytecode writing off',async()=>{
     assert.equal(require('../engine.cjs').CLOSURE_WAIT_S,30);
     assert.deepEqual(args.slice(-2),['--closure-wait','30']);
     assert.equal(options.env.PYTHONDONTWRITEBYTECODE,'1');  // Inherited by the supervisor's workers.
+    // 0.6.10: the whole tree runs in UTF-8 mode. A cp1251 stream cannot encode every file name (U+00B2, superscript
+    // two), and since 0.6.7 the workers have real standard handles. -I or -E on the launch would make Python ignore
+    // the variable.
+    assert.equal(options.env.PYTHONUTF8,'1');
+    assert.equal(args.some(arg=>arg==='-I'||arg==='-E'),false);
     assert.equal(options.windowsHide,true);
   }finally{assert.equal(path.dirname(root),path.resolve(scratch));await fs.rm(root,{recursive:true});}
 });
