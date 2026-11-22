@@ -12,6 +12,9 @@ function loadPolicy(env,version){if(env.COMICS_META_QA!=='1')return null;
   const artifact=policy.artifact;if(!artifact||artifact.version!==policy.nextVersion||!Number.isSafeInteger(artifact.size)||artifact.size<1||artifact.size>2*1024**3||typeof artifact.sha512!=='string'||Buffer.from(artifact.sha512,'base64').length!==64||Buffer.from(artifact.sha512,'base64').toString('base64')!==artifact.sha512||artifact.name!=='Comic-Metadata-Setup-'+policy.nextVersion+'.exe')fail();
   // Optional: the engine's closure wait in seconds, so a QA run can check that the quit dialog's number follows it.
   if(policy.closureWaitSeconds!==undefined&&(!Number.isInteger(policy.closureWaitSeconds)||policy.closureWaitSeconds<1||policy.closureWaitSeconds>120))fail();
+  // Optional: true asks the shell for its tray in this QA profile. Only for a run on a separate desktop with no shell
+  // tray (scripts/qa/private-desktop.py): on the user's own desktop a tray registers an icon with Explorer.
+  if(policy.tray!==undefined&&typeof policy.tray!=='boolean')fail();
   const installDirectory=safePath(policy.installDirectory,root);const profile=safePath(path.join(root,'profile'),root);const cache=safePath(path.join(root,'cache'),root);const state=safePath(path.join(root,'state'),root);const locks=safePath(path.join(root,'locks'),root);
   return Object.freeze({...policy,root,installDirectory,profile,cache,state,locks,feedURL:feed.href,artifact:Object.freeze({...artifact})});
 }

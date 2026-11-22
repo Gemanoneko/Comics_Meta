@@ -163,8 +163,10 @@ if(!locked){app.exit(0);}else{
       finally{if(!settled){try{engine?.recordLeftover();}catch(error){log(error);}}exit();}},2500);});
     window.once('ready-to-show',()=>{if(!qa)window.show();});window.loadFile(path.join(__dirname,'startup.html'));
     Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'&File',submenu:[{label:'&Exit',accelerator:'Ctrl+Q',click:()=>quit()}]},{label:'&Edit',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'&View',submenu:[{role:'reload'},{role:'forceReload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},{role:'zoomIn'},{role:'zoomOut'},{role:'togglefullscreen'}]}]));
-    // QA profiles are offscreen. Windows Sandbox exercises the ordinary installed shell.
-    if(!qa)try{const icon=trayImage('processing');if(icon.isEmpty())throw Error('Tray image missing');tray=new Tray(icon);tray.on('click',show);tray.on('double-click',show);}catch(error){log(error);tray=null;}
+    // A QA profile has no tray. On the user's own desktop a tray registers an icon with Explorer under his logon: a
+    // second icon beside his app's, and a record in his Windows profile. A QA policy with "tray": true gets the tray
+    // on this same line. Use it only on a separate desktop that has no shell tray (scripts/qa/private-desktop.py).
+    if(!qa||qaPolicy.tray===true)try{const icon=trayImage('processing');if(icon.isEmpty())throw Error('Tray image missing');tray=new Tray(icon);tray.on('click',show);tray.on('double-click',show);}catch(error){log(error);tray=null;}
     engine=new Engine({resources:app.isPackaged?process.resourcesPath:path.join(__dirname,'..','build','staged'),state:stateRoot,locks:qa?qaPolicy.locks:path.join(local,'ComicsMeta','locks'),port:qa?qaPolicy.enginePort:8765,log:path.join(logFolder,'engine.log')});if(qaPolicy?.closureWaitSeconds)engine.closureWaitS=qaPolicy.closureWaitSeconds;
     stopper=new GracefulStop(engine);stopper.on('stage',stoppingDialog);stopper.on('finished',()=>{if(quitting)return;closeDialog();state.stopping=null;broadcast();});  // A quit keeps both until exit().
     const {autoUpdater}=require('electron-updater');

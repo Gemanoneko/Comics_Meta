@@ -7,6 +7,11 @@
 - A file name with a character the Windows code page lacks (for example "²") no longer stops a background batch with a `charmap` error. The worker no longer prints per-comic lines to its discarded output.
 - The engine and its workers run in UTF-8 mode, so `engine.log` takes any file name. A failed write-ledger backfill is now reported there.
 
+### Changed
+
+- Testing only; normal use is unchanged. A private QA profile no longer creates a tray icon, so a test run puts no second icon beside the real app's and leaves no tray record in Windows.
+- Testing only. The release smoke can ask for the tray with `"tray": true` in its QA policy. That run must be started through `scripts/qa/private-desktop.py`, on a separate desktop that has no shell tray.
+
 ## [v0.6.9] - 2026-11-20
 
 ### Fixed

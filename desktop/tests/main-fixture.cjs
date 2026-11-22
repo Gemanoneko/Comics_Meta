@@ -5,8 +5,9 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),{pat
 const desktop=path.join(__dirname,'..');
 const source=fs.readFileSync(path.join(desktop,'main.cjs'),'utf8');
 const flush=async(times=5)=>{for(let i=0;i<times;i++)await new Promise(resolve=>setImmediate(resolve));};
-function mainFixture({engine:engineOptions={},realStopper=false}={}){
-  const f={windows:[],handlers:{},logs:[],quits:0,trayMenu:null,trayDestroyed:false,clock:0,timers:new Map(),nextTimer:1,engine:null,stopper:null,files:new Map()};
+// qaPolicy: a stand-in for the loaded QA policy (a private QA profile). Without it the shell runs as installed.
+function mainFixture({engine:engineOptions={},realStopper=false,qaPolicy=null}={}){
+  const f={windows:[],handlers:{},logs:[],quits:0,trays:0,trayMenu:null,trayDestroyed:false,clock:0,timers:new Map(),nextTimer:1,engine:null,stopper:null,files:new Map()};
   class Window extends EventEmitter{
     constructor(options){super();this.options=options;this.visible=false;this.shown=0;this.shownInactive=0;this.focused=0;this.destroyed=false;this.loads=[];this.url='';this.sent=[];
       this.webContents=Object.assign(new EventEmitter(),{send:(channel,value)=>this.sent.push([channel,structuredClone(value)]),setWindowOpenHandler(){},mainFrame:{},getURL:()=>this.url,stop(){}});f.windows.push(this);}
@@ -28,17 +29,18 @@ function mainFixture({engine:engineOptions={},realStopper=false}={}){
       resolve:value=>{this.busy=false;this.emit('finished');resolve(value);},reject:error=>{this.busy=false;this.emit('finished');reject(error);}};});}
     cancel(){this.cancels++;}force(){this.forces++;}}
   class Updates extends EventEmitter{constructor(){super();this.state={phase:'idle'};}}
-  class Tray extends EventEmitter{setImage(){}setToolTip(value){f.trayTip=value;}setContextMenu(menu){f.trayMenu=menu;}destroy(){f.trayDestroyed=true;}}
+  class Tray extends EventEmitter{constructor(){super();f.trays++;}setImage(){}setToolTip(value){f.trayTip=value;}setContextMenu(menu){f.trayMenu=menu;}destroy(){f.trayDestroyed=true;}}
   const app=new EventEmitter();let ready;
-  Object.assign(app,{getVersion:()=>'0.6.7',getPath:()=>path.resolve('fixture-profile'),requestSingleInstanceLock:()=>true,setAppUserModelId(){},isPackaged:false,
+  Object.assign(app,{getVersion:()=>'0.6.7',getPath:()=>path.resolve('fixture-profile'),requestSingleInstanceLock:()=>true,setAppUserModelId(){},setPath(){},isPackaged:false,
     whenReady:()=>({then(callback){ready=callback;return {catch(){}};}}),quit(){f.quits++;},exit(){}});
   const fakeFs={readFileSync(file){if(!f.files.has(file))throw Object.assign(Error('ENOENT'),{code:'ENOENT'});return f.files.get(file);},mkdirSync(){},existsSync:file=>f.files.has(file),
     appendFileSync(_file,value){f.logs.push(String(value));},writeFileSync(file,value){f.files.set(file,String(value));},renameSync(from,to){f.files.set(to,f.files.get(from));f.files.delete(from);}};
+  const session={defaultSession:{webRequest:{onBeforeRequest(){}}}};  // A QA profile filters requests and sets its feed.
   const electron={app,BrowserWindow:Window,Tray,Menu:{buildFromTemplate:value=>value,setApplicationMenu(){}},Notification:{isSupported:()=>false},
     nativeTheme:{},nativeImage:{createFromPath:()=>({isEmpty:()=>false,addRepresentation(){}})},screen:{getPrimaryDisplay:()=>({workArea:{x:0,y:0,width:1600,height:900}}),getAllDisplays:()=>[{workArea:{x:0,y:0,width:1600,height:900}}]},
-    shell:{openPath:()=>Promise.resolve('')},ipcMain:{handle(name,fn){f.handlers[name]=fn;}},session:{},dialog:{}};
+    shell:{openPath:()=>Promise.resolve('')},ipcMain:{handle(name,fn){f.handlers[name]=fn;}},session,dialog:{}};
   const modules={electron,'node:fs':fakeFs,'node:path':path,'node:url':require('node:url'),'node:crypto':require('node:crypto'),
-    './engine.cjs':{Engine},'./graceful-stop.cjs':realStopper?{GracefulStop:class extends require('../graceful-stop.cjs').GracefulStop{constructor(engine){super(engine);f.stopper=this;}}}:{GracefulStop:Stop},'./updates.cjs':{Updates},'./qa-policy.cjs':{loadPolicy:()=>null},'electron-updater':{autoUpdater:{}}};
+    './engine.cjs':{Engine},'./graceful-stop.cjs':realStopper?{GracefulStop:class extends require('../graceful-stop.cjs').GracefulStop{constructor(engine){super(engine);f.stopper=this;}}}:{GracefulStop:Stop},'./updates.cjs':{Updates},'./qa-policy.cjs':{loadPolicy:()=>qaPolicy,requestAllowed:()=>true},'electron-updater':{autoUpdater:{app:{},netSession:session.defaultSession,setFeedURL(){}}}};
   vm.runInNewContext(source,{require(name){if(!Object.hasOwn(modules,name))throw Error('Unexpected dependency '+name);return modules[name];},
     __dirname:desktop,process:{platform:'win32',env:{LOCALAPPDATA:path.resolve('fixture-local')},resourcesPath:''},console,
     performance:{now:()=>f.clock},setTimeout(fn,ms){const id=f.nextTimer++;f.timers.set(id,{fn,at:f.clock+Math.max(0,ms||0)});return id;},clearTimeout:id=>f.timers.delete(id),setInterval:()=>0});
